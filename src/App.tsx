@@ -2,41 +2,90 @@ import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { ThemeProvider as NextThemesProvider } from 'next-themes';
+import { ColorThemeProvider } from './providers/ColorThemeProvider';
+
+// Layouts
+import TenantLayout from './components/Layout/TenantLayout';
+import SuperadminLayout from './components/Layout/SuperadminLayout';
+
+// Pages
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Products from './pages/Products';
 import Inventory from './pages/Inventory';
 import Orders from './pages/Orders';
 import Compliance from './pages/Compliance';
+import Clients from './pages/Clients';
 import NotFound from './pages/NotFound';
+
+// Tenant Pages
+import Quotes from './pages/tenant/Quotes';
+import Sales from './pages/tenant/Sales';
+import NFe from './pages/tenant/NFe';
+import Financials from './pages/tenant/Financials';
+import RoutesPage from './pages/tenant/Routes';
+import TenantSettings from './pages/tenant/Settings';
+import UserManagement from './pages/tenant/UserManagement';
+
+// Superadmin Pages
+import TenantManagement from './pages/superadmin/TenantManagement';
+import PlanManagement from './pages/superadmin/PlanManagement';
+import ModuleManagement from './pages/superadmin/ModuleManagement';
+import SystemHealth from './pages/superadmin/SystemHealth';
+import SystemSettings from './pages/superadmin/SystemSettings';
+import BackupManagement from './pages/superadmin/BackupManagement';
+import TenantDetails from './pages/superadmin/TenantDetails';
 
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/products" element={<Products />} />
-          <Route path="/inventory" element={<Inventory />} />
-          <Route path="/orders" element={<Orders />} />
-          <Route path="/compliance" element={<Compliance />} />
-          <Route path="/compliance/guia33" element={<Compliance />} />
-          <Route path="/compliance/temperature" element={<Compliance />} />
-          <Route path="/compliance/quality" element={<Compliance />} />
-          <Route path="/compliance/alerts" element={<Compliance />} />
-          <Route path="/nfe" element={<Dashboard />} />
-          <Route path="/clients" element={<Dashboard />} />
-          <Route path="/settings" element={<Dashboard />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <NextThemesProvider attribute="class" defaultTheme="system" enableSystem>
+    <ColorThemeProvider defaultTheme="zinc" storageKey="medmanager-color-theme">
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              
+              {/* Tenant Routes */}
+              <Route path="/" element={<TenantLayout />}>
+                <Route index element={<Navigate to="/dashboard" replace />} />
+                <Route path="dashboard" element={<Dashboard />} />
+                <Route path="products" element={<Products />} />
+                <Route path="inventory" element={<Inventory />} />
+                <Route path="orders" element={<Orders />} />
+                <Route path="quotes" element={<Quotes />} />
+                <Route path="sales" element={<Sales />} />
+                <Route path="financials" element={<Financials />} />
+                <Route path="routes" element={<RoutesPage />} />
+                <Route path="compliance" element={<Compliance />} />
+                <Route path="nfe" element={<NFe />} />
+                <Route path="clients" element={<Clients />} />
+                <Route path="users" element={<UserManagement />} />
+                <Route path="settings" element={<TenantSettings />} />
+              </Route>
+
+              {/* Superadmin Routes */}
+              <Route path="/superadmin" element={<SuperadminLayout />}>
+                <Route index element={<Navigate to="/superadmin/tenants" replace />} />
+                <Route path="tenants" element={<TenantManagement />} />
+                <Route path="tenants/:tenantId" element={<TenantDetails />} />
+                <Route path="plans" element={<PlanManagement />} />
+                <Route path="modules" element={<ModuleManagement />} />
+                <Route path="health" element={<SystemHealth />} />
+                <Route path="settings" element={<SystemSettings />} />
+                <Route path="backups" element={<BackupManagement />} />
+              </Route>
+
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ColorThemeProvider>
+  </NextThemesProvider>
 );
 
 export default App;

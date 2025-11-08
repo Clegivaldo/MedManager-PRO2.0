@@ -11,10 +11,12 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Bell, Search, User, LogOut, Settings, HelpCircle, Shield } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { ThemeSelector } from '@/components/ThemeSelector';
+import { Link } from 'react-router-dom';
 
 export default function Header() {
   return (
-    <header className="border-b bg-white px-6 py-4">
+    <header className="border-b bg-card px-6 py-4 dark:bg-background">
       <div className="flex items-center justify-between">
         {/* Busca Global */}
         <div className="flex items-center space-x-4 flex-1 max-w-md">
@@ -28,7 +30,7 @@ export default function Header() {
         </div>
 
         {/* Status e Ações */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-2">
           {/* Status de Conformidade */}
           <div className="flex items-center space-x-2">
             <Shield className="h-4 w-4 text-green-600" />
@@ -36,6 +38,9 @@ export default function Header() {
               Conforme ANVISA
             </Badge>
           </div>
+
+          {/* Theme Selector */}
+          <ThemeSelector />
 
           {/* Notificações */}
           <DropdownMenu>
@@ -77,7 +82,7 @@ export default function Header() {
               <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                 <Avatar className="h-10 w-10">
                   <AvatarImage src="/avatars/user.jpg" alt="Usuário" />
-                  <AvatarFallback className="bg-blue-600 text-white">
+                  <AvatarFallback className="bg-primary text-primary-foreground">
                     <User className="h-5 w-5" />
                   </AvatarFallback>
                 </Avatar>
@@ -96,20 +101,24 @@ export default function Header() {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <User className="mr-2 h-4 w-4" />
-                <span>Perfil</span>
+              <DropdownMenuItem asChild>
+                <Link to="/users">
+                  <User className="mr-2 h-4 w-4" />
+                  <span>Perfil</span>
+                </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Settings className="mr-2 h-4 w-4" />
-                <span>Configurações</span>
+              <DropdownMenuItem asChild>
+                <Link to="/settings">
+                  <Settings className="mr-2 h-4 w-4" />
+                  <span>Configurações</span>
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuItem>
                 <HelpCircle className="mr-2 h-4 w-4" />
                 <span>Suporte</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-red-600">
+              <DropdownMenuItem className="text-red-600 focus:text-red-500 focus:bg-red-100/80">
                 <LogOut className="mr-2 h-4 w-4" />
                 <span>Sair</span>
               </DropdownMenuItem>
