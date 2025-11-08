@@ -27,6 +27,7 @@ import Financials from './pages/tenant/Financials';
 import RoutesPage from './pages/tenant/Routes';
 import TenantSettings from './pages/tenant/Settings';
 import UserManagement from './pages/tenant/UserManagement';
+import Audit from './pages/tenant/Audit';
 
 // Superadmin Pages
 import TenantManagement from './pages/superadmin/TenantManagement';
@@ -65,6 +66,7 @@ const App = () => (
                 <Route path="clients" element={<Clients />} />
                 <Route path="users" element={<UserManagement />} />
                 <Route path="settings" element={<TenantSettings />} />
+                <Route path="audit" element={<Audit />} />
               </Route>
 
               {/* Superadmin Routes */}

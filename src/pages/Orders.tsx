@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,13 +23,22 @@ import {
 import NewOrderModal from '@/components/tenant/modals/NewOrderModal';
 import OrderDetailsModal from '@/components/tenant/modals/OrderDetailsModal';
 import EditOrderModal from '@/components/tenant/modals/EditOrderModal';
+import EmptyState from '@/components/EmptyState';
+import TableSkeleton from '@/components/TableSkeleton';
 
 export default function Orders() {
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 1000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const orders = [
     {
@@ -152,7 +161,7 @@ export default function Orders() {
           <p className="text-gray-600 mt-1">Controle completo de vendas e entregas</p>
         </div>
         
-        <Dialog>
+        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>
             <Button className="bg-blue-600 hover:bg-blue-700">
               <Plus className="h-4 w-4 mr-2" />
@@ -161,11 +170,6 @@ export default function Orders() {
           </DialogTrigger>
           <NewOrderModal />
         </Dialog>
-      </div>
-
-      {/* Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        {/* ... cards ... */}
       </div>
 
       <Card className="border-0 shadow-sm mb-6">
@@ -204,65 +208,81 @@ export default function Orders() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Pedido</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Prioridade</TableHead>
-                <TableHead>Itens</TableHead>
-                <TableHead>Valor Total</TableHead>
-                <TableHead>Entrega</TableHead>
-                <TableHead>Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredOrders.map((order) => (
-                <TableRow key={order.id}>
-                  <TableCell>
-                    <div className="flex items-center space-x-3">
-                      <div className="bg-blue-100 p-2 rounded-lg">
-                        {getStatusIcon(order.status)}
-                      </div>
-                      <div>
-                        <p className="font-medium">{order.id}</p>
-                        <p className="text-sm text-gray-500">{order.clientCode}</p>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <User className="h-4 w-4 text-gray-400" />
-                      <span>{order.client}</span>
-                      {order.prescription && (
-                        <FileText className="h-4 w-4 text-blue-600" title="Requer Prescrição" />
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-sm">{order.date}</TableCell>
-                  <TableCell>{getStatusBadge(order.status)}</TableCell>
-                  <TableCell>{getPriorityBadge(order.priority)}</TableCell>
-                  <TableCell className="text-center">{order.items}</TableCell>
-                  <TableCell className="font-medium">
-                    R$ {order.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </TableCell>
-                  <TableCell className="text-sm">{order.deliveryDate}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <Button variant="ghost" size="sm" onClick={() => handleViewDetails(order)}>
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleEdit(order)}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
+          {loading ? (
+            <TableSkeleton columns={9} />
+          ) : filteredOrders.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Pedido</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Data</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Prioridade</TableHead>
+                  <TableHead>Itens</TableHead>
+                  <TableHead>Valor Total</TableHead>
+                  <TableHead>Entrega</TableHead>
+                  <TableHead>Ações</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredOrders.map((order) => (
+                  <TableRow key={order.id}>
+                    <TableCell>
+                      <div className="flex items-center space-x-3">
+                        <div className="bg-blue-100 p-2 rounded-lg">
+                          {getStatusIcon(order.status)}
+                        </div>
+                        <div>
+                          <p className="font-medium">{order.id}</p>
+                          <p className="text-sm text-gray-500">{order.clientCode}</p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        <User className="h-4 w-4 text-gray-400" />
+                        <span>{order.client}</span>
+                        {order.prescription && (
+                          <FileText className="h-4 w-4 text-blue-600" title="Requer Prescrição" />
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm">{order.date}</TableCell>
+                    <TableCell>{getStatusBadge(order.status)}</TableCell>
+                    <TableCell>{getPriorityBadge(order.priority)}</TableCell>
+                    <TableCell className="text-center">{order.items}</TableCell>
+                    <TableCell className="font-medium">
+                      R$ {order.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </TableCell>
+                    <TableCell className="text-sm">{order.deliveryDate}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        <Button variant="ghost" size="sm" onClick={() => handleViewDetails(order)}>
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleEdit(order)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <EmptyState
+              icon={<ShoppingCart className="h-16 w-16" />}
+              title="Nenhum pedido encontrado"
+              description="Crie um novo pedido para começar a gerenciar suas vendas."
+              action={
+                <Button onClick={() => setIsCreateOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Novo Pedido
+                </Button>
+              }
+            />
+          )}
         </CardContent>
       </Card>
       

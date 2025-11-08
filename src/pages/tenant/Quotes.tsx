@@ -17,11 +17,13 @@ import {
 } from 'lucide-react';
 import NewQuoteModal from '@/components/tenant/modals/NewQuoteModal';
 import QuoteDetailsModal from '@/components/tenant/modals/QuoteDetailsModal';
+import EditQuoteModal from '@/components/tenant/modals/EditQuoteModal';
 
 export default function Quotes() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedQuote, setSelectedQuote] = useState<any>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
 
   const quotes = [
     { id: '#ORC-2024-051', client: 'Drogaria Pacheco', date: '2024-11-08', validity: '2024-11-15', total: 5230.00, status: 'sent' },
@@ -33,6 +35,11 @@ export default function Quotes() {
   const handleViewDetails = (quote: any) => {
     setSelectedQuote(quote);
     setIsDetailsOpen(true);
+  };
+
+  const handleEdit = (quote: any) => {
+    setSelectedQuote(quote);
+    setIsEditOpen(true);
   };
 
   const getStatusBadge = (status: string) => {
@@ -108,7 +115,7 @@ export default function Quotes() {
                   <TableCell>
                     <div className="flex items-center space-x-2">
                       <Button variant="ghost" size="sm" onClick={() => handleViewDetails(quote)}><Eye className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="sm"><Edit className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="sm" onClick={() => handleEdit(quote)}><Edit className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="sm"><FileText className="h-4 w-4" /></Button>
                     </div>
                   </TableCell>
@@ -121,6 +128,9 @@ export default function Quotes() {
 
       <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
         <QuoteDetailsModal quote={selectedQuote} />
+      </Dialog>
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <EditQuoteModal quote={selectedQuote} />
       </Dialog>
     </>
   );

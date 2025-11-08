@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Package,
@@ -13,20 +13,26 @@ import {
   Filter,
   Edit,
   Eye,
-  AlertTriangle,
-  Calendar,
   Shield
 } from 'lucide-react';
 import ProductDetailsModal from '@/components/tenant/modals/ProductDetailsModal';
 import EditProductModal from '@/components/tenant/modals/EditProductModal';
+import EmptyState from '@/components/EmptyState';
+import TableSkeleton from '@/components/TableSkeleton';
 
 export default function Products() {
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editMode, setEditMode] = useState<'create' | 'edit'>('create');
+
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 1000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const products = [
     { id: 'PRD-001', name: 'Paracetamol 500mg', category: 'Analgésico', anvisa: 'MS-1.0573.0240', batch: 'L240801', expiry: '2025-08-01', stock: 1250, minStock: 100, price: 12.50, status: 'active', controlled: false, temperature: '15-30°C' },
@@ -77,11 +83,6 @@ export default function Products() {
         </Button>
       </div>
 
-      {/* Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        {/* ... cards ... */}
-      </div>
-
       <Card className="border-0 shadow-sm mb-6">
         <CardContent className="p-6">
           <div className="flex items-center space-x-4">
@@ -109,53 +110,69 @@ export default function Products() {
           <CardDescription>{filteredProducts.length} produtos encontrados</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Produto</TableHead>
-                <TableHead>Categoria</TableHead>
-                <TableHead>ANVISA</TableHead>
-                <TableHead>Estoque</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredProducts.map((product) => (
-                <TableRow key={product.id}>
-                  <TableCell>
-                    <div className="flex items-center space-x-3">
-                      <div className="bg-blue-100 p-2 rounded-lg"><Package className="h-4 w-4 text-blue-600" /></div>
-                      <div>
-                        <p className="font-medium">{product.name}</p>
-                        <p className="text-sm text-gray-500">{product.id}</p>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <span>{product.category}</span>
-                      {product.controlled && <Shield className="h-4 w-4 text-red-600" title="Substância Controlada" />}
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-mono text-sm">{product.anvisa}</TableCell>
-                  <TableCell>
-                    <div className="text-right">
-                      <p className="font-medium">{product.stock.toLocaleString()}</p>
-                      <p className="text-xs text-gray-500">Mín: {product.minStock}</p>
-                    </div>
-                  </TableCell>
-                  <TableCell>{getStatusBadge(product.status, product.stock, product.minStock)}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <Button variant="ghost" size="sm" onClick={() => handleViewDetails(product)}><Eye className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleEdit(product)}><Edit className="h-4 w-4" /></Button>
-                    </div>
-                  </TableCell>
+          {loading ? (
+            <TableSkeleton columns={6} />
+          ) : filteredProducts.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Produto</TableHead>
+                  <TableHead>Categoria</TableHead>
+                  <TableHead>ANVISA</TableHead>
+                  <TableHead>Estoque</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Ações</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredProducts.map((product) => (
+                  <TableRow key={product.id}>
+                    <TableCell>
+                      <div className="flex items-center space-x-3">
+                        <div className="bg-blue-100 p-2 rounded-lg"><Package className="h-4 w-4 text-blue-600" /></div>
+                        <div>
+                          <p className="font-medium">{product.name}</p>
+                          <p className="text-sm text-gray-500">{product.id}</p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        <span>{product.category}</span>
+                        {product.controlled && <Shield className="h-4 w-4 text-red-600" title="Substância Controlada" />}
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-mono text-sm">{product.anvisa}</TableCell>
+                    <TableCell>
+                      <div className="text-right">
+                        <p className="font-medium">{product.stock.toLocaleString()}</p>
+                        <p className="text-xs text-gray-500">Mín: {product.minStock}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell>{getStatusBadge(product.status, product.stock, product.minStock)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        <Button variant="ghost" size="sm" onClick={() => handleViewDetails(product)}><Eye className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleEdit(product)}><Edit className="h-4 w-4" /></Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <EmptyState
+              icon={<Package className="h-16 w-16" />}
+              title="Nenhum produto encontrado"
+              description="Cadastre seu primeiro produto para começar a gerenciar seu catálogo."
+              action={
+                <Button onClick={handleCreate}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Novo Produto
+                </Button>
+              }
+            />
+          )}
         </CardContent>
       </Card>
 

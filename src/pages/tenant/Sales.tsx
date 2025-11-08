@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog } from '@/components/ui/dialog';
 import {
   DollarSign,
   Search,
@@ -12,9 +13,12 @@ import {
   CreditCard,
   Receipt
 } from 'lucide-react';
+import SaleDetailsModal from '@/components/tenant/modals/SaleDetailsModal';
 
 export default function Sales() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedSale, setSelectedSale] = useState<any>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   const sales = [
     {
@@ -45,6 +49,11 @@ export default function Sales() {
       nfeStatus: 'pending',
     },
   ];
+
+  const handleViewDetails = (sale: any) => {
+    setSelectedSale(sale);
+    setIsDetailsOpen(true);
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -155,7 +164,7 @@ export default function Sales() {
                   <TableCell>{getStatusBadge(sale.nfeStatus)}</TableCell>
                   <TableCell>
                     <div className="flex items-center space-x-2">
-                      <Button variant="ghost" size="sm"><Eye className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="sm" onClick={() => handleViewDetails(sale)}><Eye className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="sm" disabled={sale.nfeStatus !== 'pending'}><FileText className="h-4 w-4" /></Button>
                     </div>
                   </TableCell>
@@ -165,6 +174,9 @@ export default function Sales() {
           </Table>
         </CardContent>
       </Card>
+      <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+        <SaleDetailsModal sale={selectedSale} />
+      </Dialog>
     </>
   );
 }

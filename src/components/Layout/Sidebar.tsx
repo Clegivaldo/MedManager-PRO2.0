@@ -18,7 +18,8 @@ import {
   Route,
   ClipboardList,
   Banknote,
-  Users2
+  Users2,
+  History,
 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 
@@ -42,6 +43,7 @@ const menuItems = [
 
 const managementItems = [
     { title: 'Usuários', icon: Users2, href: '/users' },
+    { title: 'Auditoria', icon: History, href: '/audit' },
     { title: 'Configurações', icon: Settings, href: '/settings' },
 ]
 

@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogTrigger } from '@/components/ui/dialog';
 import {
   Truck,
   Plus,
@@ -10,11 +11,16 @@ import {
   User,
   Clock,
   Check,
-  Route as RouteIcon,
+  Eye,
   Bot
 } from 'lucide-react';
+import NewRouteModal from '@/components/tenant/modals/NewRouteModal';
+import RouteDetailsModal from '@/components/tenant/modals/RouteDetailsModal';
 
 export default function RoutesPage() {
+  const [selectedRoute, setSelectedRoute] = useState<any>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+
   const routes = [
     {
       id: 'ROTA-001',
@@ -45,6 +51,11 @@ export default function RoutesPage() {
     },
   ];
 
+  const handleViewDetails = (route: any) => {
+    setSelectedRoute(route);
+    setIsDetailsOpen(true);
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'planning':
@@ -70,10 +81,15 @@ export default function RoutesPage() {
                 <Bot className="h-4 w-4 mr-2" />
                 Otimizar Rotas
             </Button>
-            <Button className="bg-blue-600 hover:bg-blue-700">
-                <Plus className="h-4 w-4 mr-2" />
-                Nova Rota
-            </Button>
+            <Dialog>
+                <DialogTrigger asChild>
+                    <Button className="bg-blue-600 hover:bg-blue-700">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Nova Rota
+                    </Button>
+                </DialogTrigger>
+                <NewRouteModal />
+            </Dialog>
         </div>
       </div>
 
@@ -105,6 +121,7 @@ export default function RoutesPage() {
                     <TableHead>Rota</TableHead>
                     <TableHead>Motorista</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -118,6 +135,9 @@ export default function RoutesPage() {
                         </div>
                       </TableCell>
                       <TableCell>{getStatusBadge(route.status)}</TableCell>
+                      <TableCell>
+                        <Button variant="ghost" size="sm" onClick={() => handleViewDetails(route)}><Eye className="h-4 w-4" /></Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -126,6 +146,9 @@ export default function RoutesPage() {
           </Card>
         </div>
       </div>
+      <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+        <RouteDetailsModal route={selectedRoute} />
+      </Dialog>
     </>
   );
 }

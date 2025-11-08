@@ -6,10 +6,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog } from '@/components/ui/dialog';
 import { DatabaseBackup, Play, History, CheckCircle, Clock, AlertTriangle, Building } from 'lucide-react';
 import BackupHistoryModal from '@/components/superadmin/modals/BackupHistoryModal';
+import StartBackupConfirmationModal from '@/components/superadmin/modals/StartBackupConfirmationModal';
+import { toast } from 'sonner';
 
 export default function BackupManagement() {
   const [selectedTenant, setSelectedTenant] = useState<any>(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [confirmTenantName, setConfirmTenantName] = useState<string | undefined>(undefined);
 
   const tenants = [
     { id: 'TEN-001', name: 'Farmácia Central LTDA', lastBackup: '2024-11-08 02:00', status: 'completed' },
@@ -21,6 +25,19 @@ export default function BackupManagement() {
   const handleViewHistory = (tenant: any) => {
     setSelectedTenant(tenant);
     setIsHistoryOpen(true);
+  };
+
+  const handleStartBackup = (tenant?: any) => {
+    setConfirmTenantName(tenant?.name);
+    setIsConfirmOpen(true);
+  };
+
+  const onConfirmBackup = () => {
+    const message = confirmTenantName
+      ? `Backup para ${confirmTenantName} iniciado.`
+      : "Backup geral do sistema iniciado.";
+    toast.info(message);
+    setIsConfirmOpen(false);
   };
 
   const getStatusBadge = (status: string) => {
@@ -50,7 +67,7 @@ export default function BackupManagement() {
             <p className="font-semibold">08 de Novembro de 2024, 03:00</p>
             <div className="mt-1">{getStatusBadge('completed')}</div>
           </div>
-          <Button><Play className="h-4 w-4 mr-2" />Criar Novo Backup Geral</Button>
+          <Button onClick={() => handleStartBackup()}><Play className="h-4 w-4 mr-2" />Criar Novo Backup Geral</Button>
         </CardContent>
       </Card>
 
@@ -89,7 +106,7 @@ export default function BackupManagement() {
                         <History className="h-4 w-4 mr-2" />
                         Histórico
                       </Button>
-                      <Button variant="default" size="sm">
+                      <Button variant="default" size="sm" onClick={() => handleStartBackup(tenant)}>
                         <Play className="h-4 w-4 mr-2" />
                         Iniciar Backup
                       </Button>
@@ -105,6 +122,12 @@ export default function BackupManagement() {
       <Dialog open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
         <BackupHistoryModal tenant={selectedTenant} />
       </Dialog>
+      <StartBackupConfirmationModal
+        open={isConfirmOpen}
+        onOpenChange={setIsConfirmOpen}
+        onConfirm={onConfirmBackup}
+        tenantName={confirmTenantName}
+      />
     </>
   );
 }

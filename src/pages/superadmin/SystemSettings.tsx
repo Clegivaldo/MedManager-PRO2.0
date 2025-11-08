@@ -1,11 +1,26 @@
+import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import SaveConfirmationModal from '@/components/superadmin/modals/SaveConfirmationModal';
+import { toast } from 'sonner';
 
 export default function SystemSettings() {
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+
+  const handleSave = () => {
+    setIsConfirmOpen(true);
+  };
+
+  const onConfirmSave = () => {
+    // Lógica de salvamento aqui
+    toast.success("Configurações salvas com sucesso!");
+    setIsConfirmOpen(false);
+  };
+
   return (
     <>
       <div className="mb-8">
@@ -71,8 +86,9 @@ export default function SystemSettings() {
         </Card>
       </Tabs>
       <div className="mt-6 flex justify-end">
-        <Button>Salvar Alterações</Button>
+        <Button onClick={handleSave}>Salvar Alterações</Button>
       </div>
+      <SaveConfirmationModal open={isConfirmOpen} onOpenChange={setIsConfirmOpen} onConfirm={onConfirmSave} />
     </>
   );
 }

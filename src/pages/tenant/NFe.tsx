@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogTrigger } from '@/components/ui/dialog';
 import {
   FileText,
   Plus,
@@ -14,6 +15,7 @@ import {
   Clock
 } from 'lucide-react';
 import CancelNFeModal from '@/components/tenant/modals/CancelNFeModal';
+import NewNFeModal from '@/components/tenant/modals/NewNFeModal';
 
 export default function NFe() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -53,10 +55,15 @@ export default function NFe() {
           <h1 className="text-3xl font-bold text-gray-900">Notas Fiscais (NFe)</h1>
           <p className="text-gray-600 mt-1">Emita e gerencie suas notas fiscais eletrônicas</p>
         </div>
-        <Button className="bg-blue-600 hover:bg-blue-700">
-          <Plus className="h-4 w-4 mr-2" />
-          Emitir NFe Avulsa
-        </Button>
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button className="bg-blue-600 hover:bg-blue-700">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Emitir NFe Avulsa
+                </Button>
+            </DialogTrigger>
+            <NewNFeModal />
+        </Dialog>
       </div>
 
       <Card className="border-0 shadow-sm">

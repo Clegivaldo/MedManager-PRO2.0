@@ -13,8 +13,10 @@ import {
   Thermometer,
   Shield,
   FileText,
-  Activity
+  Activity,
+  Star
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export default function Dashboard() {
   const metrics = [
@@ -58,28 +60,32 @@ export default function Dashboard() {
       title: 'Estoque Baixo',
       description: '23 produtos abaixo do estoque mínimo',
       icon: AlertTriangle,
-      count: 23
+      count: 23,
+      link: '/inventory'
     },
     {
       type: 'error',
       title: 'Vencimento Próximo',
       description: '8 lotes vencem em 30 dias',
       icon: AlertTriangle,
-      count: 8
+      count: 8,
+      link: '/products'
     },
     {
       type: 'info',
       title: 'Guia 33 Pendente',
       description: '5 transportes aguardam aprovação',
       icon: FileText,
-      count: 5
+      count: 5,
+      link: '/compliance'
     },
     {
       type: 'success',
       title: 'Temperatura OK',
       description: 'Todos os sensores dentro da faixa',
       icon: Thermometer,
-      count: 0
+      count: 0,
+      link: '/compliance'
     }
   ];
 
@@ -107,6 +113,14 @@ export default function Dashboard() {
     }
   ];
 
+  const topProducts = [
+      { name: 'Paracetamol 500mg', sales: 1250 },
+      { name: 'Dipirona 500mg', sales: 980 },
+      { name: 'Amoxicilina 875mg', sales: 750 },
+      { name: 'Losartana 50mg', sales: 620 },
+      { name: 'Vitamina C', sales: 510 },
+  ];
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Processando': return 'bg-yellow-100 text-yellow-800';
@@ -118,11 +132,11 @@ export default function Dashboard() {
 
   const getAlertColor = (type: string) => {
     switch (type) {
-      case 'warning': return 'border-yellow-200 bg-yellow-50';
-      case 'error': return 'border-red-200 bg-red-50';
-      case 'info': return 'border-blue-200 bg-blue-50';
-      case 'success': return 'border-green-200 bg-green-50';
-      default: return 'border-gray-200 bg-gray-50';
+      case 'warning': return 'border-yellow-200 bg-yellow-50 hover:bg-yellow-100';
+      case 'error': return 'border-red-200 bg-red-50 hover:bg-red-100';
+      case 'info': return 'border-blue-200 bg-blue-50 hover:bg-blue-100';
+      case 'success': return 'border-green-200 bg-green-50 hover:bg-green-100';
+      default: return 'border-gray-200 bg-gray-50 hover:bg-gray-100';
     }
   };
 
@@ -178,7 +192,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent className="space-y-4">
               {alerts.map((alert, index) => (
-                <div key={index} className={`p-4 rounded-lg border ${getAlertColor(alert.type)}`}>
+                <Link to={alert.link} key={index} className={`block p-4 rounded-lg border transition-colors ${getAlertColor(alert.type)}`}>
                   <div className="flex items-start justify-between">
                     <div className="flex items-start space-x-3">
                       <alert.icon className="h-5 w-5 mt-0.5" />
@@ -193,98 +207,71 @@ export default function Dashboard() {
                       </Badge>
                     )}
                   </div>
-                </div>
+                </Link>
               ))}
             </CardContent>
           </Card>
         </div>
 
         <div className="lg:col-span-2">
-          <Card className="border-0 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <Activity className="h-5 w-5 mr-2 text-green-600" />
-                  Pedidos Recentes
-                </div>
-                <Button variant="outline" size="sm">
-                  Ver Todos
-                </Button>
-              </CardTitle>
-              <CardDescription>
-                Últimos pedidos processados no sistema
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {recentOrders.map((order, index) => (
-                  <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                    <div className="flex items-center space-x-4">
-                      <div className="bg-blue-100 p-2 rounded-lg">
-                        <ShoppingCart className="h-4 w-4 text-blue-600" />
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-sm">{order.id}</h4>
-                        <p className="text-xs text-gray-600">{order.client}</p>
-                        <p className="text-xs text-gray-500">{order.items} itens</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-medium text-sm">{order.value}</p>
-                      <Badge className={`text-xs ${getStatusColor(order.status)}`}>
-                        {order.status}
-                      </Badge>
-                    </div>
+          <div className="space-y-6">
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <Activity className="h-5 w-5 mr-2 text-green-600" />
+                    Pedidos Recentes
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to="/orders">Ver Todos</Link>
+                  </Button>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {recentOrders.map((order, index) => (
+                    <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                      <div className="flex items-center space-x-4">
+                        <div className="bg-blue-100 p-2 rounded-lg">
+                          <ShoppingCart className="h-4 w-4 text-blue-600" />
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-sm">{order.id}</h4>
+                          <p className="text-xs text-gray-600">{order.client}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-medium text-sm">{order.value}</p>
+                        <Badge className={`text-xs ${getStatusColor(order.status)}`}>
+                          {order.status}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
 
-      <div className="mt-8">
-        <Card className="border-0 shadow-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Shield className="h-5 w-5 mr-2 text-green-600" />
-              Status de Conformidade ANVISA
-            </CardTitle>
-            <CardDescription>
-              Monitoramento em tempo real das exigências regulatórias
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">RDC 430 - Temperatura</span>
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                </div>
-                <Progress value={100} className="h-2" />
-                <p className="text-xs text-gray-600">Todos os sensores funcionando</p>
-              </div>
-              
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Portaria 344/98</span>
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                </div>
-                <Progress value={95} className="h-2" />
-                <p className="text-xs text-gray-600">Controle de substâncias ativo</p>
-              </div>
-              
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Guia 33</span>
-                  <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                </div>
-                <Progress value={85} className="h-2" />
-                <p className="text-xs text-gray-600">5 transportes pendentes</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            <Card className="border-0 shadow-sm">
+                <CardHeader>
+                    <CardTitle className="flex items-center">
+                        <Star className="h-5 w-5 mr-2 text-yellow-500" />
+                        Top 5 Produtos Vendidos (Mês)
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <ul className="space-y-3">
+                        {topProducts.map((product, index) => (
+                            <li key={index} className="flex items-center justify-between text-sm">
+                                <span className="font-medium">{product.name}</span>
+                                <span className="text-muted-foreground">{product.sales.toLocaleString()} unidades</span>
+                            </li>
+                        ))}
+                    </ul>
+                </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
     </>
   );

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -5,8 +6,12 @@ import { Label } from '@/components/ui/label';
 import { DollarSign, Truck, LineChart, Bot, Package, FileText, Banknote, Route, Shield, Users, Warehouse } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Info } from 'lucide-react';
+import SaveConfirmationModal from '@/components/superadmin/modals/SaveConfirmationModal';
+import { toast } from 'sonner';
 
 export default function PlanManagement() {
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+
   const allModules = [
     { id: 'dashboard', name: 'Dashboard', icon: LineChart, core: true },
     { id: 'products', name: 'Gestão de Produtos', icon: Package, core: true },
@@ -45,6 +50,16 @@ export default function PlanManagement() {
       color: 'border-purple-500'
     },
   ];
+  
+  const handleSave = () => {
+    setIsConfirmOpen(true);
+  };
+
+  const onConfirmSave = () => {
+    // Lógica de salvamento aqui
+    toast.success("Planos atualizados com sucesso!");
+    setIsConfirmOpen(false);
+  };
 
   return (
     <>
@@ -93,13 +108,14 @@ export default function PlanManagement() {
               </div>
             </CardContent>
             <CardFooter>
-              <Button className="w-full" variant={plan.recommended ? 'default' : 'outline'}>
+              <Button className="w-full" variant={plan.recommended ? 'default' : 'outline'} onClick={handleSave}>
                 Salvar Alterações
               </Button>
             </CardFooter>
           </Card>
         ))}
       </div>
+      <SaveConfirmationModal open={isConfirmOpen} onOpenChange={setIsConfirmOpen} onConfirm={onConfirmSave} />
     </>
   );
 }
