@@ -1,0 +1,362 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Tabelas de Multitenancy (no banco master)
+model Tenant {
+  id                String    @id @default(uuid())
+  name              String
+  cnpj              String    @unique
+  databaseName      String    @unique @map("database_name")
+  databaseUser      String    @unique @map("database_user")
+  databasePassword  String    @map("database_password")
+  plan              String    @default("starter")
+  status            String    @default("active")
+  metadata          Json?     @default("{}")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  
+  // Relacionamentos
+  auditLogs         AuditLog[]
+  
+  @@map("tenants")
+}
+
+model AuditLog {
+  id          String    @id @default(uuid())
+  tenantId    String    @map("tenant_id")
+  userId      String?   @map("user_id")
+  tableName   String    @map("table_name")
+  recordId    String?   @map("record_id")
+  operation   String
+  oldData     Json?     @map("old_data")
+  newData     Json?     @map("new_data")
+  ipAddress   String?   @map("ip_address")
+  userAgent   String?   @map("user_agent")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  
+  // Relacionamentos
+  tenant        Tenant?   @relation(fields: [tenantId], references: [id])
+  
+  @@map("audit_log")
+  @@index([tenantId, createdAt])
+  @@index([tableName, recordId])
+}
+
+// Schema do tenant (será replicado em cada banco de tenant)
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  name          String
+  password      String
+  role          UserRole  @default(OPERATOR)
+  permissions   Json?     @default("[]")
+  isActive      Boolean   @default(true) @map("is_active")
+  lastAccess    DateTime? @map("last_access")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  
+  // Relacionamentos
+  auditLogs     AuditLog[]
+  stockMovements StockMovement[]
+  invoices      Invoice[]
+  
+  @@map("users")
+  @@index([email])
+  @@index([role])
+}
+
+model Product {
+  id                  String          @id @default(uuid())
+  internalCode        String          @unique @map("internal_code")
+  name                String
+  activeIngredient    String?         @map("active_ingredient")
+  laboratory          String?
+  gtin                String?         @unique
+  anvisaCode          String?         @map("anvisa_code")
+  therapeuticClass    String?         @map("therapeutic_class")
+  productType         ProductType     @map("product_type")
+  storage             Json?           // Armazenamento: {minTemp, maxTemp, humidity, type}
+  isControlled        Boolean         @default(false) @map("is_controlled")
+  controlledSubstance String?         @map("controlled_substance")
+  stripe              StripeType      @default(NONE) @map("stripe")
+  shelfLifeDays       Int?            @map("shelf_life_days")
+  isActive            Boolean         @default(true) @map("is_active")
+  createdAt           DateTime        @default(now()) @map("created_at")
+  updatedAt           DateTime        @updatedAt @map("updated_at")
+  
+  // Relacionamentos
+  batches       Batch[]
+  stock         Stock[]
+  invoiceItems  InvoiceItem[]
+  
+  @@map("products")
+  @@index([internalCode])
+  @@index([gtin])
+  @@index([isControlled])
+}
+
+model Batch {
+  id                String    @id @default(uuid())
+  productId         String    @map("product_id")
+  batchNumber       String    @map("batch_number")
+  manufacturer        String?
+  quantityEntry       Int       @map("quantity_entry")
+  quantityCurrent     Int       @map("quantity_current")
+  expirationDate      DateTime  @map("expiration_date")
+  manufactureDate     DateTime? @map("manufacture_date")
+  entryInvoice        String?   @map("entry_invoice")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  
+  // Relacionamentos
+  product       Product         @relation(fields: [productId], references: [id])
+  stock         Stock[]
+  invoiceItems  InvoiceItem[]
+  stockMovements StockMovement[]
+  
+  @@unique([productId, batchNumber])
+  @@map("batches")
+  @@index([expirationDate])
+  @@index([batchNumber])
+}
+
+model Stock {
+  id                  String    @id @default(uuid())
+  productId           String    @map("product_id")
+  batchId             String    @map("batch_id")
+  availableQuantity   Int       @map("available_quantity")
+  reservedQuantity    Int       @default(0) @map("reserved_quantity")
+  location            String?
+  lastMovement        DateTime? @map("last_movement")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+  
+  // Relacionamentos
+  product         Product         @relation(fields: [productId], references: [id])
+  batch           Batch           @relation(fields: [batchId], references: [id])
+  stockMovements  StockMovement[]
+  
+  @@unique([productId, batchId])
+  @@index([location])
+}
+
+model StockMovement {
+  id                String            @id @default(uuid())
+  stockId           String            @map("stock_id")
+  userId            String            @map("user_id")
+  movementType      MovementType      @map("movement_type")
+  quantity          Int
+  previousBalance   Int               @map("previous_balance")
+  newBalance        Int               @map("new_balance")
+  reason            String?
+  referenceDocument String?           @map("reference_document")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  
+  // Relacionamentos
+  stock   Stock @relation(fields: [stockId], references: [id])
+  user    User  @relation(fields: [userId], references: [id])
+  
+  @@map("stock_movements")
+  @@index([stockId, createdAt])
+  @@index([movementType])
+}
+
+model Customer {
+  id              String    @id @default(uuid())
+  cnpjCpf         String    @unique @map("cnpj_cpf")
+  companyName     String    @map("company_name")
+  tradeName       String?   @map("trade_name")
+  customerType    String    @map("customer_type") // FARMACIA, HOSPITAL, DROGARIA
+  address         Json?     // Endereço completo
+  phone           String?
+  email           String?
+  isActive        Boolean   @default(true) @map("is_active")
+  creditLimit     Decimal?  @map("credit_limit")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  
+  // Relacionamentos
+  invoices      Invoice[]
+  controlledPrescriptions ControlledPrescription[]
+  
+  @@map("customers")
+  @@index([cnpjCpf])
+  @@index([customerType])
+}
+
+model Supplier {
+  id                      String    @id @default(uuid())
+  cnpj                    String    @unique
+  companyName             String    @map("company_name")
+  tradeName               String?   @map("trade_name")
+  address                 Json?     // Endereço completo
+  phone                   String?
+  email                   String?
+  isAnvisaEnabled         Boolean   @default(true) @map("is_anvisa_enabled")
+  anvisaLicenseExpiry     DateTime? @map("anvisa_license_expiry")
+  isActive                Boolean   @default(true) @map("is_active")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+  
+  // Relacionamentos
+  supplierEvaluations SupplierEvaluation[]
+  
+  @@map("suppliers")
+  @@index([cnpj])
+  @@index([isAnvisaEnabled])
+}
+
+model SupplierEvaluation {
+  id            String    @id @default(uuid())
+  supplierId    String    @map("supplier_id")
+  evaluationDate  DateTime  @default(now()) @map("evaluation_date")
+  score           Int       // 0-100
+  criteria        Json?     // Critérios de avaliação
+  notes           String?
+  isApproved      Boolean   @default(true) @map("is_approved")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  
+  // Relacionamentos
+  supplier  Supplier @relation(fields: [supplierId], references: [id])
+  
+  @@map("supplier_evaluations")
+  @@index([supplierId, evaluationDate])
+}
+
+model Invoice {
+  id              String    @id @default(uuid())
+  userId          String    @map("user_id")
+  customerId      String?   @map("customer_id")
+  supplierId      String?   @map("supplier_id")
+  accessKey       String?   @unique @map("access_key") // Chave de acesso NF-e
+  number          Int       @map("number")
+  series          Int       @map("series")
+  invoiceType     InvoiceType @map("invoice_type") // ENTRADA, SAIDA, DEVOLUTION
+  issueDate       DateTime  @map("issue_date")
+  totalValue      Decimal   @map("total_value")
+  status          InvoiceStatus @default(DRAFT)
+  xmlContent      String?   @map("xml_content") // XML da NF-e
+  protocol        String?   @map("protocol")
+  authorizationDate DateTime? @map("authorization_date")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  
+  // Relacionamentos
+  user          User          @relation(fields: [userId], references: [id])
+  customer      Customer?     @relation(fields: [customerId], references: [id])
+  supplier      Supplier?     @relation(fields: [supplierId], references: [id])
+  items         InvoiceItem[]
+  
+  @@unique([number, series, invoiceType])
+  @@map("invoices")
+  @@index([issueDate])
+  @@index([status])
+  @@index([accessKey])
+}
+
+model InvoiceItem {
+  id              String    @id @default(uuid())
+  invoiceId       String    @map("invoice_id")
+  productId       String    @map("product_id")
+  batchId         String    @map("batch_id")
+  quantity        Int
+  unitPrice       Decimal   @map("unit_price")
+  totalPrice      Decimal   @map("total_price")
+  discount        Decimal   @default(0)
+  cfop            String    // Código Fiscal de Operações
+  ncm             String?   // Nomenclatura Comum do Mercosul
+  icmsCst         String?   @map("icms_cst") // Código de Situação Tributária
+  icmsRate        Decimal?  @map("icms_rate") // Alíquota ICMS
+  
+  // Relacionamentos
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+  batch   Batch   @relation(fields: [batchId], references: [id])
+  
+  @@map("invoice_items")
+  @@index([invoiceId])
+  @@index([productId])
+  @@index([batchId])
+}
+
+model ControlledPrescription {
+  id              String    @id @default(uuid())
+  customerId      String    @map("customer_id")
+  prescriptionNumber String   @map("prescription_number")
+  issueDate       DateTime  @map("issue_date")
+  doctorName      String    @map("doctor_name")
+  doctorCrm       String    @map("doctor_crm")
+  doctorCrmState  String    @map("doctor_crm_state")
+  validityDays    Int       @map("validity_days")
+  isUsed          Boolean   @default(false) @map("is_used")
+  usedDate        DateTime? @map("used_date")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  
+  // Relacionamentos
+  customer  Customer @relation(fields: [customerId], references: [id])
+  
+  @@unique([prescriptionNumber, customerId])
+  @@map("controlled_prescriptions")
+  @@index([customerId, issueDate])
+  @@index([isUsed])
+}
+
+// Enums
+enum UserRole {
+  MASTER
+  ADMIN
+  PHARMACIST
+  OPERATIONS_MANAGER
+  OPERATOR
+  SALESPERSON
+  AUDITOR
+}
+
+enum ProductType {
+  COMMON
+  CONTROLLED
+  ANTIBIOTIC
+  PSYCHOTROPIC
+  SPECIAL
+}
+
+enum StripeType {
+  NONE
+  RED
+  YELLOW
+  BLACK
+}
+
+enum MovementType {
+  ENTRY
+  EXIT
+  TRANSFER_IN
+  TRANSFER_OUT
+  ADJUSTMENT_POSITIVE
+  ADJUSTMENT_NEGATIVE
+  DEVOLUTION
+  LOSS
+}
+
+enum InvoiceType {
+  ENTRY
+  EXIT
+  DEVOLUTION
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  AUTHORIZED
+  CANCELLED
+  DENIED
+  IN_CONTINGENCY
+}

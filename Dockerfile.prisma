@@ -1,0 +1,25 @@
+# Dockerfile para migrações do Prisma
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Instalar dependências do sistema
+RUN apk add --no-cache \
+    postgresql-client \
+    openssl
+
+# Copiar arquivos de configuração
+COPY package*.json ./
+COPY prisma ./prisma/
+
+# Instalar dependências
+RUN npm install
+
+# Gerar cliente Prisma
+RUN npx prisma generate
+
+# Script de entrada
+COPY docker/prisma/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]

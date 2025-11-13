@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: medmanager-postgres
+    environment:
+      POSTGRES_DB: medmanager_master
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_MULTIPLE_DATABASES: "tenant_1,tenant_2,tenant_3"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init-multiple-databases.sh:/docker-entrypoint-initdb.d/init-multiple-databases.sh
+      - ./docker/postgres/backups:/backups
+    networks:
+      - medmanager-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: medmanager-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - medmanager-network
+    restart: unless-stopped
+
+  # Serviço de backup automatizado
+  backup:
+    image: postgres:15-alpine
+    container_name: medmanager-backup
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      BACKUP_INTERVAL: 86400  # 24 horas
+      BACKUP_RETENTION: 30    # dias
+    volumes:
+      - ./docker/backup/backup.sh:/backup.sh
+      - ./docker/postgres/backups:/backups
+    depends_on:
+      - postgres
+    networks:
+      - medmanager-network
+    command: |
+      sh -c '
+      apk add --no-cache cronie
+      echo "0 2 * * * /backup.sh" | crontab -
+      crond -f
+      '
+
+  # Serviço de migrações do Prisma
+  prisma-migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.prisma
+    container_name: medmanager-prisma-migrate
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres123@postgres:5432/medmanager_master
+    volumes:
+      - ./prisma:/app/prisma
+    depends_on:
+      - postgres
+    networks:
+      - medmanager-network
+    command: |
+      sh -c '
+      npx prisma migrate deploy
+      npx prisma generate
+      '
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  medmanager-network:
+    driver: bridge
