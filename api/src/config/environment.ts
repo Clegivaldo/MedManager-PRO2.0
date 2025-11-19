@@ -8,7 +8,7 @@ dotenv.config();
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.string().default('3333'),
-  DATABASE_URL: z.string().url(),
+  DATABASE_URL: z.string(),
   REDIS_URL: z.string().optional(),
   JWT_SECRET: z.string().min(32),
   JWT_EXPIRES_IN: z.string().default('24h'),
@@ -28,6 +28,8 @@ const envSchema = z.object({
   ANVISA_SNGPC_ENDPOINT: z.string().optional(),
   ANVISA_SNCM_ENDPOINT: z.string().optional(),
   SEFAZ_NFE_ENDPOINT: z.string().optional(),
+  SEFAZ_CERT_PATH: z.string().optional(),
+  SEFAZ_CERT_PASSWORD: z.string().optional(),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.string().optional(),
   SMTP_USER: z.string().optional(),
@@ -61,11 +63,16 @@ export const config = {
   ANVISA_SNGPC_ENDPOINT: env.ANVISA_SNGPC_ENDPOINT,
   ANVISA_SNCM_ENDPOINT: env.ANVISA_SNCM_ENDPOINT,
   SEFAZ_NFE_ENDPOINT: env.SEFAZ_NFE_ENDPOINT,
+  SEFAZ_CERT_PATH: env.SEFAZ_CERT_PATH,
+  SEFAZ_CERT_PASSWORD: env.SEFAZ_CERT_PASSWORD,
   SMTP_HOST: env.SMTP_HOST,
   SMTP_PORT: env.SMTP_PORT,
   SMTP_USER: env.SMTP_USER,
   SMTP_PASS: env.SMTP_PASS,
   FROM_EMAIL: env.FROM_EMAIL,
+  isProduction: env.NODE_ENV === 'production',
+  isDevelopment: env.NODE_ENV === 'development',
+  isTest: env.NODE_ENV === 'test',
 } as const;
 
 // Validar configurações críticas
@@ -79,6 +86,3 @@ if (config.NODE_ENV === 'production') {
   }
 }
 
-export const isDevelopment = config.NODE_ENV === 'development';
-export const isProduction = config.NODE_ENV === 'production';
-export const isTest = config.NODE_ENV === 'test';

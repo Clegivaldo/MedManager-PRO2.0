@@ -1,27 +1,27 @@
-version: '3.8'
-
 services:
-  postgres:
+  db:
     image: postgres:15-alpine
-    container_name: medmanager-postgres
+    container_name: db
     environment:
       POSTGRES_DB: medmanager_master
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres123
-      POSTGRES_MULTIPLE_DATABASES: "tenant_1,tenant_2,tenant_3"
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./docker/postgres/init-multiple-databases.sh:/docker-entrypoint-initdb.d/init-multiple-databases.sh
-      - ./docker/postgres/backups:/backups
     networks:
       - medmanager-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
-    container_name: medmanager-redis
+    container_name: redis
     ports:
       - "6380:6379"
     volumes:
@@ -29,50 +29,57 @@ services:
     networks:
       - medmanager-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
 
-  # Serviço de backup automatizado
-  backup:
-    image: postgres:15-alpine
-    container_name: medmanager-backup
+  backend:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: backend
     environment:
-      POSTGRES_HOST: postgres
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres123
-      BACKUP_INTERVAL: 86400  # 24 horas
-      BACKUP_RETENTION: 30    # dias
-    volumes:
-      - ./docker/backup/backup.sh:/backup.sh
-      - ./docker/postgres/backups:/backups
+      NODE_ENV: production
+      PORT: 3333
+      DATABASE_URL: postgresql://postgres:postgres123@db:5432/medmanager_master
+      JWT_SECRET: devaccesssecretdevaccesssecretdev!
+      JWT_REFRESH_SECRET: devrefreshsecretdevrefreshsecretdev!
+      REDIS_URL: redis://redis:6379
+      CERTIFICATE_ENCRYPTION_KEY: medmanager-cert-encryption-key-2024-change-in-production!
     depends_on:
-      - postgres
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "3333:3333"
     networks:
       - medmanager-network
-    command: |
-      sh -c '
-      apk add --no-cache cronie
-      echo "0 2 * * * /backup.sh" | crontab -
-      crond -f
-      '
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3333/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    restart: unless-stopped
 
-  # Serviço de migrações do Prisma
-  prisma-migrate:
+  frontend:
     build:
       context: .
-      dockerfile: Dockerfile.prisma
-    container_name: medmanager-prisma-migrate
+      dockerfile: Dockerfile.web
+    container_name: frontend
     environment:
-      DATABASE_URL: postgresql://postgres:postgres123@postgres:5432/medmanager_master
-    volumes:
-      - ./prisma:/app/prisma
+      VITE_API_BASE_URL: http://localhost:3333/api/v1
     depends_on:
-      - postgres
+      backend:
+        condition: service_healthy
+    ports:
+      - "5173:5173"
     networks:
       - medmanager-network
-    command: |
-      sh -c '
-      npx prisma migrate deploy
-      npx prisma generate
-      '
+    restart: unless-stopped
 
 volumes:
   postgres_data:

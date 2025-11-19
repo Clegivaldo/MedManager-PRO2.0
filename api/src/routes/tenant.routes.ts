@@ -1,79 +1,54 @@
 import { Router } from 'express';
-import { tenantController } from '../controllers/tenant.controller.js';
 import { authenticateToken } from '../middleware/auth.js';
-import { requireRole } from '../middleware/rbac.js';
-import { validateParams } from '../middleware/validation.js';
-import { z } from 'zod';
+import { requirePermission } from '../middleware/permissions.js';
+import { logger } from '../utils/logger.js';
+import { TenantController } from '../controllers/tenant.controller.js';
 
-const router = Router();
+const controller = new TenantController();
 
-// Schema de validação de parâmetros
-const paramsSchema = z.object({
-  id: z.string().uuid()
+const router: Router = Router();
+
+// Rotas de gerenciamento de tenants (para superadmin)
+router.get('/', authenticateToken, requirePermission('TENANT_LIST'), async (req, res, next) => {
+  try {
+    res.json({ message: 'Tenant list endpoint - implementar' });
+  } catch (error) {
+    next(error);
+  }
 });
 
-/**
- * Rotas de gerenciamento de tenants (Superadmin)
- */
+router.post('/', authenticateToken, requirePermission('TENANT_CREATE'), async (req, res, next) => {
+  try {
+    res.json({ message: 'Tenant create endpoint - implementar' });
+  } catch (error) {
+    next(error);
+  }
+});
 
-// Listar todos os tenants (com filtros opcionais)
-router.get(
-  '/tenants',
-  authenticateToken,
-  requireRole(['SUPERADMIN']),
-  tenantController.listTenants
-);
+router.get('/:id', authenticateToken, requirePermission('TENANT_VIEW'), async (req, res, next) => {
+  try {
+    res.json({ message: 'Tenant view endpoint - implementar' });
+  } catch (error) {
+    next(error);
+  }
+});
 
-// Obter estatísticas dos tenants
-router.get(
-  '/tenants/stats',
-  authenticateToken,
-  requireRole(['SUPERADMIN']),
-  tenantController.getTenantStats
-);
+router.put('/:id', authenticateToken, requirePermission('TENANT_UPDATE'), async (req, res, next) => {
+  try {
+    res.json({ message: 'Tenant update endpoint - implementar' });
+  } catch (error) {
+    next(error);
+  }
+});
 
-// Criar novo tenant
-router.post(
-  '/tenants',
-  authenticateToken,
-  requireRole(['SUPERADMIN']),
-  tenantController.createTenant
-);
+router.delete('/:id', authenticateToken, requirePermission('TENANT_DELETE'), async (req, res, next) => {
+  try {
+    res.json({ message: 'Tenant delete endpoint - implementar' });
+  } catch (error) {
+    next(error);
+  }
+});
 
-// Obter tenant específico
-router.get(
-  '/tenants/:id',
-  authenticateToken,
-  requireRole(['SUPERADMIN']),
-  validateParams(paramsSchema),
-  tenantController.getTenant
-);
-
-// Atualizar tenant
-router.put(
-  '/tenants/:id',
-  authenticateToken,
-  requireRole(['SUPERADMIN']),
-  validateParams(paramsSchema),
-  tenantController.updateTenant
-);
-
-// Desativar tenant
-router.patch(
-  '/tenants/:id/deactivate',
-  authenticateToken,
-  requireRole(['SUPERADMIN']),
-  validateParams(paramsSchema),
-  tenantController.deactivateTenant
-);
-
-// Ativar tenant
-router.patch(
-  '/tenants/:id/activate',
-  authenticateToken,
-  requireRole(['SUPERADMIN']),
-  validateParams(paramsSchema),
-  tenantController.activateTenant
-);
+router.post('/:id/backup', authenticateToken, requirePermission('TENANT_BACKUP'), (req, res, next) => controller.backupTenant(req, res));
 
 export default router;

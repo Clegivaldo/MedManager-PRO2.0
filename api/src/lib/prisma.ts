@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { config } from '../config/environment.js';
 import { logger } from '../utils/logger.js';
+import { join } from 'path';
 
 // Cliente Prisma para o banco master (controle de tenants)
 export const prismaMaster = new PrismaClient({
@@ -29,8 +30,8 @@ interface TenantConnectionConfig {
 /**
  * Cria ou obtém cliente Prisma para um tenant específico
  */
-export function getTenantPrisma(config: TenantConnectionConfig): PrismaClient {
-  const { databaseName, databaseUser, databasePassword } = config;
+export function getTenantPrisma(conn: TenantConnectionConfig): PrismaClient {
+  const { databaseName, databaseUser, databasePassword } = conn;
   const poolKey = `${databaseName}:${databaseUser}`;
   
   // Verificar se já existe no pool
@@ -39,7 +40,15 @@ export function getTenantPrisma(config: TenantConnectionConfig): PrismaClient {
   }
   
   // Criar nova conexão
-  const connectionUrl = `postgresql://${databaseUser}:${databasePassword}@${config.DATABASE_URL.split('@')[1].split('/')[0]}/${databaseName}`;
+  let connectionUrl: string;
+  
+  if (config.isDevelopment && config.DATABASE_URL.startsWith('file:')) {
+    // Usar SQLite para desenvolvimento
+    connectionUrl = `file:./tenant_${databaseName}.db`;
+  } else {
+    // Usar PostgreSQL para produção
+    connectionUrl = `postgresql://${databaseUser}:${databasePassword}@${config.DATABASE_URL.split('@')[1].split('/')[0]}/${databaseName}`;
+  }
   
   const tenantPrisma = new PrismaClient({
     datasources: {
@@ -78,28 +87,35 @@ export function removeTenantPrisma(databaseName: string, databaseUser: string): 
  * Desconecta todos os clientes Prisma (para shutdown)
  */
 export async function disconnectAllPrisma(): Promise<void> {
+  if (shutdownState.hasDisconnected) return;
+  shutdownState.hasDisconnected = true;
   logger.info('Disconnecting all Prisma clients...');
-  
-  // Desconectar cliente master
-  await prismaMaster.$disconnect();
-  
-  // Desconectar todos os clientes de tenant
-  const disconnectPromises = Array.from(tenantPrismaPool.values()).map(client => 
-    client.$disconnect()
-  );
-  
-  await Promise.all(disconnectPromises);
+
+  try {
+    await prismaMaster.$disconnect();
+  } catch (e) {
+    logger.warn('Error disconnecting prismaMaster (ignored)', e as any);
+  }
+
+  const disconnectPromises = Array.from(tenantPrismaPool.values()).map(client => client.$disconnect());
+  await Promise.allSettled(disconnectPromises);
   tenantPrismaPool.clear();
-  
+
   logger.info('All Prisma clients disconnected');
 }
 
 /**
  * Verifica se o banco de dados de um tenant existe e está acessível
  */
-export async function validateTenantDatabase(config: TenantConnectionConfig): Promise<boolean> {
+export async function validateTenantDatabase(conn: TenantConnectionConfig & { DATABASE_URL?: string }): Promise<boolean> {
   try {
-    const connectionUrl = `postgresql://${config.databaseUser}:${config.databasePassword}@${config.DATABASE_URL.split('@')[1].split('/')[0]}/${config.databaseName}`;
+    let connectionUrl: string;
+    
+    if (config.isDevelopment && conn.DATABASE_URL?.startsWith('file:')) {
+      connectionUrl = `file:./tenant_${conn.databaseName}.db`;
+    } else {
+      connectionUrl = `postgresql://${conn.databaseUser}:${conn.databasePassword}@${conn.DATABASE_URL!.split('@')[1].split('/')[0]}/${conn.databaseName}`;
+    }
     
     const testClient = new PrismaClient({
       datasources: {
@@ -115,7 +131,7 @@ export async function validateTenantDatabase(config: TenantConnectionConfig): Pr
     
     return true;
   } catch (error) {
-    logger.error(`Failed to validate tenant database: ${config.databaseName}`, error);
+    logger.error(`Failed to validate tenant database: ${conn.databaseName}`, error);
     return false;
   }
 }
@@ -144,29 +160,37 @@ export async function createTenantDatabase(databaseName: string, databaseUser: s
 /**
  * Executa migrações no banco de dados de um tenant
  */
-export async function migrateTenantDatabase(config: TenantConnectionConfig): Promise<void> {
+export async function migrateTenantDatabase(conn: TenantConnectionConfig & { DATABASE_URL?: string }): Promise<void> {
   try {
     const { exec } = await import('child_process');
     const { promisify } = await import('util');
     const execAsync = promisify(exec);
     
-    const connectionUrl = `postgresql://${config.databaseUser}:${config.databasePassword}@${config.DATABASE_URL.split('@')[1].split('/')[0]}/${config.databaseName}`;
+    let connectionUrl: string;
+    
+    if (config.isDevelopment && conn.DATABASE_URL?.startsWith('file:')) {
+      connectionUrl = `file:./tenant_${conn.databaseName}.db`;
+    } else {
+      connectionUrl = `postgresql://${conn.databaseUser}:${conn.databasePassword}@${conn.DATABASE_URL!.split('@')[1].split('/')[0]}/${conn.databaseName}`;
+    }
     
     // Executar migrações do Prisma
     await execAsync(`DATABASE_URL="${connectionUrl}" npx prisma migrate deploy`, {
       cwd: process.cwd()
     });
     
-    logger.info(`Migrated tenant database: ${config.databaseName}`);
+    logger.info(`Migrated tenant database: ${conn.databaseName}`);
   } catch (error) {
-    logger.error(`Failed to migrate tenant database: ${config.databaseName}`, error);
+    logger.error(`Failed to migrate tenant database: ${conn.databaseName}`, error);
     throw error;
   }
 }
 
 // Cleanup no shutdown do processo
-process.on('beforeExit', async () => {
-  await disconnectAllPrisma();
+const shutdownState = { hasDisconnected: false };
+
+process.on('beforeExit', () => {
+  void disconnectAllPrisma();
 });
 
 process.on('SIGINT', async () => {

@@ -1,20 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { config } from '../config/environment.js';
+import type { JWTPayload } from '../services/auth.service.js';
 import { logger } from '../utils/logger.js';
 
-/**
- * Interface para o payload do JWT
- */
-export interface JWTPayload {
-  userId: string;
-  email: string;
-  role: string;
-  tenantId: string;
-  permissions: string[];
-  iat: number;
-  exp: number;
-}
+// Usa JWTPayload do serviço de autenticação para manter tipagem única
 
 /**
  * Extensão da interface Request para incluir o usuário autenticado
@@ -98,7 +88,7 @@ export function authorizeTenantAccess(req: Request, res: Response, next: NextFun
     }
 
     // Verificar se o usuário tem acesso ao tenant solicitado
-    if (req.user.role !== 'SUPERADMIN' && req.user.tenantId !== requestedTenantId) {
+    if (req.user.role !== 'SUPERADMIN' && req.user.tenantId && req.user.tenantId !== requestedTenantId) {
       return res.status(403).json({
         success: false,
         message: 'Access denied to this tenant'

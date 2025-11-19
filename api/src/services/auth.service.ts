@@ -8,13 +8,13 @@ export interface JWTPayload {
   userId: string;
   email: string;
   role: string;
-  tenantId: string;
+  tenantId?: string;
   permissions: string[];
 }
 
 export interface RefreshTokenPayload {
   userId: string;
-  tenantId: string;
+  tenantId?: string;
 }
 
 /**
@@ -22,7 +22,7 @@ export interface RefreshTokenPayload {
  */
 export function generateAccessToken(payload: JWTPayload): string {
   return jwt.sign(payload, config.JWT_SECRET, {
-    expiresIn: config.JWT_EXPIRES_IN,
+    expiresIn: config.JWT_EXPIRES_IN as any,
     issuer: 'medmanager-api',
     audience: 'medmanager-app'
   });
@@ -33,7 +33,7 @@ export function generateAccessToken(payload: JWTPayload): string {
  */
 export function generateRefreshToken(payload: RefreshTokenPayload): string {
   return jwt.sign(payload, config.JWT_REFRESH_SECRET, {
-    expiresIn: config.JWT_REFRESH_EXPIRES_IN,
+    expiresIn: config.JWT_REFRESH_EXPIRES_IN as any,
     issuer: 'medmanager-api',
     audience: 'medmanager-app'
   });

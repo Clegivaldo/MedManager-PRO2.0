@@ -1,5 +1,6 @@
-import express from 'express';
+import express, { Application } from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { config } from './config/environment.js';
 import { logger } from './utils/logger.js';
@@ -7,19 +8,57 @@ import { errorHandler } from './middleware/errorHandler.js';
 import { tenantMiddleware, optionalTenantMiddleware } from './middleware/tenantMiddleware.js';
 import authRouter from './routes/auth.routes.js';
 import tenantRouter from './routes/tenant.routes.js';
+import superadminRouter from './routes/superadmin.routes.js';
+import regulatoryRouter from './routes/regulatory.routes.js';
+import userRouter from './routes/user.routes.js';
+import productRouter from './routes/product.routes.js';
+import inventoryRouter from './routes/inventory.routes.js';
+import customerRouter from './routes/customer.routes.js';
+import supplierRouter from './routes/supplier.routes.js';
+import invoiceRouter from './routes/invoice.routes.js';
+import fiscalRouter from './routes/fiscal.routes.js';
+import dashboardRouter from './routes/dashboard.routes.js';
+import { authenticateToken } from './middleware/auth.js';
 
-const app = express();
+const app: Application = express();
 
-// Rate limiting
+// Helmet - Security headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    },
+  },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true,
+  },
+}));
+
+// Rate limiting - Geral
 const limiter = rateLimit({
-  windowMs: parseInt(config.RATE_LIMIT_WINDOW_MS),
-  max: parseInt(config.RATE_LIMIT_MAX_REQUESTS),
+  windowMs: config.RATE_LIMIT_WINDOW_MS,
+  max: config.RATE_LIMIT_MAX_REQUESTS,
   message: {
     error: 'Too many requests from this IP, please try again later.',
-    retryAfter: Math.ceil(parseInt(config.RATE_LIMIT_WINDOW_MS) / 1000)
+    retryAfter: Math.ceil(config.RATE_LIMIT_WINDOW_MS / 1000)
   },
   standardHeaders: true,
   legacyHeaders: false,
+});
+
+// Rate limiting - Login (mais restritivo)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 5, // 5 tentativas
+  message: {
+    error: 'Too many login attempts, please try again after 15 minutes.',
+  },
+  skipSuccessfulRequests: true,
 });
 
 // Middlewares globais
@@ -28,7 +67,9 @@ app.use(cors({
   origin: config.NODE_ENV === 'production' 
     ? ['https://medmanager.com', 'https://app.medmanager.com'] 
     : ['http://localhost:3000', 'http://localhost:5173'],
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-tenant-id'],
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -48,8 +89,21 @@ app.get('/health', (req, res) => {
 });
 
 // Rotas da API
-app.use(`/api/${config.API_VERSION}/auth`, authRouter);
+app.use(`/api/${config.API_VERSION}/auth`, authLimiter, authRouter);
 app.use(`/api/${config.API_VERSION}/tenants`, tenantRouter);
+
+// Protected routes (require authentication)
+app.use(authenticateToken);
+app.use(`/api/${config.API_VERSION}/superadmin`, superadminRouter);
+app.use(`/api/${config.API_VERSION}/regulatory`, regulatoryRouter);
+app.use(`/api/${config.API_VERSION}/users`, userRouter);
+app.use(`/api/${config.API_VERSION}/products`, productRouter);
+app.use(`/api/${config.API_VERSION}/inventory`, inventoryRouter);
+app.use(`/api/${config.API_VERSION}/customers`, customerRouter);
+app.use(`/api/${config.API_VERSION}/suppliers`, supplierRouter);
+app.use(`/api/${config.API_VERSION}/invoices`, invoiceRouter);
+app.use(`/api/${config.API_VERSION}/fiscal`, fiscalRouter);
+app.use(`/api/${config.API_VERSION}/dashboard`, dashboardRouter);
 
 // Rota de teste
 app.get('/api/test', (req, res) => {

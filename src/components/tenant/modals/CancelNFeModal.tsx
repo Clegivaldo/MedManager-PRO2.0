@@ -11,19 +11,37 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 
-interface NFe {
-  id: string;
-  client: string;
-}
-
 interface CancelNFeModalProps {
-  nfe: NFe | null;
+  nfe: { id: string; client: string } | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onConfirm?: (justification: string) => Promise<void> | void;
 }
 
-export default function CancelNFeModal({ nfe, open, onOpenChange }: CancelNFeModalProps) {
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+
+export default function CancelNFeModal({ nfe, open, onOpenChange, onConfirm }: CancelNFeModalProps) {
+  const [justification, setJustification] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
   if (!nfe) return null;
+
+  const handleConfirm = async () => {
+    if (!onConfirm) {
+      onOpenChange(false);
+      return;
+    }
+    if (justification.trim().length < 15) return;
+    try {
+      setSubmitting(true);
+      await onConfirm(justification.trim());
+      setJustification('');
+      onOpenChange(false);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -36,12 +54,24 @@ export default function CancelNFeModal({ nfe, open, onOpenChange }: CancelNFeMod
         </AlertDialogHeader>
         <div className="py-4">
             <Label htmlFor="justification">Justificativa de Cancelamento</Label>
-            <Textarea id="justification" placeholder="Digite a justificativa (mínimo 15 caracteres)..." className="mt-2"/>
+            <Textarea
+              id="justification"
+              placeholder="Digite a justificativa (mínimo 15 caracteres)..."
+              className="mt-2"
+              value={justification}
+              onChange={(e) => setJustification(e.target.value)}
+            />
         </div>
         <AlertDialogFooter>
           <AlertDialogCancel>Voltar</AlertDialogCancel>
-          <AlertDialogAction className="bg-red-600 hover:bg-red-700">
-            Confirmar Cancelamento
+          <AlertDialogAction asChild>
+            <Button
+              className="bg-red-600 hover:bg-red-700"
+              onClick={handleConfirm}
+              disabled={submitting || justification.trim().length < 15}
+            >
+              {submitting ? 'Cancelando...' : 'Confirmar Cancelamento'}
+            </Button>
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

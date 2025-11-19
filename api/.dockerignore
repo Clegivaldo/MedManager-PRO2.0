@@ -1,0 +1,13 @@
+node_modules
+dist
+.env
+.env.*
+*.log
+coverage
+test
+certificates
+*.pfx
+*.p12
+.git
+.gitignore
+README.md

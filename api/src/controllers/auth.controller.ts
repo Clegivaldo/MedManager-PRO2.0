@@ -6,7 +6,7 @@ import { logger } from '../utils/logger.js';
 import { config } from '../config/environment.js';
 import { validateRequest } from '../middleware/validation.js';
 import { z } from 'zod';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, UserRole } from '@prisma/client';
 
 // Schemas de validação
 const loginSchema = z.object({
@@ -93,7 +93,7 @@ export class AuthController {
             where: { email }
           });
 
-          if (user && user.role === 'SUPERADMIN') {
+          if (user && user.role === UserRole.SUPERADMIN) {
             userTenant = null; // Superadmin não tem tenant específico
           }
         }
@@ -123,7 +123,7 @@ export class AuthController {
         }
 
         // Gerar tokens
-        const tokens = this.generateTokens(user, userTenant?.id || 'master');
+    const tokens = this.generateTokens(user, userTenant?.id || 'master');
 
         // Registrar login
         logger.info(`User ${user.email} logged in successfully`);
@@ -137,13 +137,13 @@ export class AuthController {
               email: user.email,
               name: user.name,
               role: user.role,
-              tenant: userTenant ? {
-                id: userTenant.id,
-                name: userTenant.name,
-                cnpj: userTenant.cpnj,
-                plan: userTenant.plan
-              } : null
-            },
+          tenant: userTenant ? {
+            id: userTenant.id,
+            name: userTenant.name,
+            cnpj: userTenant.cnpj,
+            plan: userTenant.plan
+          } : null
+        },
             tokens
           }
         });
@@ -218,6 +218,15 @@ export class AuthController {
             }
           });
 
+          // Enforce plan limits (users per tenant)
+          const planLimits: Record<string, number> = { starter: 5, professional: 20, enterprise: 100 };
+          const maxUsers = planLimits[tenant.plan] ?? 5;
+          const currentUsers = await tenantPrisma.user.count();
+          if (currentUsers >= maxUsers) {
+            await tenantPrisma.$disconnect();
+            return res.status(403).json({ success: false, message: 'Plan user limit reached' });
+          }
+
           // Verificar se o email já existe
           const existingUser = await tenantPrisma.user.findUnique({
             where: { email }
@@ -238,21 +247,21 @@ export class AuthController {
               name,
               role,
               isActive: true,
-              metadata: metadata || {}
+              permissions: '[]'
             }
           });
 
           await tenantPrisma.$disconnect();
-        } else if (req.user.role === 'SUPERADMIN') {
+        } else if (req.user.role === UserRole.SUPERADMIN) {
           // Superadmin pode criar no banco mestre
           user = await prismaMaster.user.create({
             data: {
               email,
               password: hashedPassword,
               name,
-              role: 'SUPERADMIN',
+              role: UserRole.SUPERADMIN,
               isActive: true,
-              metadata: metadata || {}
+              permissions: '[]'
             }
           });
         } else {
@@ -298,7 +307,7 @@ export class AuthController {
         const { refreshToken } = req.body;
 
         // Verificar o refresh token
-        jwt.verify(refreshToken, config.JWT_REFRESH_SECRET, async (err, decoded) => {
+        jwt.verify(refreshToken, config.JWT_REFRESH_SECRET, async (err: any, decoded: any) => {
           if (err) {
             return res.status(403).json({
               success: false,
@@ -428,7 +437,7 @@ export class AuthController {
             role: user.role,
             isActive: user.isActive,
             createdAt: user.createdAt,
-            metadata: user.metadata
+            permissions: user.permissions as string[] || []
           },
           tenant: tenant ? {
             id: tenant.id,
@@ -484,16 +493,12 @@ export class AuthController {
       email: user.email,
       role: user.role,
       tenantId,
-      permissions: user.permissions || []
+      permissions: typeof user.permissions === 'string' ? JSON.parse(user.permissions) : (user.permissions || [])
     };
 
-    const accessToken = jwt.sign(payload, config.JWT_SECRET, {
-      expiresIn: config.JWT_EXPIRES_IN
-    });
+    const accessToken = jwt.sign(payload, config.JWT_SECRET, { expiresIn: config.JWT_EXPIRES_IN } as any);
 
-    const refreshToken = jwt.sign(payload, config.JWT_REFRESH_SECRET, {
-      expiresIn: config.JWT_REFRESH_EXPIRES_IN
-    });
+    const refreshToken = jwt.sign(payload, config.JWT_REFRESH_SECRET, { expiresIn: config.JWT_REFRESH_EXPIRES_IN } as any);
 
     return {
       accessToken,

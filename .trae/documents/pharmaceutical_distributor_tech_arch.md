@@ -50,83 +50,112 @@ graph TD
 ## 2. Descrição das Tecnologias
 
 ### Frontend
-- **React 18** com TypeScript para type safety
-- **Vite** como build tool para desenvolvimento rápido
-- **Tailwind CSS 3** para estilização responsiva
-- **React Query** para gerenciamento de estado do servidor
-- **React Hook Form** para formulários complexos
-- **Recharts** para visualização de dados e dashboards
-- **React Router v6** para navegação
-- **React Table** para tabelas avançadas com filtros
+
+* **React 18** com TypeScript para type safety
+
+* **Vite** como build tool para desenvolvimento rápido
+
+* **Tailwind CSS 3** para estilização responsiva
+
+* **React Query** para gerenciamento de estado do servidor
+
+* **React Hook Form** para formulários complexos
+
+* **Recharts** para visualização de dados e dashboards
+
+* **React Router v6** para navegação
+
+* **React Table** para tabelas avançadas com filtros
 
 ### Backend Services (Node.js)
-- **Express.js 4** para APIs RESTful
-- **TypeScript** para desenvolvimento type-safe
-- **Bull Queue** para processamento assíncrono de jobs
-- **Winston** para logging estruturado
-- **Joi** para validação de schemas
-- **PDFKit** para geração de relatórios PDF
-- **xml2js** para parsing de XML fiscais
+
+* **Express.js 4** para APIs RESTful
+
+* **TypeScript** para desenvolvimento type-safe
+
+* **Bull Queue** para processamento assíncrono de jobs
+
+* **Winston** para logging estruturado
+
+* **Joi** para validação de schemas
+
+* **PDFKit** para geração de relatórios PDF
+
+* **xml2js** para parsing de XML fiscais
 
 ### Supabase Platform
-- **PostgreSQL 15** como banco de dados principal
-- **Row Level Security (RLS)** para controle de acesso granular
-- **Supabase Auth** para autenticação multi-tenant
-- **Supabase Storage** para documentos e anexos
-- **Supabase Realtime** para atualizações em tempo real
-- **Supabase Edge Functions** para webhooks e automações
+
+* **PostgreSQL 15** como banco de dados principal
+
+* **Row Level Security (RLS)** para controle de acesso granular
+
+* **Supabase Auth** para autenticação multi-tenant
+
+* **Supabase Storage** para documentos e anexos
+
+* **Supabase Realtime** para atualizações em tempo real
+
+* **Supabase Edge Functions** para webhooks e automações
 
 ### Integrações e Serviços Externos
-- **Axios** para consumo de APIs externas
-- **node-cron** para agendamento de tarefas
-- **nodemailer** para envio de emails transacionais
-- **socket.io** para notificações real-time
-- **sharp** para processamento de imagens
+
+* **Axios** para consumo de APIs externas
+
+* **node-cron** para agendamento de tarefas
+
+* **nodemailer** para envio de emails transacionais
+
+* **socket.io** para notificações real-time
+
+* **sharp** para processamento de imagens
 
 ## 3. Definições de Rotas
 
 ### Rotas Frontend (React Router)
-| Rota | Propósito |
-|------|-----------|
-| / | Dashboard principal com KPIs e alertas |
-| /login | Página de autenticação com seleção de tenant |
-| /estoque | Gestão de estoque com tabela de produtos |
-| /estoque/produto/:id | Detalhes do produto e lotes |
-| /compras | Notas fiscais de entrada |
-| /vendas | Pedidos de vendas e notas de saída |
-| /clientes | Cadastro e gestão de clientes |
-| /fornecedores | Cadastro e gestão de fornecedores |
-| /controlados | Gestão especial de medicamentos controlados |
-| /rastreabilidade | Tracking de lotes e relatórios |
-| /auditoria | Logs e relatórios de auditoria |
-| /relatorios | Emissão de relatórios regulatórios |
-| /configuracoes | Configurações do sistema e tenant |
-| /usuarios | Gestão de usuários e permissões |
-| /documentos | Central de documentos e anexos |
+
+| Rota                 | Propósito                                    |
+| -------------------- | -------------------------------------------- |
+| /                    | Dashboard principal com KPIs e alertas       |
+| /login               | Página de autenticação com seleção de tenant |
+| /estoque             | Gestão de estoque com tabela de produtos     |
+| /estoque/produto/:id | Detalhes do produto e lotes                  |
+| /compras             | Notas fiscais de entrada                     |
+| /vendas              | Pedidos de vendas e notas de saída           |
+| /clientes            | Cadastro e gestão de clientes                |
+| /fornecedores        | Cadastro e gestão de fornecedores            |
+| /controlados         | Gestão especial de medicamentos controlados  |
+| /rastreabilidade     | Tracking de lotes e relatórios               |
+| /auditoria           | Logs e relatórios de auditoria               |
+| /relatorios          | Emissão de relatórios regulatórios           |
+| /configuracoes       | Configurações do sistema e tenant            |
+| /usuarios            | Gestão de usuários e permissões              |
+| /documentos          | Central de documentos e anexos               |
 
 ### Rotas API Backend
-| Rota | Propósito |
-|------|-----------|
-| POST /api/auth/login | Autenticação com validação de tenant |
-| POST /api/auth/refresh | Renovação de token JWT |
-| GET /api/tenant/:id/config | Configurações específicas do tenant |
-| POST /api/produtos | CRUD de produtos |
-| GET /api/estoque/lote/:lote | Rastreabilidade completa do lote |
-| POST /api/notas-fiscais/entrada | Processamento de NF-e entrada |
-| POST /api/notas-fiscais/saida | Emissão de NF-e saída |
-| POST /api/vendas | Criação de pedidos de venda |
-| GET /api/anvisa/sngpc/enviar | Envio de movimento ao SNGPC |
-| GET /api/anvisa/sncm/consultar | Consulta de lotes no SNCM |
-| POST /api/auditoria/exportar | Exportação de logs de auditoria |
-| GET /api/relatorios/anvisa/:tipo | Geração de relatórios regulatórios |
-| POST /api/webhooks/anvisa | Recebimento de webhooks da ANVISA |
-| POST /api/webhooks/sefaz | Atualizações de status NF-e |
+
+| Rota                             | Propósito                            |
+| -------------------------------- | ------------------------------------ |
+| POST /api/auth/login             | Autenticação com validação de tenant |
+| POST /api/auth/refresh           | Renovação de token JWT               |
+| GET /api/tenant/:id/config       | Configurações específicas do tenant  |
+| POST /api/produtos               | CRUD de produtos                     |
+| GET /api/estoque/lote/:lote      | Rastreabilidade completa do lote     |
+| POST /api/notas-fiscais/entrada  | Processamento de NF-e entrada        |
+| POST /api/notas-fiscais/saida    | Emissão de NF-e saída                |
+| POST /api/vendas                 | Criação de pedidos de venda          |
+| GET /api/anvisa/sngpc/enviar     | Envio de movimento ao SNGPC          |
+| GET /api/anvisa/sncm/consultar   | Consulta de lotes no SNCM            |
+| POST /api/auditoria/exportar     | Exportação de logs de auditoria      |
+| GET /api/relatorios/anvisa/:tipo | Geração de relatórios regulatórios   |
+| POST /api/webhooks/anvisa        | Recebimento de webhooks da ANVISA    |
+| POST /api/webhooks/sefaz         | Atualizações de status NF-e          |
 
 ## 4. Definições de APIs
 
 ### 4.1 Autenticação e Autorização
 
 **POST /api/auth/login**
+
 ```typescript
 // Request
 interface LoginRequest {
@@ -158,6 +187,7 @@ interface LoginResponse {
 ### 4.2 Gestão de Produtos e Estoque
 
 **POST /api/produtos**
+
 ```typescript
 // Request
 interface CreateProductRequest {
@@ -193,6 +223,7 @@ interface ProductResponse {
 ```
 
 **GET /api/estoque/lote/:lote**
+
 ```typescript
 // Response
 interface LoteTraceabilityResponse {
@@ -215,6 +246,7 @@ interface LoteTraceabilityResponse {
 ### 4.3 Notas Fiscais Eletrônicas
 
 **POST /api/notas-fiscais/saida**
+
 ```typescript
 // Request
 interface EmitirNFeRequest {
@@ -255,6 +287,7 @@ interface EmitirNFeResponse {
 ### 4.4 Integração ANVISA
 
 **POST /api/anvisa/sngpc/enviar**
+
 ```typescript
 // Request
 interface SNGPCRequest {
@@ -807,85 +840,138 @@ GRANT SELECT ON auditoria TO authenticated;
 ## 7. Segurança e Compliance
 
 ### 7.1 Criptografia
-- **Dados em repouso**: AES-256 para dados sensíveis no banco
-- **Dados em trânsito**: TLS 1.3 para todas as comunicações
-- **Chaves de API**: RSA-2048 para integrações com governo
-- **Senhas**: bcrypt com salt rounds = 12
+
+* **Dados em repouso**: AES-256 para dados sensíveis no banco
+
+* **Dados em trânsito**: TLS 1.3 para todas as comunicações
+
+* **Chaves de API**: RSA-2048 para integrações com governo
+
+* **Senhas**: bcrypt com salt rounds = 12
 
 ### 7.2 Controle de Acesso
-- **RBAC (Role-Based Access Control)**: Permissões por papel
-- **ABAC (Attribute-Based Access Control)**: Considerando tenant, horário, IP
-- **MFA (Multi-Factor Authentication)**: Obrigatório para administradores
-- **Session Management**: JWT com refresh tokens, expiração configurável
+
+* **RBAC (Role-Based Access Control)**: Permissões por papel
+
+* **ABAC (Attribute-Based Access Control)**: Considerando tenant, horário, IP
+
+* **MFA (Multi-Factor Authentication)**: Obrigatório para administradores
+
+* **Session Management**: JWT com refresh tokens, expiração configurável
 
 ### 7.3 Conformidade Regulatória
-- **LGPD**: Consentimento, direito ao esquecimento, portabilidade
-- **RDC 430**: Rastreabilidade completa, controle de validade
-- **Guia 33**: Controle especial de medicamentos controlados
-- **SPED Fiscal**: Integração com sistema fiscal brasileiro
+
+* **LGPD**: Consentimento, direito ao esquecimento, portabilidade
+
+* **RDC 430**: Rastreabilidade completa, controle de validade
+
+* **Guia 33**: Controle especial de medicamentos controlados
+
+* **SPED Fiscal**: Integração com sistema fiscal brasileiro
 
 ### 7.4 Auditoria e Logs
-- **Audit Trail**: Imutável com hash chain para integridade
-- **Log Retention**: 7 anos para obrigações fiscais
-- **Log Protection**: Criptografia e controle de acesso
-- **Tamper Detection**: Verificação periódica de integridade
+
+* **Audit Trail**: Imutável com hash chain para integridade
+
+* **Log Retention**: 7 anos para obrigações fiscais
+
+* **Log Protection**: Criptografia e controle de acesso
+
+* **Tamper Detection**: Verificação periódica de integridade
 
 ## 8. Performance e Escalabilidade
 
 ### 8.1 Otimizações de Banco de Dados
-- **Partitioning**: Tabelas grandes particionadas por tenant e data
-- **Indexes**: Índices otimizados para queries frequentes
-- **Materialized Views**: Relatórios complexos pré-calculados
-- **Connection Pooling**: PgBouncer para otimização de conexões
+
+* **Partitioning**: Tabelas grandes particionadas por tenant e data
+
+* **Indexes**: Índices otimizados para queries frequentes
+
+* **Materialized Views**: Relatórios complexos pré-calculados
+
+* **Connection Pooling**: PgBouncer para otimização de conexões
 
 ### 8.2 Cache e CDN
-- **Redis**: Cache de sessões e dados frequentes
-- **CloudFlare**: CDN para assets estáticos
-- **Browser Cache**: Headers otimizados para recursos estáticos
-- **Service Worker**: Cache offline para funcionalidades críticas
+
+* **Redis**: Cache de sessões e dados frequentes
+
+* **CloudFlare**: CDN para assets estáticos
+
+* **Browser Cache**: Headers otimizados para recursos estáticos
+
+* **Service Worker**: Cache offline para funcionalidades críticas
 
 ### 8.3 Monitoramento
-- **New Relic**: APM para monitoramento de performance
-- **Prometheus + Grafana**: Métricas e dashboards
-- **Sentry**: Error tracking e performance monitoring
-- **Uptime Robot**: Monitoramento de disponibilidade externa
+
+* **New Relic**: APM para monitoramento de performance
+
+* **Prometheus + Grafana**: Métricas e dashboards
+
+* **Sentry**: Error tracking e performance monitoring
+
+* **Uptime Robot**: Monitoramento de disponibilidade externa
 
 ## 9. Deployment e DevOps
 
 ### 9.1 Infraestrutura
-- **Cloud Provider**: AWS (us-east-1) com multi-AZ
-- **Containers**: Docker com Kubernetes (EKS)
-- **Database**: Supabase (PostgreSQL gerenciado)
-- **Storage**: S3 para documentos e backups
+
+* **Cloud Provider**: AWS (us-east-1) com multi-AZ
+
+* **Containers**: Docker com Kubernetes (EKS)
+
+* **Database**: Supabase (PostgreSQL gerenciado)
+
+* **Storage**: S3 para documentos e backups
 
 ### 9.2 CI/CD Pipeline
-- **GitHub Actions**: Build, test e deploy automatizado
-- **Staging Environment**: Ambiente de homologação por tenant
-- **Blue-Green Deployment**: Zero downtime deployments
-- **Rollback Automático**: Em caso de falhas de health check
+
+* **GitHub Actions**: Build, test e deploy automatizado
+
+* **Staging Environment**: Ambiente de homologação por tenant
+
+* **Blue-Green Deployment**: Zero downtime deployments
+
+* **Rollback Automático**: Em caso de falhas de health check
 
 ### 9.3 Backup e Disaster Recovery
-- **Backup Automático**: Diário com retenção de 30 dias
-- **Cross-region Replication**: Backup em região secundária
-- **Point-in-time Recovery**: Capacidade de restore para qualquer momento
-- **Disaster Recovery Test**: Testes mensais de recuperação
+
+* **Backup Automático**: Diário com retenção de 30 dias
+
+* **Cross-region Replication**: Backup em região secundária
+
+* **Point-in-time Recovery**: Capacidade de restore para qualquer momento
+
+* **Disaster Recovery Test**: Testes mensais de recuperação
 
 ## 10. Integrações e APIs Externas
 
 ### 10.1 ANVISA APIs
-- **SNGPC**: Envio diário de movimentação de controlados
-- **SNCM**: Rastreabilidade nacional de medicamentos
-- **Validação de Receitas**: Integração com sistemas estaduais
-- **Consulta de Habilitação**: Verificação de fornecedores
+
+* **SNGPC**: Envio diário de movimentação de controlados
+
+* **SNCM**: Rastreabilidade nacional de medicamentos
+
+* **Validação de Receitas**: Integração com sistemas estaduais
+
+* **Consulta de Habilitação**: Verificação de fornecedores
 
 ### 10.2 Sefaz e Fiscal
-- **NF-e**: Emissão e consulta de status via webservice
-- **CT-e**: Conhecimento de transporte eletrônico
-- **MDF-e**: Manifesto de documentos fiscais
-- **SPED**: Geração de arquivos fiscais
+
+* **NF-e**: Emissão e consulta de status via webservice
+
+* **CT-e**: Conhecimento de transporte eletrônico
+
+* **MDF-e**: Manifesto de documentos fiscais
+
+* **SPED**: Geração de arquivos fiscais
 
 ### 10.3 Serviços Auxiliares
-- **Correios**: Rastreamento de encomendas
-- **Pagamento**: Integração com gateways (PagSeguro, MercadoPago)
-- **Email**: SendGrid para emails transacionais
-- **SMS**: Twilio para notificações críticas
+
+* **Correios**: Rastreamento de encomendas
+
+* **Pagamento**: Integração com gateways (PagSeguro, MercadoPago)
+
+* **Email**: SendGrid para emails transacionais
+
+* **SMS**: Twilio para notificações críticas
+

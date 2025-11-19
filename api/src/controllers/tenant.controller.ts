@@ -3,6 +3,9 @@ import { tenantService, TenantCreationData } from '../services/tenant.service.js
 import { logger } from '../utils/logger.js';
 import { validateRequest } from '../middleware/validation.js';
 import { z } from 'zod';
+import { prismaMaster } from '../lib/prisma.js';
+import fs from 'fs';
+import path from 'path';
 
 // Schemas de validação
 const createTenantSchema = z.object({
@@ -258,8 +261,8 @@ export class TenantController {
           total: totalTenants,
           active: activeTenants,
           inactive: inactiveTenants,
-          byStatus: stats.filter(s => s.status !== null),
-          byPlan: stats.filter(s => s.plan !== null)
+          byStatus: stats.filter((s: any) => s.status !== null),
+          byPlan: stats.filter((s: any) => s.plan !== null)
         }
       });
     } catch (error) {
@@ -269,6 +272,44 @@ export class TenantController {
         message: 'Error getting tenant statistics',
         error: error instanceof Error ? error.message : 'Unknown error'
       });
+    }
+  };
+
+  /**
+   * Backup completo do tenant (dados e registros)
+   */
+  backupTenant = async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const tenant = await prismaMaster.tenant.findUnique({ where: { id } });
+      if (!tenant) {
+        return res.status(404).json({ success: false, message: 'Tenant not found' });
+      }
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const backupDir = path.join(process.cwd(), 'backups', tenant.cnpj, timestamp);
+      fs.mkdirSync(backupDir, { recursive: true });
+
+      const auditLogs = await prismaMaster.auditLog.findMany({ where: { tenantId: id }, orderBy: { createdAt: 'desc' } });
+      fs.writeFileSync(path.join(backupDir, 'audit.json'), JSON.stringify(auditLogs, null, 2), 'utf-8');
+
+      fs.writeFileSync(path.join(backupDir, 'tenant.json'), JSON.stringify(tenant, null, 2), 'utf-8');
+
+      const sizeBytes = auditLogs.length * 512 + JSON.stringify(tenant).length;
+      const record = await prismaMaster.tenantBackup.create({
+        data: {
+          tenantId: id,
+          type: 'full',
+          status: 'completed',
+          path: backupDir,
+          sizeBytes
+        }
+      });
+
+      res.json({ success: true, message: 'Backup created', data: { path: backupDir, record } });
+    } catch (error) {
+      logger.error('Error creating tenant backup:', error);
+      res.status(500).json({ success: false, message: 'Error creating backup', error: error instanceof Error ? error.message : 'Unknown error' });
     }
   };
 }

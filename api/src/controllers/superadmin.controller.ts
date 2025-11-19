@@ -1,14 +1,13 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
+import { prismaMaster } from '../lib/prisma.js';
 import { v4 as uuidv4 } from 'uuid';
-import { AppError } from '../utils/errors';
-import { logger } from '../utils/logger';
+import { AppError } from '../middleware/errorHandler.js';
+import { logger } from '../utils/logger.js';
+import { tenantService } from '../services/tenant.service.js';
 
-const prisma = new PrismaClient();
+const prisma = prismaMaster;
 
 export class SuperAdminController {
-  // Tenant Management
   listTenants = async (req: Request, res: Response) => {
     try {
       const { page = 1, limit = 10, status, plan } = req.query;
@@ -24,15 +23,7 @@ export class SuperAdminController {
           skip: offset,
           take: Number(limit),
           orderBy: { createdAt: 'desc' },
-          include: {
-            _count: {
-              select: {
-                users: true,
-                products: true,
-                customers: true
-              }
-            }
-          }
+          select: { id: true, name: true, cnpj: true, plan: true, status: true, createdAt: true }
         }),
         prisma.tenant.count({ where })
       ]);
@@ -54,71 +45,23 @@ export class SuperAdminController {
 
   createTenant = async (req: Request, res: Response) => {
     try {
-      const {
-        name,
-        cnpj,
-        email,
-        phone,
-        address,
-        plan,
-        adminName,
-        adminEmail,
-        adminPassword
-      } = req.body;
+      const { name, cnpj, plan, email, phone, address } = req.body;
 
-      // Check if CNPJ already exists
-      const existingTenant = await prisma.tenant.findUnique({
-        where: { cnpj }
-      });
-
-      if (existingTenant) {
-        throw new AppError('Tenant with this CNPJ already exists', 400);
-      }
-
-      // Generate database credentials
-      const databaseName = `tenant_${cnpj.replace(/[^a-zA-Z0-9]/g, '')}`;
-      const databaseUser = `user_${cnpj.replace(/[^a-zA-Z0-9]/g, '')}`;
-      const databasePassword = uuidv4().replace(/-/g, '');
-
-      // Create tenant
-      const tenant = await prisma.tenant.create({
-        data: {
-          name,
-          cnpj,
-          email,
-          phone,
-          address,
-          plan,
-          databaseName,
-          databaseUser,
-          databasePassword,
-          status: 'active',
-          maxUsers: this.getPlanLimit(plan, 'users'),
-          maxStorageGB: this.getPlanLimit(plan, 'storage')
-        }
-      });
-
-      // Create admin user for the tenant
-      const hashedPassword = await bcrypt.hash(adminPassword, 12);
-      await this.createTenantUser(tenant.id, {
-        name: adminName,
-        email: adminEmail,
-        password: hashedPassword,
-        role: 'admin',
-        isActive: true
-      });
+      const metadata = { email, phone, address };
+      const result = await tenantService.createTenant({ name, cnpj, plan, metadata });
 
       res.status(201).json({
         message: 'Tenant created successfully',
         tenant: {
-          id: tenant.id,
-          name: tenant.name,
-          cnpj: tenant.cnpj,
-          email: tenant.email,
-          plan: tenant.plan,
-          status: tenant.status,
-          createdAt: tenant.createdAt
-        }
+          id: result.tenant.id,
+          name: result.tenant.name,
+          cnpj: result.tenant.cnpj,
+          plan: result.tenant.plan,
+          status: result.tenant.status,
+          createdAt: result.tenant.createdAt
+        },
+        databaseName: result.databaseName,
+        folderStructure: result.folderStructure
       });
     } catch (error) {
       logger.error('Error creating tenant:', error);
@@ -135,18 +78,7 @@ export class SuperAdminController {
       const { id } = req.params;
 
       const tenant = await prisma.tenant.findUnique({
-        where: { id },
-        include: {
-          _count: {
-            select: {
-              users: true,
-              products: true,
-              customers: true,
-              suppliers: true,
-              invoices: true
-            }
-          }
-        }
+        where: { id }
       });
 
       if (!tenant) {
@@ -177,10 +109,7 @@ export class SuperAdminController {
         throw new AppError('Tenant not found', 404);
       }
 
-      const updatedTenant = await prisma.tenant.update({
-        where: { id },
-        data: updates
-      });
+      const updatedTenant = await tenantService.updateTenant(id, updates);
 
       res.json({
         message: 'Tenant updated successfully',
@@ -208,7 +137,6 @@ export class SuperAdminController {
         throw new AppError('Tenant not found', 404);
       }
 
-      // Delete tenant record
       await prisma.tenant.delete({
         where: { id }
       });
@@ -224,7 +152,241 @@ export class SuperAdminController {
     }
   };
 
-  // Helper methods
+  updateTenantStatus = async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { status, reason } = req.body;
+
+      const tenant = await prisma.tenant.findUnique({
+        where: { id }
+      });
+
+      if (!tenant) {
+        throw new AppError('Tenant not found', 404);
+      }
+
+      const updatedTenant = await prisma.tenant.update({ where: { id }, data: { status } });
+
+      res.json({
+        message: 'Tenant status updated successfully',
+        tenant: updatedTenant
+      });
+    } catch (error) {
+      logger.error('Error updating tenant status:', error);
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({ error: error.message });
+      } else {
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    }
+  };
+
+  updateTenantPlan = async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { plan, effectiveDate } = req.body;
+
+      const tenant = await prisma.tenant.findUnique({
+        where: { id }
+      });
+
+      if (!tenant) {
+        throw new AppError('Tenant not found', 404);
+      }
+
+      const updatedTenant = await prisma.tenant.update({ where: { id }, data: { plan } });
+
+      res.json({
+        message: 'Tenant plan updated successfully',
+        tenant: updatedTenant
+      });
+    } catch (error) {
+      logger.error('Error updating tenant plan:', error);
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({ error: error.message });
+      } else {
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    }
+  };
+
+  getSystemOverview = async (req: Request, res: Response) => {
+    try {
+      const [totalTenants, activeTenants, recentTenants] = await Promise.all([
+        prisma.tenant.count(),
+        prisma.tenant.count({ where: { status: 'active' } }),
+        prisma.tenant.findMany({
+          take: 5,
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, name: true, cnpj: true, plan: true, status: true, createdAt: true }
+        })
+      ]);
+
+      res.json({
+        overview: {
+          totalTenants,
+          activeTenants,
+          recentTenants
+        }
+      });
+    } catch (error) {
+      logger.error('Error getting system overview:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  };
+
+  getDashboardMetrics = async (req: Request, res: Response) => {
+    try {
+      const now = new Date();
+      const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+      const [
+        totalTenants,
+        activeTenants,
+        sngpcSubmissions,
+        sncmTracking,
+        guia33Generated,
+        expiringSoon,
+        expired,
+        lowStock,
+        invoicesAuthorized,
+        invoicesCancelled,
+        invoicesDraft,
+        unreadNotifications
+      ] = await Promise.all([
+        prisma.tenant.count(),
+        prisma.tenant.count({ where: { status: 'active' } }),
+        prisma.sngpcSubmission.count({ where: { submissionDate: { gte: last30Days } } }),
+        prisma.medicationTracking.count({ where: { trackedAt: { gte: last30Days } } }),
+        prisma.guia33.count({ where: { generatedAt: { gte: last30Days } } }),
+        prisma.batch.count({ where: { expirationDate: { gt: now, lte: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) } } }),
+        prisma.batch.count({ where: { expirationDate: { lte: now } } }),
+        prisma.stock.count({ where: { availableQuantity: { lte: 5 } } }),
+        prisma.invoice.count({ where: { status: 'AUTHORIZED', issueDate: { gte: last30Days } } }),
+        prisma.invoice.count({ where: { status: 'CANCELLED', issueDate: { gte: last30Days } } }),
+        prisma.invoice.count({ where: { status: 'DRAFT' } }),
+        prisma.notification.count({ where: { read: false } })
+      ]);
+
+      res.json({
+        metrics: {
+          tenants: { total: totalTenants, active: activeTenants },
+          regulatory: {
+            sngpcSubmissionsLast30Days: sngpcSubmissions,
+            sncmTrackingLast30Days: sncmTracking,
+            guia33GeneratedLast30Days: guia33Generated
+          },
+          inventory: {
+            expiringSoonCount: expiringSoon,
+            expiredCount: expired,
+            lowStockCount: lowStock
+          },
+          invoices: {
+            authorizedLast30Days: invoicesAuthorized,
+            cancelledLast30Days: invoicesCancelled,
+            draftCount: invoicesDraft
+          },
+          notifications: { unread: unreadNotifications }
+        }
+      });
+    } catch (error) {
+      logger.error('Error getting dashboard metrics:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  };
+
+  getAuditLogs = async (req: Request, res: Response) => {
+    try {
+      const {
+        page = 1,
+        limit = 50,
+        tenantId,
+        userId,
+        action,
+        startDate,
+        endDate
+      } = req.query;
+      const offset = (Number(page) - 1) * Number(limit);
+
+      const where: any = {};
+      if (tenantId) where.tenantId = tenantId;
+      if (userId) where.userId = userId;
+      if (action) where.action = action;
+      if (startDate || endDate) {
+        where.createdAt = {};
+        if (startDate) where.createdAt.gte = new Date(startDate as string);
+        if (endDate) where.createdAt.lte = new Date(endDate as string);
+      }
+
+      const [logs, total] = await Promise.all([
+        prisma.auditLog.findMany({
+          where,
+          skip: offset,
+          take: Number(limit),
+          orderBy: { createdAt: 'desc' },
+          include: {
+            tenant: {
+              select: { id: true, name: true, cnpj: true }
+            }
+          }
+        }),
+        prisma.auditLog.count({ where })
+      ]);
+
+      res.json({
+        logs,
+        pagination: {
+          page: Number(page),
+          limit: Number(limit),
+          total,
+          pages: Math.ceil(total / Number(limit))
+        }
+      });
+    } catch (error) {
+      logger.error('Error getting audit logs:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  };
+
+  getNotifications = async (req: Request, res: Response) => {
+    try {
+      const { page = 1, limit = 50, tenantId, userId, severity } = req.query;
+      const offset = (Number(page) - 1) * Number(limit);
+
+      const where: any = {};
+      if (tenantId) where.tenantId = tenantId;
+      if (userId) where.userId = userId;
+      if (severity) where.severity = severity;
+
+      const [notifications, total] = await Promise.all([
+        prisma.notification.findMany({
+          where,
+          skip: offset,
+          take: Number(limit),
+          orderBy: { createdAt: 'desc' },
+          include: {
+            tenant: { select: { id: true, name: true, cnpj: true } },
+            user: { select: { id: true, name: true, email: true } }
+          }
+        }),
+        prisma.notification.count({ where })
+      ]);
+
+      res.json({
+        notifications,
+        pagination: {
+          page: Number(page),
+          limit: Number(limit),
+          total,
+          pages: Math.ceil(total / Number(limit))
+        }
+      });
+    } catch (error) {
+      logger.error('Error getting notifications:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  };
+
   private getPlanLimit(plan: string, type: 'users' | 'storage'): number {
     const limits = {
       starter: { users: 5, storage: 10 },
@@ -232,16 +394,5 @@ export class SuperAdminController {
       enterprise: { users: 100, storage: 200 }
     };
     return limits[plan as keyof typeof limits]?.[type] || 10;
-  }
-
-  private async createTenantUser(tenantId: string, userData: any) {
-    // This would create a user in the tenant's database
-    // For now, we'll create it in the master database
-    return prisma.user.create({
-      data: {
-        ...userData,
-        tenantId
-      }
-    });
   }
 }

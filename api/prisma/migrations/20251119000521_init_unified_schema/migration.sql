@@ -1,5 +1,5 @@
 -- CreateEnum
-CREATE TYPE "UserRole" AS ENUM ('MASTER', 'ADMIN', 'PHARMACIST', 'OPERATIONS_MANAGER', 'OPERATOR', 'SALESPERSON', 'AUDITOR');
+CREATE TYPE "UserRole" AS ENUM ('MASTER', 'SUPERADMIN', 'ADMIN', 'PHARMACIST', 'OPERATIONS_MANAGER', 'OPERATOR', 'SALESPERSON', 'AUDITOR');
 
 -- CreateEnum
 CREATE TYPE "ProductType" AS ENUM ('COMMON', 'CONTROLLED', 'ANTIBIOTIC', 'PSYCHOTROPIC', 'SPECIAL');
@@ -48,6 +48,33 @@ CREATE TABLE "audit_log" (
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "audit_log_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "notifications" (
+    "id" TEXT NOT NULL,
+    "tenant_id" TEXT,
+    "user_id" TEXT,
+    "type" TEXT NOT NULL,
+    "severity" TEXT NOT NULL DEFAULT 'info',
+    "message" TEXT NOT NULL,
+    "read" BOOLEAN NOT NULL DEFAULT false,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "notifications_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "tenant_backups" (
+    "id" TEXT NOT NULL,
+    "tenant_id" TEXT NOT NULL,
+    "type" TEXT NOT NULL DEFAULT 'full',
+    "status" TEXT NOT NULL DEFAULT 'completed',
+    "path" TEXT NOT NULL,
+    "size_bytes" INTEGER NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "tenant_backups_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -243,6 +270,88 @@ CREATE TABLE "controlled_prescriptions" (
     CONSTRAINT "controlled_prescriptions_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "sngpc_submissions" (
+    "id" TEXT NOT NULL,
+    "tenant_id" TEXT,
+    "submitted_by" TEXT NOT NULL,
+    "period_start" TIMESTAMP(3) NOT NULL,
+    "period_end" TIMESTAMP(3) NOT NULL,
+    "submission_date" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "status" TEXT NOT NULL DEFAULT 'submitted',
+    "xml_data" TEXT NOT NULL,
+    "movements_count" INTEGER NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "sngpc_submissions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "controlled_substances" (
+    "id" TEXT NOT NULL,
+    "product_id" TEXT NOT NULL,
+    "substance_type" TEXT NOT NULL,
+    "potency" TEXT,
+    "unit" TEXT,
+    "requires_prescription" BOOLEAN NOT NULL DEFAULT false,
+    "special_controls" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'active',
+    "created_by" TEXT NOT NULL,
+    "registration_number" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "controlled_substances_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "controlled_substance_movements" (
+    "id" TEXT NOT NULL,
+    "substance_id" TEXT NOT NULL,
+    "batch_id" TEXT,
+    "movement_date" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "movement_type" TEXT NOT NULL,
+    "quantity" INTEGER NOT NULL,
+    "document_number" TEXT,
+    "customer_id" TEXT,
+    "supplier_id" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "controlled_substance_movements_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "medication_tracking" (
+    "id" TEXT NOT NULL,
+    "product_id" TEXT NOT NULL,
+    "batch_id" TEXT NOT NULL,
+    "action" TEXT NOT NULL,
+    "quantity" INTEGER NOT NULL,
+    "destination" TEXT,
+    "prescription_data" TEXT,
+    "tracked_by" TEXT NOT NULL,
+    "tracked_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "status" TEXT NOT NULL DEFAULT 'active',
+
+    CONSTRAINT "medication_tracking_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "guia33" (
+    "id" TEXT NOT NULL,
+    "substance_id" TEXT NOT NULL,
+    "period_start" TIMESTAMP(3) NOT NULL,
+    "period_end" TIMESTAMP(3) NOT NULL,
+    "opening_balance" INTEGER NOT NULL,
+    "closing_balance" INTEGER NOT NULL,
+    "movements_count" INTEGER NOT NULL,
+    "generated_by" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'generated',
+    "pdf_data" BYTEA,
+    "generated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "guia33_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "tenants_cnpj_key" ON "tenants"("cnpj");
 
@@ -257,6 +366,12 @@ CREATE INDEX "audit_log_tenant_id_created_at_idx" ON "audit_log"("tenant_id", "c
 
 -- CreateIndex
 CREATE INDEX "audit_log_table_name_record_id_idx" ON "audit_log"("table_name", "record_id");
+
+-- CreateIndex
+CREATE INDEX "notifications_tenant_id_created_at_idx" ON "notifications"("tenant_id", "created_at");
+
+-- CreateIndex
+CREATE INDEX "tenant_backups_tenant_id_created_at_idx" ON "tenant_backups"("tenant_id", "created_at");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
@@ -357,8 +472,41 @@ CREATE INDEX "controlled_prescriptions_is_used_idx" ON "controlled_prescriptions
 -- CreateIndex
 CREATE UNIQUE INDEX "controlled_prescriptions_prescription_number_customer_id_key" ON "controlled_prescriptions"("prescription_number", "customer_id");
 
+-- CreateIndex
+CREATE INDEX "sngpc_submissions_submission_date_idx" ON "sngpc_submissions"("submission_date");
+
+-- CreateIndex
+CREATE INDEX "sngpc_submissions_tenant_id_idx" ON "sngpc_submissions"("tenant_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "controlled_substances_registration_number_key" ON "controlled_substances"("registration_number");
+
+-- CreateIndex
+CREATE INDEX "controlled_substances_product_id_idx" ON "controlled_substances"("product_id");
+
+-- CreateIndex
+CREATE INDEX "controlled_substance_movements_substance_id_movement_date_idx" ON "controlled_substance_movements"("substance_id", "movement_date");
+
+-- CreateIndex
+CREATE INDEX "medication_tracking_product_id_tracked_at_idx" ON "medication_tracking"("product_id", "tracked_at");
+
+-- CreateIndex
+CREATE INDEX "guia33_substance_id_period_start_period_end_idx" ON "guia33"("substance_id", "period_start", "period_end");
+
 -- AddForeignKey
 ALTER TABLE "audit_log" ADD CONSTRAINT "audit_log_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "tenants"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "audit_log" ADD CONSTRAINT "audit_log_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "notifications" ADD CONSTRAINT "notifications_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "tenants"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "notifications" ADD CONSTRAINT "notifications_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "tenant_backups" ADD CONSTRAINT "tenant_backups_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "tenants"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "batches" ADD CONSTRAINT "batches_product_id_fkey" FOREIGN KEY ("product_id") REFERENCES "products"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -385,6 +533,9 @@ ALTER TABLE "invoices" ADD CONSTRAINT "invoices_user_id_fkey" FOREIGN KEY ("user
 ALTER TABLE "invoices" ADD CONSTRAINT "invoices_customer_id_fkey" FOREIGN KEY ("customer_id") REFERENCES "customers"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "invoices" ADD CONSTRAINT "invoices_supplier_id_fkey" FOREIGN KEY ("supplier_id") REFERENCES "suppliers"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "invoice_items" ADD CONSTRAINT "invoice_items_invoice_id_fkey" FOREIGN KEY ("invoice_id") REFERENCES "invoices"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -395,3 +546,42 @@ ALTER TABLE "invoice_items" ADD CONSTRAINT "invoice_items_batch_id_fkey" FOREIGN
 
 -- AddForeignKey
 ALTER TABLE "controlled_prescriptions" ADD CONSTRAINT "controlled_prescriptions_customer_id_fkey" FOREIGN KEY ("customer_id") REFERENCES "customers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "sngpc_submissions" ADD CONSTRAINT "sngpc_submissions_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "tenants"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "sngpc_submissions" ADD CONSTRAINT "sngpc_submissions_submitted_by_fkey" FOREIGN KEY ("submitted_by") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "controlled_substances" ADD CONSTRAINT "controlled_substances_product_id_fkey" FOREIGN KEY ("product_id") REFERENCES "products"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "controlled_substances" ADD CONSTRAINT "controlled_substances_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "controlled_substance_movements" ADD CONSTRAINT "controlled_substance_movements_substance_id_fkey" FOREIGN KEY ("substance_id") REFERENCES "controlled_substances"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "controlled_substance_movements" ADD CONSTRAINT "controlled_substance_movements_batch_id_fkey" FOREIGN KEY ("batch_id") REFERENCES "batches"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "controlled_substance_movements" ADD CONSTRAINT "controlled_substance_movements_customer_id_fkey" FOREIGN KEY ("customer_id") REFERENCES "customers"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "controlled_substance_movements" ADD CONSTRAINT "controlled_substance_movements_supplier_id_fkey" FOREIGN KEY ("supplier_id") REFERENCES "suppliers"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "medication_tracking" ADD CONSTRAINT "medication_tracking_product_id_fkey" FOREIGN KEY ("product_id") REFERENCES "products"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "medication_tracking" ADD CONSTRAINT "medication_tracking_batch_id_fkey" FOREIGN KEY ("batch_id") REFERENCES "batches"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "medication_tracking" ADD CONSTRAINT "medication_tracking_tracked_by_fkey" FOREIGN KEY ("tracked_by") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "guia33" ADD CONSTRAINT "guia33_substance_id_fkey" FOREIGN KEY ("substance_id") REFERENCES "controlled_substances"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "guia33" ADD CONSTRAINT "guia33_generated_by_fkey" FOREIGN KEY ("generated_by") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

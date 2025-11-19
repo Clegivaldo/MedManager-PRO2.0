@@ -1,6 +1,7 @@
 import { prismaMaster } from '../lib/prisma.js';
 import { hashPassword } from '../services/auth.service.js';
 import { logger } from '../utils/logger.js';
+import { UserRole } from '@prisma/client';
 
 /**
  * Script para criar usuário admin no banco mestre
@@ -25,12 +26,9 @@ async function createMasterAdmin() {
         email: 'admin@medmanager.com.br',
         name: 'Master Admin',
         password: await hashPassword('admin123'),
-        role: 'SUPERADMIN',
+        role: UserRole.SUPERADMIN,
         isActive: true,
-        metadata: {
-          phone: '11 3000-0000',
-          department: 'System Administration'
-        }
+        permissions: []
       }
     });
 

@@ -1,4 +1,4 @@
-// This is your Prisma schema file,
+// Prisma schema for PostgreSQL - Unified version
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
@@ -26,8 +26,59 @@ model Tenant {
   
   // Relacionamentos
   auditLogs         AuditLog[]
+  backups           TenantBackup[]
+  notifications     Notification[]
+  sngpcSubmissions  SngpcSubmission[]
+  fiscalProfile     TenantFiscalProfile?
   
   @@map("tenants")
+}
+
+model TenantFiscalProfile {
+  id                    String    @id @default(uuid())
+  tenantId              String    @unique @map("tenant_id")
+  companyName           String    @map("company_name")
+  tradingName           String?   @map("trading_name")
+  cnpj                  String
+  stateRegistration     String?   @map("state_registration")
+  municipalRegistration String?   @map("municipal_registration")
+  taxRegime             String    @default("simple_national") @map("tax_regime")
+  address               Json?
+  phone                 String?
+  email                 String?
+  cscId                 String?   @map("csc_id")
+  cscToken              String?   @map("csc_token")
+  certificateType       String?   @map("certificate_type")
+  certificatePath       String?   @map("certificate_path")
+  certificatePassword   String?   @map("certificate_password")
+  certificateExpiresAt  DateTime? @map("certificate_expires_at")
+  sefazEnvironment      String    @default("homologacao") @map("sefaz_environment")
+  isActive              Boolean   @default(true) @map("is_active")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  series      FiscalSeries[]
+  
+  @@index([cnpj])
+  @@map("tenant_fiscal_profiles")
+}
+
+model FiscalSeries {
+  id              String   @id @default(uuid())
+  fiscalProfileId String   @map("fiscal_profile_id")
+  seriesNumber    Int      @map("series_number")
+  invoiceType     String   @map("invoice_type")
+  nextNumber      Int      @default(1) @map("next_number")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  
+  fiscalProfile TenantFiscalProfile @relation(fields: [fiscalProfileId], references: [id], onDelete: Cascade)
+  
+  @@unique([fiscalProfileId, seriesNumber, invoiceType])
+  @@index([fiscalProfileId])
+  @@map("fiscal_series")
 }
 
 model AuditLog {
@@ -45,10 +96,43 @@ model AuditLog {
   
   // Relacionamentos
   tenant        Tenant?   @relation(fields: [tenantId], references: [id])
+  user          User?     @relation(fields: [userId], references: [id])
   
   @@map("audit_log")
   @@index([tenantId, createdAt])
   @@index([tableName, recordId])
+}
+
+model Notification {
+  id         String   @id @default(uuid())
+  tenantId   String?  @map("tenant_id")
+  userId     String?  @map("user_id")
+  type       String
+  severity   String   @default("info")
+  message    String
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+  user   User?   @relation(fields: [userId], references: [id])
+
+  @@map("notifications")
+  @@index([tenantId, createdAt])
+}
+
+model TenantBackup {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  type      String   @default("full")
+  status    String   @default("completed")
+  path      String
+  sizeBytes Int      @default(0) @map("size_bytes")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("tenant_backups")
+  @@index([tenantId, createdAt])
 }
 
 // Schema do tenant (será replicado em cada banco de tenant)
@@ -65,8 +149,14 @@ model User {
   updatedAt     DateTime  @updatedAt @map("updated_at")
   
   // Relacionamentos
+  auditLogs     AuditLog[]
   stockMovements StockMovement[]
   invoices      Invoice[]
+  sngpcSubmissions SngpcSubmission[]
+  controlledSubstances ControlledSubstance[] @relation("UserControlledSubstances")
+  medicationTrackings MedicationTracking[]
+  guia33Generated Guia33[]
+  notifications   Notification[]
   
   @@map("users")
   @@index([email])
@@ -83,7 +173,7 @@ model Product {
   anvisaCode          String?         @map("anvisa_code")
   therapeuticClass    String?         @map("therapeutic_class")
   productType         ProductType     @map("product_type")
-  storage             Json?           // Armazenamento: {minTemp, maxTemp, humidity, type}
+  storage             Json?
   isControlled        Boolean         @default(false) @map("is_controlled")
   controlledSubstance String?         @map("controlled_substance")
   stripe              StripeType      @default(NONE) @map("stripe")
@@ -96,6 +186,8 @@ model Product {
   batches       Batch[]
   stock         Stock[]
   invoiceItems  InvoiceItem[]
+  controlledSubstances ControlledSubstance[]
+  medicationTrackings MedicationTracking[]
   
   @@map("products")
   @@index([internalCode])
@@ -107,18 +199,20 @@ model Batch {
   id                String    @id @default(uuid())
   productId         String    @map("product_id")
   batchNumber       String    @map("batch_number")
-  manufacturer        String?
-  quantityEntry       Int       @map("quantity_entry")
-  quantityCurrent     Int       @map("quantity_current")
-  expirationDate      DateTime  @map("expiration_date")
-  manufactureDate     DateTime? @map("manufacture_date")
-  entryInvoice        String?   @map("entry_invoice")
-  createdAt           DateTime  @default(now()) @map("created_at")
+  manufacturer      String?
+  quantityEntry     Int       @map("quantity_entry")
+  quantityCurrent   Int       @map("quantity_current")
+  expirationDate    DateTime  @map("expiration_date")
+  manufactureDate   DateTime? @map("manufacture_date")
+  entryInvoice      String?   @map("entry_invoice")
+  createdAt         DateTime  @default(now()) @map("created_at")
   
   // Relacionamentos
   product       Product         @relation(fields: [productId], references: [id])
   stock         Stock[]
   invoiceItems  InvoiceItem[]
+  controlledSubstanceMovements ControlledSubstanceMovement[]
+  medicationTrackings MedicationTracking[]
   
   @@unique([productId, batchNumber])
   @@map("batches")
@@ -172,8 +266,8 @@ model Customer {
   cnpjCpf         String    @unique @map("cnpj_cpf")
   companyName     String    @map("company_name")
   tradeName       String?   @map("trade_name")
-  customerType    String    @map("customer_type") // FARMACIA, HOSPITAL, DROGARIA
-  address         Json?     // Endereço completo
+  customerType    String    @map("customer_type")
+  address         Json?
   phone           String?
   email           String?
   isActive        Boolean   @default(true) @map("is_active")
@@ -184,6 +278,7 @@ model Customer {
   // Relacionamentos
   invoices      Invoice[]
   controlledPrescriptions ControlledPrescription[]
+  controlledSubstanceMovements ControlledSubstanceMovement[]
   
   @@map("customers")
   @@index([cnpjCpf])
@@ -195,7 +290,7 @@ model Supplier {
   cnpj                    String    @unique
   companyName             String    @map("company_name")
   tradeName               String?   @map("trade_name")
-  address                 Json?     // Endereço completo
+  address                 Json?
   phone                   String?
   email                   String?
   isAnvisaEnabled         Boolean   @default(true) @map("is_anvisa_enabled")
@@ -206,6 +301,8 @@ model Supplier {
   
   // Relacionamentos
   supplierEvaluations SupplierEvaluation[]
+  controlledSubstanceMovements ControlledSubstanceMovement[]
+  invoices            Invoice[]
   
   @@map("suppliers")
   @@index([cnpj])
@@ -213,11 +310,11 @@ model Supplier {
 }
 
 model SupplierEvaluation {
-  id            String    @id @default(uuid())
-  supplierId    String    @map("supplier_id")
+  id              String    @id @default(uuid())
+  supplierId      String    @map("supplier_id")
   evaluationDate  DateTime  @default(now()) @map("evaluation_date")
-  score           Int       // 0-100
-  criteria        Json?     // Critérios de avaliação
+  score           Int
+  criteria        Json?
   notes           String?
   isApproved      Boolean   @default(true) @map("is_approved")
   createdAt       DateTime  @default(now()) @map("created_at")
@@ -230,26 +327,27 @@ model SupplierEvaluation {
 }
 
 model Invoice {
-  id              String    @id @default(uuid())
-  userId          String    @map("user_id")
-  customerId      String?   @map("customer_id")
-  supplierId      String?   @map("supplier_id")
-  accessKey       String?   @unique @map("access_key") // Chave de acesso NF-e
-  number          Int       @map("number")
-  series          Int       @map("series")
-  invoiceType     InvoiceType @map("invoice_type") // ENTRADA, SAIDA, DEVOLUTION
-  issueDate       DateTime  @map("issue_date")
-  totalValue      Decimal   @map("total_value")
-  status          InvoiceStatus @default(DRAFT)
-  xmlContent      String?   @map("xml_content") // XML da NF-e
-  protocol        String?   @map("protocol")
-  authorizationDate DateTime? @map("authorization_date")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  id                String        @id @default(uuid())
+  userId            String        @map("user_id")
+  customerId        String?       @map("customer_id")
+  supplierId        String?       @map("supplier_id")
+  accessKey         String?       @unique @map("access_key")
+  number            Int           @map("number")
+  series            Int           @map("series")
+  invoiceType       InvoiceType   @map("invoice_type")
+  issueDate         DateTime      @map("issue_date")
+  totalValue        Decimal       @map("total_value")
+  status            InvoiceStatus @default(DRAFT)
+  xmlContent        String?       @map("xml_content")
+  protocol          String?       @map("protocol")
+  authorizationDate DateTime?     @map("authorization_date")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
   
   // Relacionamentos
   user          User          @relation(fields: [userId], references: [id])
   customer      Customer?     @relation(fields: [customerId], references: [id])
+  supplier      Supplier?     @relation(fields: [supplierId], references: [id])
   items         InvoiceItem[]
   
   @@unique([number, series, invoiceType])
@@ -268,10 +366,10 @@ model InvoiceItem {
   unitPrice       Decimal   @map("unit_price")
   totalPrice      Decimal   @map("total_price")
   discount        Decimal   @default(0)
-  cfop            String    // Código Fiscal de Operações
-  ncm             String?   // Nomenclatura Comum do Mercosul
-  icmsCst         String?   @map("icms_cst") // Código de Situação Tributária
-  icmsRate        Decimal?  @map("icms_rate") // Alíquota ICMS
+  cfop            String
+  ncm             String?
+  icmsCst         String?   @map("icms_cst")
+  icmsRate        Decimal?  @map("icms_rate")
   
   // Relacionamentos
   invoice Invoice @relation(fields: [invoiceId], references: [id])
@@ -306,9 +404,118 @@ model ControlledPrescription {
   @@index([isUsed])
 }
 
+model SngpcSubmission {
+  id              String   @id @default(uuid())
+  tenantId        String?  @map("tenant_id")
+  submittedBy     String   @map("submitted_by")
+  periodStart     DateTime @map("period_start")
+  periodEnd       DateTime @map("period_end")
+  submissionDate  DateTime @default(now()) @map("submission_date")
+  status          String   @default("submitted")
+  xmlData         String   @map("xml_data")
+  movementsCount  Int      @default(0) @map("movements_count")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  // Relacionamentos
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+  user User @relation(fields: [submittedBy], references: [id])
+
+  @@map("sngpc_submissions")
+  @@index([submissionDate])
+  @@index([tenantId])
+}
+
+model ControlledSubstance {
+  id                  String   @id @default(uuid())
+  productId           String   @map("product_id")
+  substanceType       String   @map("substance_type")
+  potency             String?
+  unit                String?
+  requiresPrescription Boolean  @default(false) @map("requires_prescription")
+  specialControls     String?  @map("special_controls")
+  status              String   @default("active")
+  createdBy           String   @map("created_by")
+  registrationNumber  String   @unique @map("registration_number")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  // Relacionamentos
+  product   Product @relation(fields: [productId], references: [id])
+  user      User    @relation("UserControlledSubstances", fields: [createdBy], references: [id])
+  movements ControlledSubstanceMovement[]
+  guia33    Guia33[]
+
+  @@map("controlled_substances")
+  @@index([productId])
+}
+
+model ControlledSubstanceMovement {
+  id             String   @id @default(uuid())
+  substanceId    String   @map("substance_id")
+  batchId        String?  @map("batch_id")
+  movementDate   DateTime @default(now()) @map("movement_date")
+  movementType   String   @map("movement_type")
+  quantity       Int
+  documentNumber String?  @map("document_number")
+  customerId     String?  @map("customer_id")
+  supplierId     String?  @map("supplier_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // Relacionamentos
+  substance ControlledSubstance @relation(fields: [substanceId], references: [id])
+  batch     Batch?              @relation(fields: [batchId], references: [id])
+  customer  Customer?           @relation(fields: [customerId], references: [id])
+  supplier  Supplier?           @relation(fields: [supplierId], references: [id])
+
+  @@map("controlled_substance_movements")
+  @@index([substanceId, movementDate])
+}
+
+model MedicationTracking {
+  id               String   @id @default(uuid())
+  productId        String   @map("product_id")
+  batchId          String   @map("batch_id")
+  action           String
+  quantity         Int
+  destination      String?
+  prescriptionData String?  @map("prescription_data")
+  trackedBy        String   @map("tracked_by")
+  trackedAt        DateTime @default(now()) @map("tracked_at")
+  status           String   @default("active")
+
+  // Relacionamentos
+  product Product @relation(fields: [productId], references: [id])
+  batch   Batch   @relation(fields: [batchId], references: [id])
+  user    User    @relation(fields: [trackedBy], references: [id])
+
+  @@map("medication_tracking")
+  @@index([productId, trackedAt])
+}
+
+model Guia33 {
+  id              String   @id @default(uuid())
+  substanceId     String   @map("substance_id")
+  periodStart     DateTime @map("period_start")
+  periodEnd       DateTime @map("period_end")
+  openingBalance  Int      @map("opening_balance")
+  closingBalance  Int      @map("closing_balance")
+  movementsCount  Int      @map("movements_count")
+  generatedBy     String   @map("generated_by")
+  status          String   @default("generated")
+  pdfData         Bytes?   @map("pdf_data")
+  generatedAt     DateTime @default(now()) @map("generated_at")
+
+  // Relacionamentos
+  substance ControlledSubstance @relation(fields: [substanceId], references: [id])
+  user      User                @relation(fields: [generatedBy], references: [id])
+
+  @@map("guia33")
+  @@index([substanceId, periodStart, periodEnd])
+}
+
 // Enums
 enum UserRole {
   MASTER
+  SUPERADMIN
   ADMIN
   PHARMACIST
   OPERATIONS_MANAGER

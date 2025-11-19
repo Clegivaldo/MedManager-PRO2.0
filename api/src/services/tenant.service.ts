@@ -4,6 +4,8 @@ import { execSync } from 'child_process';
 import fs from 'fs/promises';
 import path from 'path';
 import { config } from '../config/environment.js';
+import { hashPassword } from '../services/auth.service.js';
+import { UserRole } from '@prisma/client';
 
 export interface TenantCreationData {
   name: string;
@@ -61,8 +63,7 @@ export class TenantService {
           databasePassword,
           plan,
           status: 'active',
-          metadata,
-          folderStructure: folderStructure as any,
+          metadata: JSON.stringify(metadata),
         }
       });
 
@@ -140,9 +141,13 @@ export class TenantService {
    * Atualizar tenant
    */
   async updateTenant(id: string, data: Partial<TenantCreationData>) {
+    const updateData: any = { ...data };
+    if (data.metadata) {
+      updateData.metadata = JSON.stringify(data.metadata);
+    }
     return await prismaMaster.tenant.update({
       where: { id },
-      data
+      data: updateData
     });
   }
 
@@ -152,10 +157,7 @@ export class TenantService {
   async deactivateTenant(id: string) {
     return await prismaMaster.tenant.update({
       where: { id },
-      data: { 
-        status: 'inactive',
-        deactivatedAt: new Date()
-      }
+      data: { status: 'inactive' }
     });
   }
 
@@ -165,10 +167,7 @@ export class TenantService {
   async activateTenant(id: string) {
     return await prismaMaster.tenant.update({
       where: { id },
-      data: { 
-        status: 'active',
-        deactivatedAt: null
-      }
+      data: { status: 'active' }
     });
   }
 
@@ -294,12 +293,9 @@ export class TenantService {
           email: 'admin@medmanager.com.br',
           name: 'Administrador',
           password: await hashPassword('admin123'),
-          role: 'SUPERADMIN',
+          role: UserRole.ADMIN,
           isActive: true,
-          metadata: {
-            phone: '11 3000-0000',
-            department: 'Administração'
-          }
+          permissions: '[]'
         }
       });
 

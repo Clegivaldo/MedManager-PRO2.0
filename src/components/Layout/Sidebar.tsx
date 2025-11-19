@@ -20,6 +20,7 @@ import {
   Banknote,
   Users2,
   History,
+  Building2,
 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 
@@ -42,6 +43,7 @@ const menuItems = [
 ];
 
 const managementItems = [
+    { title: 'Perfil Fiscal', icon: Building2, href: '/fiscal-profile' },
     { title: 'Usuários', icon: Users2, href: '/users' },
     { title: 'Auditoria', icon: History, href: '/audit' },
     { title: 'Configurações', icon: Settings, href: '/settings' },
@@ -58,7 +60,7 @@ export default function Sidebar({ className }: SidebarProps) {
       className
     )}>
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b">
+      <div className="flex items-center justify-between px-4 py-4 border-b">
         {!collapsed && (
           <div className="flex items-center space-x-2">
             <div className="bg-primary p-2 rounded-lg">

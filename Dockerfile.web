@@ -1,0 +1,23 @@
+# syntax=docker/dockerfile:1
+FROM node:20-alpine
+WORKDIR /app
+RUN corepack enable
+
+COPY package.json pnpm-lock.yaml* ./
+RUN pnpm install --frozen-lockfile
+
+COPY tsconfig.json ./
+COPY tsconfig.app.json ./
+COPY tsconfig.node.json ./
+COPY index.html ./
+COPY vite.config.ts ./
+COPY components.json ./
+COPY tailwind.config.ts ./
+COPY postcss.config.js ./
+COPY public ./public
+COPY src ./src
+
+ENV NODE_ENV=development
+ENV VITE_API_BASE_URL=http://localhost:3333/api/v1
+EXPOSE 5173
+CMD ["pnpm", "dev", "--host", "0.0.0.0"]

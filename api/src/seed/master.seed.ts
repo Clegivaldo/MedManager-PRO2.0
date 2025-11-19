@@ -26,13 +26,13 @@ async function seed() {
         databasePassword: 'master123',
         plan: 'enterprise',
         status: 'active',
-        metadata: {
+        metadata: JSON.stringify({
           address: 'Av. Principal, 1000',
           city: 'São Paulo',
           state: 'SP',
           phone: '11 3000-0000',
           email: 'contato@medmanager.com.br'
-        }
+        })
       }
     });
 
@@ -48,13 +48,13 @@ async function seed() {
         databasePassword: 'demo123',
         plan: 'professional',
         status: 'active',
-        metadata: {
+        metadata: JSON.stringify({
           address: 'R. das Flores, 500',
           city: 'Rio de Janeiro',
           state: 'RJ',
           phone: '21 4000-0000',
           email: 'demo@farmaciademo.com.br'
-        }
+        })
       }
     });
 
@@ -70,13 +70,13 @@ async function seed() {
         databasePassword: 'starter123',
         plan: 'starter',
         status: 'active',
-        metadata: {
+        metadata: JSON.stringify({
           address: 'R. Central, 123',
           city: 'Belo Horizonte',
           state: 'MG',
           phone: '31 5000-0000',
           email: 'contato@drogariastarter.com.br'
-        }
+        })
       }
     });
 

@@ -240,7 +240,7 @@ model SNGPCRecord {
           execSync(`npx prisma db push --schema=${schemaPath}`, { stdio: 'pipe' });
           logger.info(`Schema pushed for tenant: ${tenant.name}`);
         } catch (error) {
-          logger.warn(`Error pushing schema: ${error.message}`);
+          logger.warn(`Error pushing schema: ${(error as Error).message}`);
         }
         
       } catch (error) {

@@ -24,7 +24,7 @@ async function createTenantDatabasesDocker() {
           execSync(createUserCmd, { stdio: 'pipe' });
           logger.info(`Created PostgreSQL user: ${tenant.databaseUser}`);
         } catch (error) {
-          logger.warn(`User ${tenant.databaseUser} might already exist or error: ${error.message}`);
+          logger.warn(`User ${tenant.databaseUser} might already exist or error: ${(error as Error).message}`);
         }
         
         // Criar banco de dados
@@ -33,7 +33,7 @@ async function createTenantDatabasesDocker() {
           execSync(createDbCmd, { stdio: 'pipe' });
           logger.info(`Created database: ${tenant.databaseName}`);
         } catch (error) {
-          logger.warn(`Database ${tenant.databaseName} might already exist or error: ${error.message}`);
+          logger.warn(`Database ${tenant.databaseName} might already exist or error: ${(error as Error).message}`);
         }
         
         // Conceder privilégios
@@ -42,7 +42,7 @@ async function createTenantDatabasesDocker() {
           execSync(grantCmd, { stdio: 'pipe' });
           logger.info(`Granted privileges to user ${tenant.databaseUser} on database ${tenant.databaseName}`);
         } catch (error) {
-          logger.warn(`Error granting privileges: ${error.message}`);
+          logger.warn(`Error granting privileges: ${(error as Error).message}`);
         }
         
       } catch (error) {

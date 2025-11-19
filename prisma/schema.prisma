@@ -45,6 +45,7 @@ model AuditLog {
   
   // Relacionamentos
   tenant        Tenant?   @relation(fields: [tenantId], references: [id])
+  user          User?     @relation(fields: [userId], references: [id])
   
   @@map("audit_log")
   @@index([tenantId, createdAt])
@@ -120,7 +121,6 @@ model Batch {
   product       Product         @relation(fields: [productId], references: [id])
   stock         Stock[]
   invoiceItems  InvoiceItem[]
-  stockMovements StockMovement[]
   
   @@unique([productId, batchNumber])
   @@map("batches")
@@ -208,6 +208,7 @@ model Supplier {
   
   // Relacionamentos
   supplierEvaluations SupplierEvaluation[]
+  invoices            Invoice[]
   
   @@map("suppliers")
   @@index([cnpj])

@@ -21,17 +21,18 @@ export interface TenantRequest extends Request {
  * Identifica o tenant a partir do header/subdomínio e configura o contexto
  */
 export async function tenantMiddleware(
-  req: TenantRequest,
+  req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> {
+  const tenantReq = req as TenantRequest;
   try {
     // Obter tenant ID do header ou subdomínio
-    const tenantId = req.headers['x-tenant-id'] as string;
-    const tenantCnpj = req.headers['x-tenant-cnpj'] as string;
+    const tenantId = tenantReq.headers['x-tenant-id'] as string;
+    const tenantCnpj = tenantReq.headers['x-tenant-cnpj'] as string;
     
     if (!tenantId && !tenantCnpj) {
-      throw new AppError('Tenant identification required', 400, 'MISSING_TENANT');
+      throw new AppError('Tenant identification required', 400);
     }
 
     // Buscar tenant no banco master
@@ -47,16 +48,16 @@ export async function tenantMiddleware(
     }
 
     if (!tenant) {
-      throw new AppError('Tenant not found', 404, 'TENANT_NOT_FOUND');
+      throw new AppError('Tenant not found', 404);
     }
 
     // Verificar se o tenant está ativo
     if (tenant.status !== 'active') {
-      throw new AppError('Tenant is not active', 403, 'TENANT_INACTIVE');
+      throw new AppError('Tenant is not active', 403);
     }
 
     // Adicionar tenant ao request
-    req.tenant = {
+    tenantReq.tenant = {
       id: tenant.id,
       name: tenant.name,
       cnpj: tenant.cnpj,
@@ -73,17 +74,18 @@ export async function tenantMiddleware(
     logger.error('Error in tenant middleware:', error);
     
     if (error instanceof AppError) {
-      return res.status(error.statusCode).json({
+      res.status(error.statusCode).json({
         error: error.message,
-        code: error.code,
         timestamp: new Date().toISOString()
       });
+      return;
     }
     
-    return res.status(500).json({
+    res.status(500).json({
       error: 'Internal server error during tenant identification',
       timestamp: new Date().toISOString()
     });
+    return;
   }
 }
 
@@ -92,10 +94,11 @@ export async function tenantMiddleware(
  * Mas que podem beneficiar de ter o contexto se disponível
  */
 export async function optionalTenantMiddleware(
-  req: TenantRequest,
+  req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> {
+  const tenantReq = req as TenantRequest;
   try {
     const tenantId = req.headers['x-tenant-id'] as string;
     const tenantCnpj = req.headers['x-tenant-cnpj'] as string;
@@ -118,7 +121,7 @@ export async function optionalTenantMiddleware(
     }
 
     if (tenant && tenant.status === 'active') {
-      req.tenant = {
+      tenantReq.tenant = {
         id: tenant.id,
         name: tenant.name,
         cnpj: tenant.cnpj,

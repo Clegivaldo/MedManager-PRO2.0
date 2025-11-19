@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,41 +12,96 @@ import {
   Download,
   XCircle,
   CheckCircle,
-  Clock
+  Clock,
+  FileCode
 } from 'lucide-react';
 import CancelNFeModal from '@/components/tenant/modals/CancelNFeModal';
 import NewNFeModal from '@/components/tenant/modals/NewNFeModal';
+import invoiceService, { InvoiceListItem } from '@/services/invoice.service';
+import { getErrorMessage } from '@/services/api';
+import { useToast } from '@/hooks/use-toast';
 
 export default function NFe() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedNFe, setSelectedNFe] = useState<any>(null);
+  const [selectedNFe, setSelectedNFe] = useState<{ id: string; client: string } | null>(null);
   const [isCancelOpen, setIsCancelOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [invoices, setInvoices] = useState<InvoiceListItem[]>([]);
+  const { toast } = useToast();
 
-  const nfeList = [
-    { id: 'NFe-001234', client: 'Drogaria São Paulo', date: '2024-11-07', value: 12450.00, status: 'authorized' },
-    { id: 'NFe-001233', client: 'Farmácia Popular', date: '2024-11-06', value: 8750.00, status: 'authorized' },
-    { id: 'NFe-001232', client: 'Rede Bem Estar', date: '2024-11-05', value: 25300.00, status: 'canceled' },
-    { id: 'NFe-001231', client: 'Farmácia Central', date: '2024-11-04', value: 3200.00, status: 'processing' },
-  ];
+  const loadInvoices = async () => {
+    try {
+      setLoading(true);
+      const res = await invoiceService.list({ page: 1, limit: 20 });
+      setInvoices(res.invoices || []);
+    } catch (e) {
+      toast({ title: 'Falha ao carregar notas', description: getErrorMessage(e), variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadInvoices();
+  }, []);
 
   const handleCancel = (nfe: any) => {
-    setSelectedNFe(nfe);
+    setSelectedNFe({ id: nfe.id, client: nfe.customer?.companyName || '-' });
     setIsCancelOpen(true);
   };
   
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'processing': return <Badge className="bg-yellow-100 text-yellow-800"><Clock className="h-3 w-3 mr-1"/>Processando</Badge>;
-      case 'authorized': return <Badge className="bg-green-100 text-green-800"><CheckCircle className="h-3 w-3 mr-1"/>Autorizada</Badge>;
-      case 'canceled': return <Badge className="bg-red-100 text-red-800"><XCircle className="h-3 w-3 mr-1"/>Cancelada</Badge>;
+      case 'DRAFT': return <Badge className="bg-yellow-100 text-yellow-800"><Clock className="h-3 w-3 mr-1"/>Rascunho</Badge>;
+      case 'AUTHORIZED': return <Badge className="bg-green-100 text-green-800"><CheckCircle className="h-3 w-3 mr-1"/>Autorizada</Badge>;
+      case 'CANCELLED': return <Badge className="bg-red-100 text-red-800"><XCircle className="h-3 w-3 mr-1"/>Cancelada</Badge>;
+      case 'DENIED': return <Badge variant="destructive">Negada</Badge>;
+      case 'ISSUED': return <Badge>Emitida</Badge>;
       default: return <Badge variant="secondary">Desconhecido</Badge>;
     }
   };
 
-  const filteredNFe = nfeList.filter(nfe =>
-    nfe.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    nfe.client.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredNFe = useMemo(() =>
+    invoices.filter(nfe =>
+      nfe.number.toString().toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (nfe.customer?.companyName || '').toLowerCase().includes(searchTerm.toLowerCase())
+    ),
+    [invoices, searchTerm]
   );
+
+  const handleDownloadDanfe = async (id: string, accessKey?: string | null) => {
+    try {
+      const blob = await invoiceService.downloadDanfe(id);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `danfe-${accessKey || id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast({ title: 'DANFE baixado', description: 'PDF gerado com sucesso.' });
+    } catch (e) {
+      toast({ title: 'Falha ao baixar DANFE', description: getErrorMessage(e), variant: 'destructive' });
+    }
+  };
+
+  const handleDownloadXml = async (id: string, accessKey?: string | null) => {
+    try {
+      const blob = await invoiceService.downloadXml(id);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `NFe-${accessKey || id}.xml`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast({ title: 'XML baixado', description: 'Arquivo XML autorizado salvo com sucesso.' });
+    } catch (e) {
+      toast({ title: 'Falha ao baixar XML', description: getErrorMessage(e), variant: 'destructive' });
+    }
+  };
 
   return (
     <>
@@ -62,7 +117,7 @@ export default function NFe() {
                     Emitir NFe Avulsa
                 </Button>
             </DialogTrigger>
-            <NewNFeModal />
+            <NewNFeModal onCreated={loadInvoices} />
         </Dialog>
       </div>
 
@@ -85,7 +140,7 @@ export default function NFe() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>NFe</TableHead>
+                <TableHead>Número</TableHead>
                 <TableHead>Cliente</TableHead>
                 <TableHead>Data de Emissão</TableHead>
                 <TableHead>Valor</TableHead>
@@ -96,15 +151,40 @@ export default function NFe() {
             <TableBody>
               {filteredNFe.map((nfe) => (
                 <TableRow key={nfe.id}>
-                  <TableCell className="font-mono">{nfe.id}</TableCell>
-                  <TableCell className="font-medium">{nfe.client}</TableCell>
-                  <TableCell>{nfe.date}</TableCell>
-                  <TableCell className="font-medium">R$ {nfe.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
+                  <TableCell className="font-mono">{nfe.number}</TableCell>
+                  <TableCell className="font-medium">{nfe.customer?.companyName || '-'}</TableCell>
+                  <TableCell>{new Date(nfe.issueDate).toLocaleDateString('pt-BR')}</TableCell>
+                  <TableCell className="font-medium">R$ {Number(nfe.totalValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
                   <TableCell>{getStatusBadge(nfe.status)}</TableCell>
                   <TableCell>
                     <div className="flex items-center space-x-2">
-                      <Button variant="ghost" size="sm"><Download className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="sm" disabled={nfe.status !== 'authorized'} onClick={() => handleCancel(nfe)}><XCircle className="h-4 w-4" /></Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        disabled={nfe.status !== 'AUTHORIZED'} 
+                        onClick={() => handleDownloadDanfe(nfe.id, nfe.accessKey)}
+                        title="Baixar DANFE (PDF)"
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        disabled={nfe.status !== 'AUTHORIZED'} 
+                        onClick={() => handleDownloadXml(nfe.id, nfe.accessKey)}
+                        title="Baixar XML Autorizado"
+                      >
+                        <FileCode className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        disabled={nfe.status !== 'AUTHORIZED'} 
+                        onClick={() => handleCancel(nfe)}
+                        title="Cancelar NF-e"
+                      >
+                        <XCircle className="h-4 w-4" />
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -114,7 +194,23 @@ export default function NFe() {
         </CardContent>
       </Card>
       
-      <CancelNFeModal nfe={selectedNFe} open={isCancelOpen} onOpenChange={setIsCancelOpen} />
+      <CancelNFeModal
+        nfe={selectedNFe}
+        open={isCancelOpen}
+        onOpenChange={setIsCancelOpen}
+        onConfirm={async (justification) => {
+          if (!selectedNFe) return;
+          try {
+            await invoiceService.cancel(selectedNFe.id, justification);
+            toast({ title: 'NF-e cancelada com sucesso' });
+            setIsCancelOpen(false);
+            setSelectedNFe(null);
+            await loadInvoices();
+          } catch (e) {
+            toast({ title: 'Falha ao cancelar NF-e', description: getErrorMessage(e), variant: 'destructive' });
+          }
+        }}
+      />
     </>
   );
 }

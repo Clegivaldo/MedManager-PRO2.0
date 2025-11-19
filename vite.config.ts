@@ -16,4 +16,13 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  server: {
+    proxy: {
+      '/api': {
+        target: process.env.VITE_API_URL || 'http://backend:3333',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
+  },
 }));

@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger.js';
+import { UserRole } from '@prisma/client';
 
 /**
  * Middleware de controle de acesso baseado em roles (RBAC)
@@ -52,6 +53,11 @@ export function requirePermissions(requiredPermissions: string[]) {
           success: false,
           message: 'User not authenticated'
         });
+      }
+
+      // Bypass total para SUPERADMIN
+      if (req.user.role === 'SUPERADMIN') {
+        return next();
       }
 
       const userPermissions = req.user.permissions || [];
@@ -131,7 +137,7 @@ export function requireTenantAdmin(req: Request, res: Response, next: NextFuncti
       });
     }
 
-    const isTenantAdmin = req.user.role === 'ADMIN' || req.user.role === 'SUPERADMIN';
+    const isTenantAdmin = req.user.role === UserRole.ADMIN || req.user.role === UserRole.SUPERADMIN;
 
     if (!isTenantAdmin) {
       logger.warn(`Access denied: User ${req.user.userId} with role ${req.user.role} tried to access tenant admin resource`);
