@@ -4,6 +4,8 @@ export interface User {
   name: string;
   role: 'SUPERADMIN' | 'ADMIN' | 'MANAGER' | 'OPERATOR' | 'VIEWER';
   tenantId?: string;
+  avatarUrl?: string;
+  twoFactorEnabled?: boolean;
   createdAt: string;
   updatedAt: string;
 }

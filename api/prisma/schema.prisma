@@ -145,6 +145,8 @@ model User {
   password      String
   role          UserRole  @default(OPERATOR)
   permissions   Json?     @default("[]")
+  avatarUrl     String?   @map("avatar_url")
+  twoFactorEnabled Boolean @default(false) @map("two_factor_enabled")
   isActive      Boolean   @default(true) @map("is_active")
   lastAccess    DateTime? @map("last_access")
   createdAt     DateTime  @default(now()) @map("created_at")

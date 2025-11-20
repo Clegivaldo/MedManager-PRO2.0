@@ -23,13 +23,13 @@ import Compliance from './pages/Compliance';
 import Clients from './pages/Clients';
 import NotFound from './pages/NotFound';
 
-// Tenant Pages
 import Quotes from './pages/tenant/Quotes';
 import Sales from './pages/tenant/Sales';
 import NFe from './pages/tenant/NFe';
 import Financials from './pages/tenant/Financials';
 import RoutesPage from './pages/tenant/Routes';
 import UserManagement from './pages/tenant/UserManagement';
+import UserProfile from './pages/tenant/UserProfile';
 import Audit from './pages/tenant/Audit';
 import FiscalProfile from './pages/tenant/FiscalProfile';
 
@@ -73,6 +73,7 @@ const App = () => (
                     <Route path="nfe" element={<NFe />} />
                     <Route path="clients" element={<Clients />} />
                     <Route path="fiscal-profile" element={<FiscalProfile />} />
+                    <Route path="user-profile" element={<UserProfile />} />
                     <Route path="users" element={<UserManagement />} />
                     <Route path="audit" element={<Audit />} />
                   </Route>

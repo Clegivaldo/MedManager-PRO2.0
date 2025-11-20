@@ -76,8 +76,9 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Static files (logos)
+// Static files (logos e avatars)
 app.use('/static/logos', express.static(path.join(process.cwd(), 'uploads', 'logos')));
+app.use('/static/avatars', express.static(path.join(process.cwd(), 'uploads', 'avatars')));
 
 // Middleware de tenant (deve vir antes das rotas)
 // Usar middleware opcional para rotas públicas e obrigatório para rotas protegidas
