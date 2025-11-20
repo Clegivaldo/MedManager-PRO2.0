@@ -255,13 +255,13 @@ const UserProfile = () => {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div>
+    <>
+      <div className="mb-8">
         <h1 className="text-3xl font-bold flex items-center gap-2">
           <User className="h-8 w-8" />
-          Meu Perfil
+          Perfil
         </h1>
-        <p className="text-muted-foreground">
+        <p className="text-muted-foreground mt-1">
           Gerenciar informações pessoais, senha e segurança
         </p>
       </div>
@@ -307,9 +307,7 @@ const UserProfile = () => {
                       Cancelar
                     </Button>
                   </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground text-center">Clique aqui</p>
-                )}
+                ) : null}
               </div>
 
               {/* Informações Pessoais */}
@@ -533,7 +531,7 @@ const UserProfile = () => {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </>
   );
 };
 
