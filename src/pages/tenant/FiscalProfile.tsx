@@ -368,17 +368,15 @@ const FiscalProfile = () => {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Building2 className="h-8 w-8" />
-            Perfil Fiscal
-          </h1>
-          <p className="text-muted-foreground">
-            Configurações fiscais, certificado digital e séries de NF-e
-          </p>
-        </div>
+    <>
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold flex items-center gap-2">
+          <Building2 className="h-8 w-8" />
+          Perfil Fiscal
+        </h1>
+        <p className="text-muted-foreground mt-1">
+          Configurações fiscais, certificado digital e séries de NF-e
+        </p>
       </div>
 
       <Tabs defaultValue="profile" className="w-full">
@@ -901,7 +899,7 @@ const FiscalProfile = () => {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+    </>
   );
 };
 
