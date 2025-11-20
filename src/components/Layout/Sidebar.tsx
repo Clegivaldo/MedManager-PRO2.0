@@ -23,6 +23,7 @@ import {
   Building2,
 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface SidebarProps {
   className?: string;
@@ -42,7 +43,7 @@ const menuItems = [
   { title: 'Conformidade', icon: Shield, href: '/compliance', badge: { text: '3', variant: 'secondary' as const } },
 ];
 
-const managementItems = [
+const baseManagementItems = [
   { title: 'Perfil Fiscal', icon: Building2, href: '/fiscal-profile' },
   { title: 'Usuários', icon: Users2, href: '/users' },
   { title: 'Auditoria', icon: History, href: '/audit' },
@@ -51,6 +52,11 @@ const managementItems = [
 export default function Sidebar({ className }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
+  const { user } = useAuth();
+  const role = (user?.role || '').toUpperCase();
+  const managementItems = role === 'MASTER' || role === 'SUPERADMIN'
+    ? [...baseManagementItems, { title: 'Gateways Pagamento', icon: Settings, href: '/payment-gateway-config' }]
+    : baseManagementItems;
 
   return (
     <div className={cn(

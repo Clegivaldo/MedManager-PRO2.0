@@ -49,9 +49,23 @@ export interface DashboardMetrics {
   };
 }
 
+export interface UsageMetrics {
+  planName: string;
+  users: { current: number; limit: number | null; percentage: number; allowed: boolean };
+  products: { current: number; limit: number | null; percentage: number; allowed: boolean };
+  transactions: { current: number; limit: number | null; percentage: number; allowed: boolean; period: string };
+  storage: { current: number; limit: number | null; percentage: number; allowed: boolean; unit: string };
+  subscription: { status: string; endDate: string; daysRemaining: number };
+}
+
 class DashboardService {
   async getMetrics() {
     const response = await api.get<ApiResponse<DashboardMetrics>>('/dashboard/metrics');
+    return response.data.data;
+  }
+
+  async getUsage() {
+    const response = await api.get<ApiResponse<UsageMetrics>>('/dashboard/usage');
     return response.data.data;
   }
 }

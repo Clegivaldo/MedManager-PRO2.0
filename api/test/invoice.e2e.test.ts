@@ -2,13 +2,13 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import fetch from 'node-fetch';
 
 const base = 'http://localhost:3333/api/v1';
-const tenantCnpj = '12.345.678/0001-55';
+const tenantCnpj = '12345678000155';
 
 async function login() {
   const res = await fetch(`${base}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: 'admin@medmanager.com.br', password: 'admin123' })
+    body: JSON.stringify({ email: 'admin@medmanager.com.br', password: 'admin123', tenantCnpj })
   });
   const json = await res.json();
   if (!res.ok) throw new Error(JSON.stringify(json));
@@ -22,40 +22,92 @@ describe('Invoice flow (draft -> emit)', () => {
   });
 
   it('creates draft and emits invoice (mock)', async () => {
-    // IDs do seed básico
-    const customerId = process.env.SEED_CUSTOMER_ID || '62ee4a4e-3fe4-4991-be69-580caa164afb';
-    const productId = process.env.SEED_PRODUCT_ID || '85d1df2d-da39-43ee-8498-edf0c03249e2';
-    const batchId = process.env.SEED_BATCH_ID || '615e9019-8b0d-4e8f-a513-5a77581aa23e';
-
     const headers = {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`,
       'x-tenant-cnpj': tenantCnpj
     };
 
+    // Criar cliente
+    const customerRes = await fetch(`${base}/customers`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        companyName: 'Cliente Teste Invoice',
+        tradeName: 'Cliente Invoice',
+        cnpjCpf: `${Date.now()}`.slice(-14).padStart(14, '0'),
+        customerType: 'COMPANY',
+        email: 'cli-invoice@example.com',
+        phone: '11999990000'
+      })
+    });
+    expect(customerRes.ok).toBe(true);
+    const customer = await customerRes.json() as any;
+    const customerId = customer.data.id;
+
+    // Criar produto
+    const productRes = await fetch(`${base}/products`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        name: 'Produto Invoice',
+        internalCode: `PINV-${Date.now()}`,
+        productType: 'COMMON'
+      })
+    });
+    expect(productRes.ok).toBe(true);
+    const product = await productRes.json() as any;
+    const productId = product.data.id;
+
+    // Criar lote
+    const batchRes = await fetch(`${base}/batches`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        productId,
+        batchNumber: `B-${Date.now()}`,
+        quantityEntry: 10,
+        quantityCurrent: 10,
+        expirationDate: new Date(Date.now() + 180*24*60*60*1000).toISOString()
+      })
+    });
+    expect(batchRes.ok).toBe(true);
+    const batch = await batchRes.json() as any;
+    const batchId = batch.data.id;
+
+    // NOTA: O estoque deve ser criado automaticamente pelo backend
+    // ou pela seed. Por ora, vamos assumir que a invoice route irá 
+    // criar o stock entry automaticamente se não existir (lógica futura).
+
+    // Criar nota fiscal (rascunho)
     const draftRes = await fetch(`${base}/invoices`, {
       method: 'POST',
       headers,
       body: JSON.stringify({
         customerId,
         items: [{ productId, quantity: 1, unitPrice: 10.5, discount: 0, batchId }],
+        observations: 'Teste vitest invoice',
         paymentMethod: 'pix',
-        installments: 1,
-        observations: 'Teste vitest',
-        operationType: 'sale'
+        invoiceType: 'EXIT'
       })
     });
-    const draft = await draftRes.json();
+    if (!draftRes.ok) {
+      const errorBody = await draftRes.json();
+      console.log('Draft creation failed:', draftRes.status, errorBody);
+    }
     expect(draftRes.ok).toBe(true);
-    expect(draft.status).toBe('DRAFT');
+    const draft = await draftRes.json() as any;
+    expect(draft.invoice.status).toBe('DRAFT');
+    const invoiceId = draft.invoice.id;
 
-    const emitRes = await fetch(`${base}/invoices/${draft.id}/emit`, {
+    // Emitir (simulado)
+    const emitRes = await fetch(`${base}/invoices/${invoiceId}/emit`, {
       method: 'POST',
       headers,
       body: JSON.stringify({})
     });
-    const emitted = await emitRes.json();
     expect(emitRes.ok).toBe(true);
+    const emitted = await emitRes.json() as any;
     expect(emitted.status).toBe('AUTHORIZED');
     expect(emitted.accessKey).toBeTruthy();
   });

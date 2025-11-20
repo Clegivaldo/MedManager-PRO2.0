@@ -21,6 +21,7 @@ import Inventory from './pages/Inventory';
 import Orders from './pages/Orders';
 import Compliance from './pages/Compliance';
 import Clients from './pages/Clients';
+import Usage from './pages/Usage';
 import NotFound from './pages/NotFound';
 
 import Quotes from './pages/tenant/Quotes';
@@ -32,6 +33,8 @@ import UserManagement from './pages/tenant/UserManagement';
 import UserProfile from './pages/tenant/UserProfile';
 import Audit from './pages/tenant/Audit';
 import FiscalProfile from './pages/tenant/FiscalProfile';
+import LicenseExpired from './pages/tenant/LicenseExpired';
+import PaymentGatewayConfig from './pages/tenant/PaymentGatewayConfig';
 
 // Superadmin Pages
 import TenantManagement from './pages/superadmin/TenantManagement';
@@ -56,6 +59,7 @@ const App = () => (
                 <Route path="/login" element={<Login />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/license-expired" element={<LicenseExpired />} />
                 
                 {/* Tenant Routes - Protected */}
                 <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'MANAGER', 'OPERATOR', 'VIEWER']} />}>
@@ -76,6 +80,8 @@ const App = () => (
                     <Route path="user-profile" element={<UserProfile />} />
                     <Route path="users" element={<UserManagement />} />
                     <Route path="audit" element={<Audit />} />
+                    <Route path="payment-gateway-config" element={<PaymentGatewayConfig />} />
+                    <Route path="usage" element={<Usage />} />
                   </Route>
                 </Route>
 

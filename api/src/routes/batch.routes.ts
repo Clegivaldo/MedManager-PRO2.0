@@ -40,7 +40,7 @@ router.post('/', authenticateToken, requirePermission('BATCH_CREATE'), async (re
         throw new AppError('Batch with this number already exists for this product', 400, 'DUPLICATE_BATCH');
       }
 
-      return await prisma.batch.create({
+      const batch = await prisma.batch.create({
         data: {
           productId,
           batchNumber,
@@ -50,6 +50,22 @@ router.post('/', authenticateToken, requirePermission('BATCH_CREATE'), async (re
           manufactureDate: manufactureDate ? new Date(manufactureDate) : null
         }
       });
+
+      // Criar estoque automaticamente para o lote
+      const stock = await prisma.stock.create({
+        data: {
+          productId,
+          batchId: batch.id,
+          availableQuantity: Number(quantityCurrent || quantityEntry),
+          reservedQuantity: 0,
+          location: 'DEFAULT',
+          lastMovement: new Date()
+        }
+      });
+
+      logger.info('Stock created automatically for batch', { batchId: batch.id, stockId: stock.id, availableQuantity: stock.availableQuantity });
+
+      return batch;
     });
 
     logger.info(`Batch created: ${batchNumber}`, {

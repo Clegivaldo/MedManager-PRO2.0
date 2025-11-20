@@ -105,8 +105,9 @@ describe('NF-e Complete E2E Flow', () => {
     it('deve criar um cliente de teste', async () => {
       const customerPayload = {
         companyName: 'Cliente Teste E2E',
-        tradingName: 'Cliente Teste',
+        tradeName: 'Cliente Teste',
         cnpjCpf: '12345678901234',
+        customerType: 'COMPANY',
         email: 'cliente-teste@example.com',
         phone: '11999999999',
         address: {
@@ -137,16 +138,10 @@ describe('NF-e Complete E2E Flow', () => {
     it('deve criar um produto de teste', async () => {
       const productPayload = {
         name: 'Produto Teste E2E',
-        description: 'Produto para testes automatizados',
-        sku: `TEST-${Date.now()}`,
-        barcode: `${Date.now()}`,
-        unit: 'UN',
-        price: 25.50,
-        cost: 15.00,
-        stockMin: 10,
-        stockMax: 100,
+        internalCode: `TEST-${Date.now()}`,
+        productType: 'COMMON',
         isControlled: false,
-        category: 'MEDICAMENTO'
+        isActive: true
       };
 
       const response = await fetch(`${BASE_URL}/products`, {
@@ -162,7 +157,6 @@ describe('NF-e Complete E2E Flow', () => {
       console.log('✓ Produto de teste criado');
       console.log(`  - ID: ${createdProductId}`);
       console.log(`  - Nome: ${data.data.name}`);
-      console.log(`  - Preço: R$ ${data.data.price}`);
     });
 
     it('deve criar um lote de teste', async () => {
@@ -189,6 +183,9 @@ describe('NF-e Complete E2E Flow', () => {
       console.log(`  - ID: ${createdBatchId}`);
       console.log(`  - Número: ${data.data.batchNumber}`);
       console.log(`  - Quantidade: ${data.data.quantityCurrent}`);
+
+      // Estoque é criado automaticamente pela rota de batch
+      console.log('✓ Estoque criado automaticamente');
     });
   });
 
@@ -276,9 +273,8 @@ describe('NF-e Complete E2E Flow', () => {
           }
         ],
         paymentMethod: 'pix',
-        installments: 1,
-        observations: 'Teste E2E - NF-e em homologação',
-        operationType: 'sale'
+        invoiceType: 'EXIT',
+        observations: 'Teste E2E - NF-e em homologação'
       };
 
       const response = await fetch(`${BASE_URL}/invoices`, {

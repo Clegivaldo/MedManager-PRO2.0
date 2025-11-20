@@ -140,21 +140,47 @@ export async function validateTenantDatabase(conn: TenantConnectionConfig & { DA
  * Cria banco de dados para um novo tenant
  */
 export async function createTenantDatabase(databaseName: string, databaseUser: string, databasePassword: string): Promise<void> {
+  let dbCreated = false;
   try {
-    // Criar banco de dados
     await prismaMaster.$executeRawUnsafe(`CREATE DATABASE "${databaseName}"`);
-    
-    // Criar usuário do banco
-    await prismaMaster.$executeRawUnsafe(`CREATE USER "${databaseUser}" WITH PASSWORD '${databasePassword}'`);
-    
-    // Conceder permissões
-    await prismaMaster.$executeRawUnsafe(`GRANT ALL PRIVILEGES ON DATABASE "${databaseName}" TO "${databaseUser}"`);
-    
-    logger.info(`Created tenant database: ${databaseName} with user: ${databaseUser}`);
-  } catch (error) {
-    logger.error(`Failed to create tenant database: ${databaseName}`, error);
-    throw error;
+    dbCreated = true;
+  } catch (e: any) {
+    if (String(e.message).includes('already exists')) {
+      logger.warn(`Database ${databaseName} já existe (ok)`);
+    } else {
+      logger.error(`Erro ao criar database ${databaseName}`, e);
+      throw e;
+    }
   }
+  try {
+    await prismaMaster.$executeRawUnsafe(`CREATE USER "${databaseUser}" WITH PASSWORD '${databasePassword}'`);
+  } catch (e: any) {
+    if (String(e.message).includes('already exists')) {
+      logger.warn(`User ${databaseUser} já existe (ok)`);
+    } else {
+      logger.error(`Erro ao criar usuário ${databaseUser}`, e);
+      throw e;
+    }
+  }
+  try {
+    await prismaMaster.$executeRawUnsafe(`GRANT ALL PRIVILEGES ON DATABASE "${databaseName}" TO "${databaseUser}"`);
+    await prismaMaster.$executeRawUnsafe(`ALTER DATABASE "${databaseName}" OWNER TO "${databaseUser}"`);
+  } catch (e) {
+    logger.warn('Falha ao ajustar owner/privilegios do database (prosseguindo)', { databaseName, error: (e as Error).message });
+  }
+  // Ajustar schema public dentro do database alvo
+  try {
+    const masterCred = config.DATABASE_URL.split('://')[1].split('@')[0];
+    const hostPart = config.DATABASE_URL.split('@')[1].split('/')[0];
+    const adminUrl = `postgresql://${masterCred}@${hostPart}/${databaseName}`;
+    const tempClient = new PrismaClient({ datasources: { db: { url: adminUrl } } });
+    await tempClient.$executeRawUnsafe(`GRANT ALL ON SCHEMA public TO "${databaseUser}"`);
+    await tempClient.$executeRawUnsafe(`ALTER SCHEMA public OWNER TO "${databaseUser}"`);
+    await tempClient.$disconnect();
+  } catch (e) {
+    logger.warn('Falha ao ajustar schema public (prosseguindo)', { databaseName, error: (e as Error).message });
+  }
+  logger.info(`Tenant database pronto (${dbCreated ? 'criado' : 'reutilizado'}): ${databaseName}`);
 }
 
 /**

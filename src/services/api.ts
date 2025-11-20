@@ -86,7 +86,28 @@ api.interceptors.response.use(
     // Tratamento de erros específicos
     if (error.response) {
       const status = error.response.status;
-      const message = (error.response.data as any)?.message || error.message;
+      const data = error.response.data as any;
+      const message = data?.message || error.message;
+      const code = data?.code;
+
+      // Verificar se é erro de licença vencida
+      if (status === 403 && (code === 'LICENSE_EXPIRED' || code === 'LICENSE_SUSPENDED' || code === 'LICENSE_CANCELLED')) {
+        // Redirecionar para página de licença vencida
+        window.location.href = '/license-expired';
+        return Promise.reject(error);
+      }
+
+      // Verificar se é erro de módulo não habilitado
+      if (status === 403 && code === 'MODULE_NOT_ENABLED') {
+        console.error('Módulo não habilitado:', message);
+        // Poderia mostrar modal de upgrade aqui
+      }
+
+      // Verificar se é erro de limite de plano
+      if (status === 402 && code === 'PLAN_LIMIT_REACHED') {
+        console.error('Limite do plano atingido:', message);
+        // Poderia mostrar modal de upgrade aqui
+      }
 
       switch (status) {
         case 400:
@@ -114,6 +135,7 @@ api.interceptors.response.use(
   }
 );
 
+export { api };
 export default api;
 
 // Helper types para respostas padronizadas
@@ -128,6 +150,33 @@ export interface ApiError {
   error: string;
   message: string;
   statusCode: number;
+}
+
+// Payment Gateway Credentials Types
+export interface PaymentGatewayMasked {
+  hasAsaas: boolean;
+  hasInfinityPay: boolean;
+  asaasApiKeyMasked: string | null;
+  infinityPayApiKeyMasked: string | null;
+  asaasWebhookSecretMasked: string | null;
+  infinityPayWebhookSecretMasked: string | null;
+}
+
+export interface UpdatePaymentGatewayDTO {
+  asaasApiKey?: string;
+  infinityPayApiKey?: string;
+  asaasWebhookSecret?: string;
+  infinityPayWebhookSecret?: string;
+}
+
+export async function getPaymentGatewayCredentials(): Promise<PaymentGatewayMasked> {
+  const res = await api.get<ApiResponse<PaymentGatewayMasked>>('/payment-gateways');
+  return res.data.data;
+}
+
+export async function updatePaymentGatewayCredentials(payload: UpdatePaymentGatewayDTO): Promise<PaymentGatewayMasked> {
+  const res = await api.put<ApiResponse<PaymentGatewayMasked>>('/payment-gateways', payload);
+  return res.data.data;
 }
 
 // Helper para extrair mensagem de erro

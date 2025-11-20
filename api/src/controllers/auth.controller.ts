@@ -46,23 +46,24 @@ export class AuthController {
     async (req: Request, res: Response) => {
       try {
         const { email, password, tenantId, tenantCnpj } = req.body;
+        const sanitizedTenantCnpj = tenantCnpj ? tenantCnpj.replace(/\D/g, '') : undefined;
         logger.info('Login attempt received', { email, tenantId: tenantId || undefined, tenantCnpj: tenantCnpj || undefined });
 
         // Identificar o tenant
         let tenant;
-        if (tenantId || tenantCnpj) {
+        if (tenantId || sanitizedTenantCnpj) {
           tenant = await prismaMaster.tenant.findFirst({
             where: {
               OR: [
                 { id: tenantId },
-                { cnpj: tenantCnpj }
+                { cnpj: sanitizedTenantCnpj }
               ],
               status: 'active'
             }
           });
 
           if (!tenant) {
-            logger.warn('Tenant not found or inactive during login', { tenantId, tenantCnpj });
+            logger.warn('Tenant not found or inactive during login', { tenantId, tenantCnpj: sanitizedTenantCnpj });
             return res.status(404).json({
               success: false,
               message: 'Tenant not found or inactive'

@@ -201,11 +201,39 @@ export class NFeService {
       // Gerar XML da NF-e usando o perfil fiscal
       const nfeXml = await this.generateNFeXml(nfeData, fiscalProfile, activeSeries.seriesNumber, nextNumber);
 
-      // Assinar digitalmente o XML com certificado do perfil
-      const signedXml = await this.signXml(nfeXml, fiscalProfile);
+      // Verificar se vamos operar em modo simulado (sem certificado)
+      const useSimulation = (!fiscalProfile.certificatePath || !fiscalProfile.certificatePassword) && config.ALLOW_NFE_SIMULATION && fiscalProfile.sefazEnvironment === 'homologacao' && config.isDevelopment;
 
-      // Enviar para Sefaz usando CSC do perfil
-      const sefazResponse = await this.sendToSefaz(signedXml, nfeData, fiscalProfile);
+      let sefazResponse: SefazResponse;
+      if (useSimulation) {
+        logger.warn('NF-e emission in SIMULATION MODE (no certificate). This is NOT valid for production.', {
+          tenantId,
+          invoiceNumber: nfeData.invoice.invoiceNumber,
+          series: activeSeries.seriesNumber
+        });
+        // Simular assinatura e protocolo
+        const accessKeyMatch = nfeXml.match(/NFe(\d{44})/);
+        const accessKey = accessKeyMatch ? accessKeyMatch[1] : 'SIMULATED' + Date.now();
+        sefazResponse = {
+          success: true,
+          accessKey,
+            protocolNumber: 'SIM-' + Date.now(),
+          authorizationDate: new Date(),
+          status: 'authorized',
+          statusCode: '100',
+          statusMessage: 'Autorizada (Simulação)',
+          xmlContent: nfeXml,
+          xml: nfeXml,
+          danfeUrl: undefined,
+          qrCodeUrl: undefined,
+          sefazResponse: { simulation: true }
+        };
+      } else {
+        // Assinar digitalmente o XML com certificado do perfil
+        const signedXml = await this.signXml(nfeXml, fiscalProfile);
+        // Enviar para Sefaz usando CSC do perfil
+        sefazResponse = await this.sendToSefaz(signedXml, nfeData, fiscalProfile);
+      }
 
       logger.info(`NFe emission completed`, {
         accessKey: sefazResponse.accessKey,
@@ -696,57 +724,73 @@ export class NFeService {
         throw new AppError('Fiscal profile not configured', 400);
       }
 
-      // Configurar SefazService
-      const environment = fiscalProfile.sefazEnvironment === 'producao' ? 'production' : 'homologation';
-      const sefazConfig: SefazConfig = {
-        environment,
-        state: 'SP',
-        certificatePath: fiscalProfile.certificatePath || undefined,
-        certificatePassword: fiscalProfile.certificatePassword || undefined
-      };
+      const useSimulation = (!fiscalProfile.certificatePath || !fiscalProfile.certificatePassword) && config.ALLOW_NFE_SIMULATION && fiscalProfile.sefazEnvironment === 'homologacao' && config.isDevelopment;
 
-      const sefazService = new SefazService(sefazConfig);
-
-      // Carregar certificado
-      if (fiscalProfile.certificatePath) {
-        await sefazService.loadCertificate();
-      }
-
-      // Enviar cancelamento
-      const cancelResponse = await sefazService.cancelarNFe(
-        cancelData.accessKey,
-        cancelData.protocolNumber,
-        cancelData.justification,
-        cancelData.cnpj
-      );
-
-      if (cancelResponse.status === 'success') {
+      if (useSimulation) {
+        logger.warn('NF-e cancellation simulated (no certificate).');
         logger.info(`NFe canceled successfully`, { 
           accessKey: cancelData.accessKey,
-          cancellationProtocol: cancelResponse.protocol 
+          cancellationProtocol: 'SIM-CANCEL-' + Date.now() 
         });
 
         return {
           success: true,
           accessKey: cancelData.accessKey,
-          protocolNumber: cancelResponse.protocol,
+          protocolNumber: 'SIM-CANCEL-' + Date.now(),
           authorizationDate: new Date(),
           status: 'cancelled',
-          statusCode: cancelResponse.statusCode,
-          statusMessage: cancelResponse.statusMessage,
+          statusCode: '135',
+          statusMessage: 'Cancelamento homologado (Simulação)',
           cancellationDate: new Date(),
-          cancellationProtocol: cancelResponse.protocol,
+          cancellationProtocol: 'SIM-CANCEL-' + Date.now(),
           cancellationJustification: cancelData.justification
         };
       } else {
-        return {
-          success: false,
-          accessKey: cancelData.accessKey,
-          status: 'error',
-          statusCode: cancelResponse.statusCode,
-          statusMessage: cancelResponse.statusMessage,
-          errorDetails: cancelResponse.statusMessage
+        // Configurar SefazService real
+        const environment = fiscalProfile.sefazEnvironment === 'producao' ? 'production' : 'homologation';
+        const sefazConfig: SefazConfig = {
+          environment,
+          state: 'SP',
+          certificatePath: fiscalProfile.certificatePath || undefined,
+          certificatePassword: fiscalProfile.certificatePassword || undefined
         };
+        const sefazService = new SefazService(sefazConfig);
+        if (fiscalProfile.certificatePath) {
+          await sefazService.loadCertificate();
+        }
+        const cancelResponse = await sefazService.cancelarNFe(
+          cancelData.accessKey,
+          cancelData.protocolNumber,
+          cancelData.justification,
+          cancelData.cnpj
+        );
+        if (cancelResponse.status === 'success') {
+          logger.info(`NFe canceled successfully`, { 
+            accessKey: cancelData.accessKey,
+            cancellationProtocol: cancelResponse.protocol 
+          });
+          return {
+            success: true,
+            accessKey: cancelData.accessKey,
+            protocolNumber: cancelResponse.protocol,
+            authorizationDate: new Date(),
+            status: 'cancelled',
+            statusCode: cancelResponse.statusCode,
+            statusMessage: cancelResponse.statusMessage,
+            cancellationDate: new Date(),
+            cancellationProtocol: cancelResponse.protocol,
+            cancellationJustification: cancelData.justification
+          };
+        } else {
+          return {
+            success: false,
+            accessKey: cancelData.accessKey,
+            status: 'error',
+            statusCode: cancelResponse.statusCode,
+            statusMessage: cancelResponse.statusMessage,
+            errorDetails: cancelResponse.statusMessage
+          };
+        }
       }
 
     } catch (error) {
@@ -775,7 +819,24 @@ export class NFeService {
         throw new AppError('Fiscal profile not configured', 400);
       }
 
-      // Configurar SefazService
+      const useSimulation = (!fiscalProfile.certificatePath || !fiscalProfile.certificatePassword) && config.ALLOW_NFE_SIMULATION && fiscalProfile.sefazEnvironment === 'homologacao' && config.isDevelopment;
+
+      if (useSimulation) {
+        logger.warn('NF-e status consultation simulated.');
+        return {
+          success: true,
+          accessKey,
+          status: 'authorized',
+          statusCode: '100',
+          statusMessage: 'Autorizada (Simulação)',
+          protocolNumber: 'SIM-' + Date.now(),
+          authorizationDate: new Date(),
+          xml: undefined,
+          details: { simulation: true }
+        };
+      }
+
+      // Real consultation
       const environment = fiscalProfile.sefazEnvironment === 'producao' ? 'production' : 'homologation';
       const sefazConfig: SefazConfig = {
         environment,
@@ -783,15 +844,10 @@ export class NFeService {
         certificatePath: fiscalProfile.certificatePath || undefined,
         certificatePassword: fiscalProfile.certificatePassword || undefined
       };
-
       const sefazService = new SefazService(sefazConfig);
-
-      // Carregar certificado
       if (fiscalProfile.certificatePath) {
         await sefazService.loadCertificate();
       }
-
-      // Consultar protocolo
       const consultaResponse = await sefazService.consultarProtocolo(accessKey);
 
       logger.info(`NFe status consultation completed`, { 
@@ -839,51 +895,17 @@ export class NFeService {
         throw new AppError('NF-e must be authorized to generate DANFE', 400);
       }
 
-      // Em produção, gerar PDF real do DANFE
-      // Por enquanto, retornar um buffer simulado
-      const simulatedPdfContent = `DANFE - Documento Auxiliar da Nota Fiscal Eletrônica
+      // Gerar PDF real com código de barras e QRCode
+      const { generateDanfePdf } = await import('../utils/danfePdf.js');
+      const pdfBuffer = await generateDanfePdf(invoiceData);
 
-================================================================================
-EMITENTE: ${invoiceData.tenant.name}
-CNPJ: ${invoiceData.tenant.cnpj}
-INSCRIÇÃO ESTADUAL: ${invoiceData.tenant.stateRegistration}
-================================================================================
-
-DESTINATÁRIO: ${invoiceData.customer.name}
-CNPJ/CPF: ${invoiceData.customer.cnpjCpf}
-
-================================================================================
-NOTA FISCAL ELETRÔNICA
-Número: ${invoiceData.invoice.invoiceNumber}
-Série: 1
-Data de Emissão: ${invoiceData.invoice.createdAt.toLocaleDateString('pt-BR')}
-Chave de Acesso: ${invoiceData.nfe.accessKey}
-Protocolo: ${invoiceData.nfe.protocolNumber}
-
-================================================================================
-ITENS DA NOTA FISCAL:
-${invoiceData.items.map((item, index) => `${index + 1}. ${item.product.name} - ${item.quantity} ${item.product.unit} x R$ ${item.unitPrice.toFixed(2)} = R$ ${item.total.toFixed(2)}`).join('\n')}
-
-================================================================================
-RESUMO:
-Subtotal: R$ ${invoiceData.invoice.subtotal.toFixed(2)}
-Desconto: R$ ${invoiceData.invoice.discount.toFixed(2)}
-Total: R$ ${invoiceData.invoice.total.toFixed(2)}
-
-================================================================================
-Consulta de autenticidade no portal nacional da NF-e
-www.nfe.fazenda.gov.br/portal
-Chave de acesso: ${invoiceData.nfe.accessKey}
-
-Este documento foi emitido em ambiente de ${config.NODE_ENV === 'development' ? 'HOMOLOGAÇÃO' : 'PRODUÇÃO'}.
-`;
-
-      logger.info(`DANFE generated successfully`, { 
+      logger.info(`DANFE PDF generated successfully`, {
         invoiceId: invoiceData.id,
-        accessKey: invoiceData.nfe.accessKey 
+        accessKey: invoiceData.nfe.accessKey,
+        pdfSize: pdfBuffer.length
       });
 
-      return Buffer.from(simulatedPdfContent, 'utf-8');
+      return pdfBuffer;
 
     } catch (error) {
       logger.error(`DANFE generation failed`, { 

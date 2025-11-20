@@ -1,4 +1,4 @@
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
 
@@ -8,7 +8,7 @@ function normalizeRole(role?: string) {
 }
 
 interface ProtectedRouteProps {
-  allowedRoles?: Array<'SUPERADMIN' | 'ADMIN' | 'MANAGER' | 'OPERATOR' | 'VIEWER'>;
+  allowedRoles?: Array<'SUPERADMIN' | 'MASTER' | 'ADMIN' | 'MANAGER' | 'OPERATOR' | 'VIEWER'>;
   redirectTo?: string;
 }
 
@@ -18,6 +18,12 @@ export default function ProtectedRoute({
 }: ProtectedRouteProps) {
   const { isAuthenticated, isLoading, user } = useAuth();
   const userRole = normalizeRole(user?.role);
+  const location = useLocation();
+
+  // Se já está na página de licença expirada, permitir renderização sem validação extra
+  if (location.pathname === '/license-expired') {
+    return <Outlet />;
+  }
 
   // Mostrar loading enquanto verifica autenticação
   if (isLoading) {

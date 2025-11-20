@@ -135,6 +135,11 @@ export const PERMISSIONS = {
 
 // Role definitions with associated permissions
 export const ROLES = {
+  MASTER: {
+    name: 'master',
+    permissions: Object.values(PERMISSIONS),
+    description: 'Full tenant administrative access'
+  },
   SUPERADMIN: {
     name: 'superadmin',
     permissions: Object.values(PERMISSIONS),

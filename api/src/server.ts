@@ -18,9 +18,14 @@ import customerRouter from './routes/customer.routes.js';
 import supplierRouter from './routes/supplier.routes.js';
 import invoiceRouter from './routes/invoice.routes.js';
 import fiscalRouter from './routes/fiscal.routes.js';
+import subscriptionRouter from './routes/subscription.routes.js';
+import paymentRouter from './routes/payment.routes.js';
+import webhookRouter from './routes/webhook.routes.js';
+import paymentGatewayRouter from './routes/payment-gateway.routes.js';
 import dashboardRouter from './routes/dashboard.routes.js';
 import batchRouter from './routes/batch.routes.js';
 import { authenticateToken } from './middleware/auth.js';
+import { validateSubscription } from './middleware/subscription.middleware.js';
 
 const app: Application = express();
 
@@ -116,22 +121,41 @@ app.use(`/api/${config.API_VERSION}/auth`, authLimiter, authRouter);
 app.use(`/api/${config.API_VERSION}/tenants`, tenantRouter);
 
 // Protected routes (require authentication)
+// Rotas de assinatura (informações de assinatura) - precisam de autenticação e tenant, mas NÃO bloqueiam por expiração
+// Rotas de assinatura (informações e uso) não devem ser bloqueadas por expiração
+app.use(`/api/${config.API_VERSION}/subscriptions`, authenticateToken, tenantMiddleware, subscriptionRouter);
+app.use(`/api/${config.API_VERSION}/payments`, authenticateToken, tenantMiddleware, paymentRouter);
+app.use(`/api/${config.API_VERSION}/payment-gateways`, authenticateToken, tenantMiddleware, paymentGatewayRouter);
+app.use(`/api/${config.API_VERSION}/webhooks`, webhookRouter);
+
+// Rotas protegidas que exigem assinatura ativa
 app.use(`/api/${config.API_VERSION}/superadmin`, authenticateToken, superadminRouter);
-app.use(`/api/${config.API_VERSION}/regulatory`, authenticateToken, tenantMiddleware, regulatoryRouter);
-app.use(`/api/${config.API_VERSION}/users`, authenticateToken, userRouter);
-app.use(`/api/${config.API_VERSION}/products`, authenticateToken, tenantMiddleware, productRouter);
-app.use(`/api/${config.API_VERSION}/inventory`, authenticateToken, tenantMiddleware, inventoryRouter);
-app.use(`/api/${config.API_VERSION}/customers`, authenticateToken, tenantMiddleware, customerRouter);
-app.use(`/api/${config.API_VERSION}/suppliers`, authenticateToken, tenantMiddleware, supplierRouter);
-app.use(`/api/${config.API_VERSION}/invoices`, authenticateToken, tenantMiddleware, invoiceRouter);
-app.use(`/api/${config.API_VERSION}/fiscal`, authenticateToken, tenantMiddleware, fiscalRouter);
-app.use(`/api/${config.API_VERSION}/dashboard`, authenticateToken, tenantMiddleware, dashboardRouter);
-app.use(`/api/${config.API_VERSION}/batches`, authenticateToken, tenantMiddleware, batchRouter);
+app.use(`/api/${config.API_VERSION}/regulatory`, authenticateToken, tenantMiddleware, validateSubscription, regulatoryRouter);
+app.use(`/api/${config.API_VERSION}/users`, authenticateToken, validateSubscription, userRouter);
+app.use(`/api/${config.API_VERSION}/products`, authenticateToken, tenantMiddleware, validateSubscription, productRouter);
+app.use(`/api/${config.API_VERSION}/inventory`, authenticateToken, tenantMiddleware, validateSubscription, inventoryRouter);
+app.use(`/api/${config.API_VERSION}/customers`, authenticateToken, tenantMiddleware, validateSubscription, customerRouter);
+app.use(`/api/${config.API_VERSION}/suppliers`, authenticateToken, tenantMiddleware, validateSubscription, supplierRouter);
+app.use(`/api/${config.API_VERSION}/invoices`, authenticateToken, tenantMiddleware, validateSubscription, invoiceRouter);
+app.use(`/api/${config.API_VERSION}/fiscal`, authenticateToken, tenantMiddleware, validateSubscription, fiscalRouter);
+app.use(`/api/${config.API_VERSION}/dashboard`, authenticateToken, tenantMiddleware, validateSubscription, dashboardRouter);
+app.use(`/api/${config.API_VERSION}/batches`, authenticateToken, tenantMiddleware, validateSubscription, batchRouter);
 
 // Rota de teste
 app.get('/api/test', (req, res) => {
+  console.log('[TEST ROUTE] Rota /api/test chamada');
   res.json({
     message: 'MedManager API is working!',
+    tenant: req.tenant || 'no-tenant',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Rota de teste COM validateSubscription
+app.get('/api/test-subscription', authenticateToken, tenantMiddleware, validateSubscription, (req, res) => {
+  console.log('[TEST SUBSCRIPTION ROUTE] Rota /api/test-subscription chamada');
+  res.json({
+    message: 'Subscription is valid!',
     tenant: req.tenant || 'no-tenant',
     timestamp: new Date().toISOString()
   });
