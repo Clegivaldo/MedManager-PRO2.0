@@ -9,10 +9,12 @@ import { extractCertificateInfo, validateCertificate, encryptCertificate } from 
 import { z } from 'zod';
 import path from 'path';
 import fs from 'fs/promises';
+import fsSync from 'fs';
 
 const router: Router = Router();
 
 // Configurar multer para upload de certificado
+// Upload de certificado (memória)
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -58,6 +60,7 @@ const fiscalProfileSchema = z.object({
   }).optional(),
   phone: z.string().optional(),
   email: z.string().email().optional(),
+  logoUrl: z.string().url().optional(),
   cscId: z.string().optional(),
   cscToken: z.string().optional(),
   certificateType: z.enum(['A1', 'A3']).optional(),
@@ -122,6 +125,61 @@ router.post('/', authenticateToken, requirePermissions([PERMISSIONS.SYSTEM_CONFI
 
     logger.info(`Fiscal profile upserted for tenant ${tenantId}`);
     res.json({ profile });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Configuração de upload de logo (disco)
+const logoStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const tenantId = (req as any).tenant?.id || 'unknown';
+    const dest = path.join(process.cwd(), 'uploads', 'logos', tenantId);
+    try {
+      fsSync.mkdirSync(dest, { recursive: true });
+    } catch {}
+    cb(null, dest);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `logo_${Date.now()}${ext}`);
+  }
+});
+
+const logoUpload = multer({
+  storage: logoStorage,
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
+  fileFilter: (req, file, cb) => {
+    const allowed = ['.png', '.jpg', '.jpeg', '.svg'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowed.includes(ext)) cb(null, true); else cb(new AppError('Invalid image format (PNG/JPG/JPEG/SVG only)', 400) as any);
+  }
+});
+
+// Upload de logo
+router.post('/logo', authenticateToken, requirePermissions([PERMISSIONS.SYSTEM_CONFIG]), logoUpload.single('logo'), async (req, res, next) => {
+  try {
+    const tenantId = req.tenant?.id;
+    if (!tenantId) throw new AppError('Tenant not identified', 400);
+    if (!req.file) throw new AppError('Logo file is required', 400);
+
+    const profile = await prismaMaster.tenantFiscalProfile.findUnique({ where: { tenantId } });
+    if (!profile) throw new AppError('Fiscal profile not found. Create profile first.', 404);
+
+    // Remover logo anterior se existir
+    if (profile.logoUrl) {
+      const oldPath = path.join(process.cwd(), profile.logoUrl.replace('/static/', '')); // tentando mapear caso path antigo
+      try { fsSync.unlinkSync(oldPath); } catch {}
+    }
+
+    const publicUrl = `/static/logos/${tenantId}/${req.file.filename}`;
+    await prismaMaster.tenantFiscalProfile.update({
+      where: { tenantId },
+      data: { logoUrl: publicUrl }
+    });
+
+    logger.info('Logo uploaded successfully', { tenantId, file: req.file.filename });
+    res.json({ success: true, logoUrl: publicUrl });
   } catch (error) {
     next(error);
   }

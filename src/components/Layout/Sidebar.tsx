@@ -43,11 +43,10 @@ const menuItems = [
 ];
 
 const managementItems = [
-    { title: 'Perfil Fiscal', icon: Building2, href: '/fiscal-profile' },
-    { title: 'Usuários', icon: Users2, href: '/users' },
-    { title: 'Auditoria', icon: History, href: '/audit' },
-    { title: 'Configurações', icon: Settings, href: '/settings' },
-]
+  { title: 'Perfil Fiscal', icon: Building2, href: '/fiscal-profile' },
+  { title: 'Usuários', icon: Users2, href: '/users' },
+  { title: 'Auditoria', icon: History, href: '/audit' },
+];
 
 export default function Sidebar({ className }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);

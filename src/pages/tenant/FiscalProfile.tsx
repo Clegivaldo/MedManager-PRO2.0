@@ -23,6 +23,7 @@ import {
   Edit2,
   XCircle
 } from 'lucide-react';
+import { useDropzone } from 'react-dropzone';
 
 interface FiscalProfile {
   id: string;
@@ -43,6 +44,7 @@ interface FiscalProfile {
   };
   phone?: string;
   email?: string;
+  logoUrl?: string;
   cscId?: string;
   cscToken?: string;
   certificateType?: string;
@@ -76,6 +78,8 @@ const FiscalProfile = () => {
   const [profile, setProfile] = useState<FiscalProfile | null>(null);
   const [certificateStatus, setCertificateStatus] = useState<CertificateStatus | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [certificatePassword, setCertificatePassword] = useState('');
   const [certificateType, setCertificateType] = useState<'A1' | 'A3'>('A1');
   const [uploadingCert, setUploadingCert] = useState(false);
@@ -115,6 +119,24 @@ const FiscalProfile = () => {
     loadProfile();
     loadCertificateStatus();
   }, []);
+
+  // logo dropzone
+  const onDropLogo = (accepted: File[]) => {
+    if (accepted && accepted.length > 0) {
+      const file = accepted[0];
+      setLogoFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => setLogoPreview(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const { getRootProps: getRootLogoProps, getInputProps: getLogoInputProps, isDragActive: isDragActiveLogo } = useDropzone({
+    onDrop: onDropLogo,
+    accept: { 'image/*': ['.png', '.jpg', '.jpeg', '.svg'] },
+    maxFiles: 1,
+    maxSize: 2097152,
+  });
 
   const loadProfile = async () => {
     try {
@@ -178,6 +200,19 @@ const FiscalProfile = () => {
         title: 'Perfil fiscal salvo',
         description: 'As configurações foram atualizadas com sucesso.'
       });
+      // Se houver logo selecionada, tentar enviar separadamente
+      if (logoFile) {
+        try {
+          const fd = new FormData();
+          fd.append('logo', logoFile);
+          await api.post('/api/v1/fiscal/logo', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+          toast({ title: 'Logo enviada', description: 'Logo da empresa atualizada.' });
+        } catch (err) {
+          // não bloquear o salvamento se endpoint não existir
+          console.warn('Logo upload failed', err);
+          toast({ title: 'Aviso', description: 'Não foi possível enviar a logo (endpoint indisponível).', variant: 'warning' as any });
+        }
+      }
     } catch (error) {
       toast({
         title: 'Erro ao salvar perfil',
@@ -394,6 +429,52 @@ const FiscalProfile = () => {
                     onChange={(e) => setFormData({ ...formData, tradingName: e.target.value })}
                     placeholder="Nome comercial"
                   />
+                </div>
+              </div>
+
+              {/* Logo da Empresa */}
+              <div className="mt-4">
+                <h3 className="text-lg font-semibold mb-2">Logo da Empresa</h3>
+                <div className="p-4 border-2 border-dashed rounded-lg">
+                  {!logoFile ? (
+                    <div {...getRootLogoProps()} className="cursor-pointer text-center">
+                      <input {...getLogoInputProps()} />
+                      <div className="flex flex-col items-center justify-center space-y-2 text-gray-500">
+                        <Upload className="w-10 h-10" />
+                        {isDragActiveLogo ? (
+                          <p>Solte a imagem aqui...</p>
+                        ) : (
+                          <>
+                            <p>Arraste e solte a logo da empresa aqui, ou clique para selecionar.</p>
+                            <p className="text-xs">PNG, JPG, JPEG, SVG (máx. 2MB)</p>
+                            {profile?.logoUrl && (
+                              <div className="mt-4 flex flex-col items-center">
+                                <p className="text-xs text-muted-foreground mb-2">Logo atual:</p>
+                                <img src={profile.logoUrl} alt="Logo atual" className="w-24 h-24 object-contain bg-white p-2 rounded-md border" />
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        {logoPreview && (
+                          <img src={logoPreview} alt="Logo" className="w-24 h-24 object-contain bg-white p-2 rounded-md" />
+                        )}
+                        <div>
+                          <p className="font-medium">{logoFile.name}</p>
+                          <p className="text-sm text-muted-foreground">{(logoFile.size / 1024).toFixed(2)} KB</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => { setLogoFile(null); setLogoPreview(null); }}>
+                          Remover
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

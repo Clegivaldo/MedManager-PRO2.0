@@ -29,7 +29,6 @@ import Sales from './pages/tenant/Sales';
 import NFe from './pages/tenant/NFe';
 import Financials from './pages/tenant/Financials';
 import RoutesPage from './pages/tenant/Routes';
-import TenantSettings from './pages/tenant/Settings';
 import UserManagement from './pages/tenant/UserManagement';
 import Audit from './pages/tenant/Audit';
 import FiscalProfile from './pages/tenant/FiscalProfile';
@@ -75,7 +74,6 @@ const App = () => (
                     <Route path="clients" element={<Clients />} />
                     <Route path="fiscal-profile" element={<FiscalProfile />} />
                     <Route path="users" element={<UserManagement />} />
-                    <Route path="settings" element={<TenantSettings />} />
                     <Route path="audit" element={<Audit />} />
                   </Route>
                 </Route>

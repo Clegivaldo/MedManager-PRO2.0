@@ -109,9 +109,9 @@ export default function Header() {
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link to="/settings">
+                <Link to="/fiscal-profile">
                   <Settings className="mr-2 h-4 w-4" />
-                  <span>Configurações</span>
+                  <span>Perfil Fiscal</span>
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem>

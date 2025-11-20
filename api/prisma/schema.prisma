@@ -47,6 +47,7 @@ model TenantFiscalProfile {
   address               Json?
   phone                 String?
   email                 String?
+  logoUrl               String?   @map("logo_url")
   cscId                 String?   @map("csc_id")
   cscToken              String?   @map("csc_token")
   certificateType       String?   @map("certificate_type")
