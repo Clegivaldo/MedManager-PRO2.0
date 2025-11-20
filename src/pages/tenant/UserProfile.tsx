@@ -69,6 +69,7 @@ const UserProfile = () => {
         name: user.name || '',
         email: user.email || '',
       });
+      setAvatarPreview(user.avatarUrl || null);
       setTwoFactorStep(user.twoFactorEnabled ? 'enabled' : 'disabled');
     }
   }, [user]);
@@ -101,14 +102,20 @@ const UserProfile = () => {
 
       await api.put('/api/v1/users/profile', updateData);
 
+      // Upload avatar se houver arquivo selecionado
       if (avatarFile) {
         const fd = new FormData();
         fd.append('avatar', avatarFile);
-        await api.post('/api/v1/users/avatar', fd, { 
+        const response = await api.post('/api/v1/users/avatar', fd, { 
           headers: { 'Content-Type': 'multipart/form-data' } 
         });
+        
+        // Atualizar preview com URL retornada
+        if (response.data.avatarUrl) {
+          setAvatarPreview(response.data.avatarUrl);
+          setProfile(prev => prev ? { ...prev, avatarUrl: response.data.avatarUrl } : null);
+        }
         setAvatarFile(null);
-        setAvatarPreview(null);
       }
 
       toast({
@@ -261,36 +268,50 @@ const UserProfile = () => {
           <CardHeader>
             <CardTitle>Foto de Perfil</CardTitle>
             <CardDescription>
-              Adicione ou atualize sua foto de perfil
+              Clique na imagem para alterar sua foto
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center gap-6">
-              <Avatar className="h-24 w-24">
-                <AvatarImage src={avatarPreview || profile.avatarUrl} alt={profile.name} />
-                <AvatarFallback className="bg-primary text-primary-foreground text-xl">
-                  {profile.name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
-                </AvatarFallback>
-              </Avatar>
-
-              <div className="flex-1">
-                <div {...getRootAvatarProps()} className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:bg-muted/50 transition">
-                  <input {...getAvatarInputProps()} />
-                  {isDragActiveAvatar ? (
-                    <p className="text-sm text-muted-foreground">Solte a imagem aqui...</p>
-                  ) : (
-                    <>
-                      <Upload className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground">
-                        Arraste uma imagem ou clique para selecionar
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        PNG, JPG, JPEG (máx. 2MB)
-                      </p>
-                    </>
-                  )}
+            <div className="flex flex-col items-center gap-6">
+              <div
+                {...getRootAvatarProps()}
+                className="cursor-pointer relative group"
+              >
+                <input {...getAvatarInputProps()} />
+                <Avatar className="h-32 w-32 border-2 border-muted">
+                  <AvatarImage src={avatarPreview || profile?.avatarUrl} alt={profile?.name} />
+                  <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
+                    {profile?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Upload className="h-8 w-8 text-white" />
                 </div>
               </div>
+
+              {avatarFile ? (
+                <div className="text-center">
+                  <p className="text-sm font-medium text-green-600">
+                    ✓ {avatarFile.name} selecionado
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {(avatarFile.size / 1024).toFixed(2)} KB
+                  </p>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => {
+                      setAvatarFile(null);
+                      setAvatarPreview(profile?.avatarUrl || null);
+                    }}
+                    className="mt-2"
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">PNG, JPG ou JPEG (máx. 2MB)</p>
+              )}
             </div>
           </CardContent>
         </Card>

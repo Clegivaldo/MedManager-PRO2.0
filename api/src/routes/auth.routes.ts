@@ -4,6 +4,7 @@ import { authenticateToken } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/permissions.js';
 import { logger } from '../utils/logger.js';
 import { prismaMaster } from '../lib/prisma.js';
+import { getTenantPrisma } from '../lib/tenant-prisma.js';
 import { 
   generateAccessToken, 
   generateRefreshToken, 
@@ -446,6 +447,39 @@ router.post('/logout', authenticateToken, async (req, res, next) => {
     res.json({
       success: true,
       message: 'Logged out successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Obter dados do usuário autenticado
+router.get('/me', authenticateToken, async (req, res, next) => {
+  try {
+    const userId = req.user!.userId;
+    const prisma = getTenantPrisma((req as any).tenant);
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        avatarUrl: true,
+        twoFactorEnabled: true,
+        createdAt: true,
+        updatedAt: true,
+      }
+    });
+
+    if (!user) {
+      throw new AppError('Usuário não encontrado', 404);
+    }
+
+    res.json({
+      success: true,
+      data: { user }
     });
   } catch (error) {
     next(error);
