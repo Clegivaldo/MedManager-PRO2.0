@@ -88,7 +88,9 @@ router.post('/login', async (req, res, next) => {
           email: user.email,
           name: user.name,
           role: user.role,
-          permissions
+          permissions,
+          avatarUrl: user.avatarUrl,
+          twoFactorEnabled: user.twoFactorEnabled
         },
         tokens: {
           accessToken,
@@ -181,8 +183,8 @@ router.post('/login-tenant', async (req, res, next) => {
     res.json({
       success: true,
       data: {
-        user: { id: user.id, email: user.email, name: user.name, role: user.role, permissions },
-        tenant: { id: tenant.id, name: tenant.name, cnpj: tenant.cnpj, plan: tenant.plan },
+        user: { id: user.id, email: user.email, name: user.name, role: user.role, permissions, avatarUrl: user.avatarUrl, twoFactorEnabled: user.twoFactorEnabled },
+        tenant: { id: tenant.id, name: tenant.name, cnpj: tenant.cnpj },
         tokens: { accessToken, refreshToken, expiresIn: '24h' }
       }
     });
@@ -240,14 +242,16 @@ router.post('/register', async (req, res, next) => {
     // Registrar log de registro
     logger.info(`New user registered: ${user.email}`, { userId: user.id });
 
-    res.status(201).json({
+    res.json({
       success: true,
       data: {
         user: {
           id: user.id,
           email: user.email,
           name: user.name,
-          role: user.role || 'user',
+          role: user.role,
+          avatarUrl: user.avatarUrl,
+          twoFactorEnabled: user.twoFactorEnabled,
           permissions
         },
         tokens: {

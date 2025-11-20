@@ -44,7 +44,7 @@ const avatarUpload = multer({
 // Obter perfil do usuário autenticado
 router.get('/profile/me', authenticateToken, async (req, res, next) => {
   try {
-    const userId = (req as any).user?.id;
+    const userId = (req as any).user?.userId || (req as any).user?.id;
     const tenantId = (req as any).tenant?.id;
     if (!userId) throw new AppError('Usuário não identificado', 400);
 
@@ -64,7 +64,7 @@ router.get('/profile/me', authenticateToken, async (req, res, next) => {
 
     if (!user) throw new AppError('Usuário não encontrado', 404);
 
-    res.json({ user });
+    res.json({ success: true, data: { user } });
   } catch (error) {
     next(error);
   }
@@ -73,13 +73,14 @@ router.get('/profile/me', authenticateToken, async (req, res, next) => {
 // Atualizar perfil do usuário autenticado
 router.put('/profile', authenticateToken, async (req, res, next) => {
   try {
-    const userId = (req as any).user?.id;
+    const userId = (req as any).user?.userId || (req as any).user?.id;
     if (!userId) throw new AppError('Usuário não identificado', 400);
 
-    const { name } = req.body;
+    const { name, email, phone, department } = req.body;
 
     const updateData: any = {};
-    if (name) updateData.name = name;
+    if (name !== undefined) updateData.name = name;
+    if (email !== undefined) updateData.email = email;
 
     const prisma = getTenantPrisma((req as any).tenant);
     const user = await prisma.user.update({
@@ -95,7 +96,7 @@ router.put('/profile', authenticateToken, async (req, res, next) => {
     });
 
     logger.info('Perfil do usuário atualizado', { userId });
-    res.json({ user });
+    res.json({ success: true, user });
   } catch (error) {
     next(error);
   }
@@ -104,7 +105,7 @@ router.put('/profile', authenticateToken, async (req, res, next) => {
 // Upload de avatar
 router.post('/avatar', authenticateToken, avatarUpload.single('avatar'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = (req as any).user?.id;
+    const userId = (req as any).user?.userId || (req as any).user?.id;
     const tenantId = (req as any).tenant?.id;
 
     if (!userId) throw new AppError('Usuário não identificado', 400);
@@ -134,7 +135,7 @@ router.post('/avatar', authenticateToken, avatarUpload.single('avatar'), async (
 // Alterar senha
 router.post('/change-password', authenticateToken, async (req, res, next) => {
   try {
-    const userId = (req as any).user?.id;
+    const userId = (req as any).user?.userId || (req as any).user?.id;
     if (!userId) throw new AppError('Usuário não identificado', 400);
 
     const { currentPassword, newPassword } = req.body;
@@ -177,7 +178,7 @@ router.post('/change-password', authenticateToken, async (req, res, next) => {
 // Setup 2FA (criar secret temporário)
 router.post('/2fa/setup', authenticateToken, async (req, res, next) => {
   try {
-    const userId = (req as any).user?.id;
+    const userId = (req as any).user?.userId || (req as any).user?.id;
     if (!userId) throw new AppError('Usuário não identificado', 400);
 
     // TODO: Implementar geração de secret 2FA com speakeasy/otplib
@@ -196,7 +197,7 @@ router.post('/2fa/setup', authenticateToken, async (req, res, next) => {
 // Verify 2FA code
 router.post('/2fa/verify', authenticateToken, async (req, res, next) => {
   try {
-    const userId = (req as any).user?.id;
+    const userId = (req as any).user?.userId || (req as any).user?.id;
     if (!userId) throw new AppError('Usuário não identificado', 400);
 
     const { code } = req.body;
@@ -224,7 +225,7 @@ router.post('/2fa/verify', authenticateToken, async (req, res, next) => {
 // Disable 2FA
 router.post('/2fa/disable', authenticateToken, async (req, res, next) => {
   try {
-    const userId = (req as any).user?.id;
+    const userId = (req as any).user?.userId || (req as any).user?.id;
     if (!userId) throw new AppError('Usuário não identificado', 400);
 
     const prisma = getTenantPrisma((req as any).tenant);

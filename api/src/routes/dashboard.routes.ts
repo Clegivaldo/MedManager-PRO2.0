@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { prismaMaster } from '../lib/prisma.js';
+import { getTenantPrisma } from '../lib/tenant-prisma.js';
 import { requirePermissions, PERMISSIONS } from '../middleware/permissions.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
@@ -12,13 +12,19 @@ const router: Router = Router();
  */
 router.get('/metrics', requirePermissions([PERMISSIONS.DASHBOARD_VIEW]), async (req, res, next) => {
   try {
-    const tenantId = req.tenant!.id;
+    const tenant = (req as any).tenant;
+    if (!tenant) {
+      throw new AppError('Tenant context required', 400);
+    }
+
+    const prisma = getTenantPrisma(tenant);
+    const tenantId = tenant.id;
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
     // Buscar vendas do mês
-    const salesThisMonth = await prismaMaster.invoice.aggregate({
+    const salesThisMonth = await prisma.invoice.aggregate({
       where: {
         invoiceType: 'EXIT',
         status: { in: ['AUTHORIZED', 'ISSUED'] },
@@ -29,7 +35,7 @@ router.get('/metrics', requirePermissions([PERMISSIONS.DASHBOARD_VIEW]), async (
     });
 
     // Buscar vendas de hoje
-    const salesToday = await prismaMaster.invoice.aggregate({
+    const salesToday = await prisma.invoice.aggregate({
       where: {
         invoiceType: 'EXIT',
         status: { in: ['AUTHORIZED', 'ISSUED'] },
@@ -40,7 +46,7 @@ router.get('/metrics', requirePermissions([PERMISSIONS.DASHBOARD_VIEW]), async (
     });
 
     // Buscar estoque crítico (produtos com quantidade baixa)
-    const lowStockProducts = await prismaMaster.stock.findMany({
+    const lowStockProducts = await prisma.stock.findMany({
       where: {
         availableQuantity: { lt: 10 }
       },
@@ -62,7 +68,7 @@ router.get('/metrics', requirePermissions([PERMISSIONS.DASHBOARD_VIEW]), async (
     const thirtyDaysFromNow = new Date();
     thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
 
-    const expiringBatches = await prismaMaster.batch.findMany({
+    const expiringBatches = await prisma.batch.findMany({
       where: {
         expirationDate: {
           gte: now,
@@ -84,7 +90,7 @@ router.get('/metrics', requirePermissions([PERMISSIONS.DASHBOARD_VIEW]), async (
     });
 
     // Buscar lotes expirados
-    const expiredBatches = await prismaMaster.batch.count({
+    const expiredBatches = await prisma.batch.count({
       where: {
         expirationDate: { lt: now },
         quantityCurrent: { gt: 0 }
@@ -92,7 +98,7 @@ router.get('/metrics', requirePermissions([PERMISSIONS.DASHBOARD_VIEW]), async (
     });
 
     // Buscar NF-es emitidas no mês
-    const nfeIssuedThisMonth = await prismaMaster.invoice.count({
+    const nfeIssuedThisMonth = await prisma.invoice.count({
       where: {
         status: { in: ['AUTHORIZED', 'ISSUED'] },
         issueDate: { gte: startOfMonth }
@@ -100,7 +106,7 @@ router.get('/metrics', requirePermissions([PERMISSIONS.DASHBOARD_VIEW]), async (
     });
 
     // Buscar NF-es canceladas no mês
-    const nfeCancelledThisMonth = await prismaMaster.invoice.count({
+    const nfeCancelledThisMonth = await prisma.invoice.count({
       where: {
         status: 'CANCELLED',
         updatedAt: { gte: startOfMonth }
@@ -108,7 +114,7 @@ router.get('/metrics', requirePermissions([PERMISSIONS.DASHBOARD_VIEW]), async (
     });
 
     // Buscar produtos controlados sem movimentação recente
-    const controlledProductsNoMovement = await prismaMaster.product.count({
+    const controlledProductsNoMovement = await prisma.product.count({
       where: {
         isControlled: true,
         isActive: true,
@@ -123,17 +129,17 @@ router.get('/metrics', requirePermissions([PERMISSIONS.DASHBOARD_VIEW]), async (
     });
 
     // Total de clientes ativos
-    const activeCustomers = await prismaMaster.customer.count({
+    const activeCustomers = await prisma.customer.count({
       where: { isActive: true }
     });
 
     // Total de produtos ativos
-    const activeProducts = await prismaMaster.product.count({
+    const activeProducts = await prisma.product.count({
       where: { isActive: true }
     });
 
     // Produtos controlados
-    const controlledProducts = await prismaMaster.product.count({
+    const controlledProducts = await prisma.product.count({
       where: { isControlled: true, isActive: true }
     });
 
@@ -231,11 +237,21 @@ router.get('/metrics', requirePermissions([PERMISSIONS.DASHBOARD_VIEW]), async (
       alertsCount: complianceAlerts.length
     });
 
-    res.json(metrics);
+    res.json({
+      success: true,
+      data: metrics
+    });
 
   } catch (error) {
     logger.error('Failed to retrieve dashboard metrics', { error: (error as Error).message });
     next(error);
+  } finally {
+    // Desconectar Prisma tenant-specific
+    const tenant = (req as any).tenant;
+    const prisma = getTenantPrisma(tenant);
+    if (tenant) {
+      await prisma.$disconnect();
+    }
   }
 });
 

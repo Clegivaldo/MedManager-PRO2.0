@@ -31,9 +31,13 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:"],
+      imgSrc: ["'self'", "data:", "https:", "http:", "blob:"],
+      mediaSrc: ["'self'", "data:", "https:", "http:", "blob:"],
     },
   },
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+  crossOriginEmbedderPolicy: false,
   hsts: {
     maxAge: 31536000,
     includeSubDomains: true,
@@ -76,13 +80,26 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Static files (logos e avatars)
+// Middleware para arquivos estáticos com CORS
+app.use('/static', (req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+});
+
+// Static files (logos e avatars) - SEM AUTENTICAÇÃO
 app.use('/static/logos', express.static(path.join(process.cwd(), 'uploads', 'logos')));
 app.use('/static/avatars', express.static(path.join(process.cwd(), 'uploads', 'avatars')));
 
-// Middleware de tenant (deve vir antes das rotas)
-// Usar middleware opcional para rotas públicas e obrigatório para rotas protegidas
-app.use(optionalTenantMiddleware);
+// Middleware de tenant (deve vir antes das rotas) - SKIP para rotas estáticas
+app.use((req, res, next) => {
+  if (req.path.startsWith('/static/')) {
+    return next();
+  }
+  return optionalTenantMiddleware(req, res, next);
+});
 
 // Health check
 app.get('/health', (req, res) => {
@@ -99,18 +116,17 @@ app.use(`/api/${config.API_VERSION}/auth`, authLimiter, authRouter);
 app.use(`/api/${config.API_VERSION}/tenants`, tenantRouter);
 
 // Protected routes (require authentication)
-app.use(authenticateToken);
-app.use(`/api/${config.API_VERSION}/superadmin`, superadminRouter);
-app.use(`/api/${config.API_VERSION}/regulatory`, regulatoryRouter);
-app.use(`/api/${config.API_VERSION}/users`, userRouter);
-app.use(`/api/${config.API_VERSION}/products`, productRouter);
-app.use(`/api/${config.API_VERSION}/inventory`, inventoryRouter);
-app.use(`/api/${config.API_VERSION}/customers`, customerRouter);
-app.use(`/api/${config.API_VERSION}/suppliers`, supplierRouter);
-app.use(`/api/${config.API_VERSION}/invoices`, invoiceRouter);
-app.use(`/api/${config.API_VERSION}/fiscal`, fiscalRouter);
-app.use(`/api/${config.API_VERSION}/dashboard`, dashboardRouter);
-app.use(`/api/${config.API_VERSION}/batches`, batchRouter);
+app.use(`/api/${config.API_VERSION}/superadmin`, authenticateToken, superadminRouter);
+app.use(`/api/${config.API_VERSION}/regulatory`, authenticateToken, tenantMiddleware, regulatoryRouter);
+app.use(`/api/${config.API_VERSION}/users`, authenticateToken, userRouter);
+app.use(`/api/${config.API_VERSION}/products`, authenticateToken, tenantMiddleware, productRouter);
+app.use(`/api/${config.API_VERSION}/inventory`, authenticateToken, tenantMiddleware, inventoryRouter);
+app.use(`/api/${config.API_VERSION}/customers`, authenticateToken, tenantMiddleware, customerRouter);
+app.use(`/api/${config.API_VERSION}/suppliers`, authenticateToken, tenantMiddleware, supplierRouter);
+app.use(`/api/${config.API_VERSION}/invoices`, authenticateToken, tenantMiddleware, invoiceRouter);
+app.use(`/api/${config.API_VERSION}/fiscal`, authenticateToken, tenantMiddleware, fiscalRouter);
+app.use(`/api/${config.API_VERSION}/dashboard`, authenticateToken, tenantMiddleware, dashboardRouter);
+app.use(`/api/${config.API_VERSION}/batches`, authenticateToken, tenantMiddleware, batchRouter);
 
 // Rota de teste
 app.get('/api/test', (req, res) => {

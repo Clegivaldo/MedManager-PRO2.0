@@ -387,6 +387,132 @@ export class SuperAdminController {
     }
   };
 
+  fixUserPermissions = async (req: Request, res: Response) => {
+    try {
+      const { PrismaClient } = await import('@prisma/client');
+      const { ROLES } = await import('../middleware/permissions.js');
+      const { config } = await import('../config/environment.js');
+      
+      const results = {
+        tenantsProcessed: 0,
+        usersUpdated: 0,
+        usersSkipped: 0,
+        errors: [] as string[]
+      };
+
+      // Buscar todos os tenants ativos
+      const tenants = await prisma.tenant.findMany({
+        where: { status: 'active' }
+      });
+
+      for (const tenant of tenants) {
+        try {
+          const tenantDbUrl = config.DATABASE_URL.replace(/\/(\w+)$/, `/${tenant.databaseName}`);
+          const tenantPrisma = new PrismaClient({
+            datasources: { db: { url: tenantDbUrl } }
+          });
+
+          const users = await tenantPrisma.user.findMany();
+
+          for (const user of users) {
+            try {
+              const rawPerm = typeof user.permissions === 'string' 
+                ? user.permissions 
+                : JSON.stringify(user.permissions || []);
+              
+              const parsed = rawPerm ? JSON.parse(rawPerm) : [];
+
+              if (parsed.length === 0) {
+                const roleStr = String(user.role).toUpperCase();
+                const roleKey = (Object.keys(ROLES) as Array<keyof typeof ROLES>).find(
+                  r => r.toUpperCase() === roleStr
+                );
+
+                if (roleKey) {
+                  const defaultPerms = ROLES[roleKey].permissions;
+                  
+                  await tenantPrisma.user.update({
+                    where: { id: user.id },
+                    data: { permissions: JSON.stringify(defaultPerms) }
+                  });
+
+                  results.usersUpdated++;
+                  logger.info(`Permissions fixed for user ${user.email} (${user.role})`, {
+                    tenant: tenant.name,
+                    permissionsCount: defaultPerms.length
+                  });
+                } else {
+                  results.usersSkipped++;
+                }
+              } else {
+                results.usersSkipped++;
+              }
+            } catch (userError) {
+              const errorMsg = `Error updating user ${user.email}: ${userError instanceof Error ? userError.message : 'Unknown'}`;
+              results.errors.push(errorMsg);
+              logger.error(errorMsg);
+            }
+          }
+
+          await tenantPrisma.$disconnect();
+          results.tenantsProcessed++;
+        } catch (tenantError) {
+          const errorMsg = `Error processing tenant ${tenant.name}: ${tenantError instanceof Error ? tenantError.message : 'Unknown'}`;
+          results.errors.push(errorMsg);
+          logger.error(errorMsg);
+        }
+      }
+
+      // Processar SUPERADMINs no banco master
+      const masterUsers = await prisma.user.findMany({
+        where: { role: 'SUPERADMIN' }
+      });
+
+      for (const user of masterUsers) {
+        try {
+          const rawPerm = typeof user.permissions === 'string' 
+            ? user.permissions 
+            : JSON.stringify(user.permissions || []);
+          
+          const parsed = rawPerm ? JSON.parse(rawPerm) : [];
+
+          if (parsed.length === 0) {
+            const defaultPerms = ROLES.SUPERADMIN.permissions;
+            
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { permissions: JSON.stringify(defaultPerms) }
+            });
+
+            results.usersUpdated++;
+            logger.info(`Permissions fixed for SUPERADMIN ${user.email}`, {
+              permissionsCount: defaultPerms.length
+            });
+          } else {
+            results.usersSkipped++;
+          }
+        } catch (userError) {
+          const errorMsg = `Error updating SUPERADMIN ${user.email}: ${userError instanceof Error ? userError.message : 'Unknown'}`;
+          results.errors.push(errorMsg);
+          logger.error(errorMsg);
+        }
+      }
+
+      res.json({
+        success: true,
+        message: 'User permissions fix completed',
+        data: results
+      });
+    } catch (error) {
+      logger.error('Error fixing user permissions:', error);
+      res.status(500).json({ 
+        success: false,
+        error: 'Internal server error',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  };
+
   private getPlanLimit(plan: string, type: 'users' | 'storage'): number {
     const limits = {
       starter: { users: 5, storage: 10 },

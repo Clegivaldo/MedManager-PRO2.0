@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { ThemeSelector } from '@/components/ThemeSelector';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { BACKEND_URL } from '@/config/constants';
 
 export default function Header() {
   const { logout, user } = useAuth();
@@ -84,7 +85,7 @@ export default function Header() {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                 <Avatar className="h-10 w-10">
-                  <AvatarImage src={user?.avatarUrl} alt={user?.name} />
+                  <AvatarImage src={user?.avatarUrl ? `${BACKEND_URL}${user.avatarUrl}` : undefined} alt={user?.name} />
                   <AvatarFallback className="bg-primary text-primary-foreground">
                     <User className="h-5 w-5" />
                   </AvatarFallback>

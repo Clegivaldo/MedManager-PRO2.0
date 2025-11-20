@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { BACKEND_URL } from '@/config/constants';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -69,7 +70,8 @@ const UserProfile = () => {
         name: user.name || '',
         email: user.email || '',
       });
-      setAvatarPreview(user.avatarUrl || null);
+      // Sempre mostrar a URL do avatar do usuário (persistida no backend) com URL completa
+      setAvatarPreview(user.avatarUrl ? `${BACKEND_URL}${user.avatarUrl}` : null);
       setTwoFactorStep(user.twoFactorEnabled ? 'enabled' : 'disabled');
     }
   }, [user]);
@@ -100,19 +102,20 @@ const UserProfile = () => {
         name: formData.name,
       };
 
-      await api.put('/api/v1/users/profile', updateData);
+      await api.put('/users/profile', updateData);
 
       // Upload avatar se houver arquivo selecionado
       if (avatarFile) {
         const fd = new FormData();
         fd.append('avatar', avatarFile);
-        const response = await api.post('/api/v1/users/avatar', fd, { 
+        const response = await api.post('/users/avatar', fd, { 
           headers: { 'Content-Type': 'multipart/form-data' } 
         });
         
-        // Atualizar preview com URL retornada
+        // Atualizar preview com URL retornada (prefixar com URL do backend)
         if (response.data.avatarUrl) {
-          setAvatarPreview(response.data.avatarUrl);
+          const fullAvatarUrl = `${BACKEND_URL}${response.data.avatarUrl}`;
+          setAvatarPreview(fullAvatarUrl);
           setProfile(prev => prev ? { ...prev, avatarUrl: response.data.avatarUrl } : null);
         }
         setAvatarFile(null);
@@ -123,6 +126,7 @@ const UserProfile = () => {
         description: 'Suas informações foram salvas com sucesso.',
       });
 
+      // Atualizar contexto de autenticação (carrega avatarUrl mais recente)
       await refreshUser();
     } catch (error) {
       toast({
@@ -156,7 +160,7 @@ const UserProfile = () => {
 
     try {
       setLoading(true);
-      await api.post('/api/v1/users/change-password', {
+      await api.post('/users/change-password', {
         currentPassword: passwordForm.currentPassword,
         newPassword: passwordForm.newPassword,
       });
@@ -185,7 +189,7 @@ const UserProfile = () => {
   const handleEnable2FA = async () => {
     try {
       setLoading(true);
-      const response = await api.post('/api/v1/users/2fa/setup');
+      const response = await api.post('/users/2fa/setup');
       // Aqui você mostraria um QR code ou instruções
       toast({
         title: 'Autenticação de dois fatores',
@@ -206,7 +210,7 @@ const UserProfile = () => {
   const handleVerify2FA = async () => {
     try {
       setLoading(true);
-      await api.post('/api/v1/users/2fa/verify', { code: twoFactorCode });
+      await api.post('/users/2fa/verify', { code: twoFactorCode });
       toast({
         title: 'Autenticação de dois fatores ativada',
         description: 'Sua conta agora está protegida com 2FA.',
@@ -228,7 +232,7 @@ const UserProfile = () => {
   const handleDisable2FA = async () => {
     try {
       setLoading(true);
-      await api.post('/api/v1/users/2fa/disable');
+      await api.post('/users/2fa/disable');
       toast({
         title: 'Autenticação de dois fatores desativada',
         description: 'Você pode reativar quando desejar.',
@@ -263,102 +267,93 @@ const UserProfile = () => {
       </div>
 
       <div className="grid gap-6">
-        {/* Foto de Perfil */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Foto de Perfil</CardTitle>
-            <CardDescription>
-              Clique na imagem para alterar sua foto
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col items-center gap-6">
-              <div
-                {...getRootAvatarProps()}
-                className="cursor-pointer relative group"
-              >
-                <input {...getAvatarInputProps()} />
-                <Avatar className="h-32 w-32 border-2 border-muted">
-                  <AvatarImage src={avatarPreview || profile?.avatarUrl} alt={profile?.name} />
-                  <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
-                    {profile?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Upload className="h-8 w-8 text-white" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Foto de Perfil + Informações Pessoais */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex gap-8">
+                {/* Foto de Perfil */}
+                <div className="flex flex-col items-center gap-3 min-w-fit">
+                <div
+                  {...getRootAvatarProps()}
+                  className="cursor-pointer relative group"
+                >
+                  <input {...getAvatarInputProps()} />
+                  <Avatar className="h-24 w-24 border-2 border-muted">
+                    <AvatarImage src={avatarPreview || (profile?.avatarUrl ? `${BACKEND_URL}${profile.avatarUrl}` : undefined)} alt={profile?.name} />
+                    <AvatarFallback className="bg-primary text-primary-foreground text-xl">
+                      {profile?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Upload className="h-6 w-6 text-white" />
+                  </div>
                 </div>
+
+                {avatarFile ? (
+                  <div className="text-center">
+                    <p className="text-xs font-medium text-green-600 truncate max-w-24">
+                      ✓ Selecionado
+                    </p>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => {
+                        setAvatarFile(null);
+                        setAvatarPreview(profile?.avatarUrl || null);
+                      }}
+                      className="mt-1 h-6 text-xs"
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground text-center">Clique aqui</p>
+                )}
               </div>
 
-              {avatarFile ? (
-                <div className="text-center">
-                  <p className="text-sm font-medium text-green-600">
-                    ✓ {avatarFile.name} selecionado
-                  </p>
+              {/* Informações Pessoais */}
+              <div className="flex-1 space-y-4">
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">Informações Pessoais</h3>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="name">Nome Completo</Label>
+                  <Input
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Seu nome completo"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="email">E-mail</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    disabled
+                    className="bg-muted cursor-not-allowed"
+                  />
                   <p className="text-xs text-muted-foreground">
-                    {(avatarFile.size / 1024).toFixed(2)} KB
+                    E-mail não pode ser alterado
                   </p>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => {
-                      setAvatarFile(null);
-                      setAvatarPreview(profile?.avatarUrl || null);
-                    }}
-                    className="mt-2"
-                  >
-                    Cancelar
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <Button onClick={handleSaveProfile} disabled={loading}>
+                    Salvar Alterações
                   </Button>
                 </div>
-              ) : (
-                <p className="text-xs text-muted-foreground">PNG, JPG ou JPEG (máx. 2MB)</p>
-              )}
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Informações Pessoais */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Informações Pessoais</CardTitle>
-            <CardDescription>
-              Atualize seus dados básicos
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Nome Completo</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Seu nome completo"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="email">E-mail</Label>
-              <Input
-                id="email"
-                type="email"
-                value={formData.email}
-                disabled
-                className="bg-muted cursor-not-allowed"
-              />
-              <p className="text-xs text-muted-foreground">
-                E-mail não pode ser alterado
-              </p>
-            </div>
-
-            <div className="flex justify-end">
-              <Button onClick={handleSaveProfile} disabled={loading}>
-                Salvar Alterações
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Alterar Senha */}
-        <Card>
+          {/* Alterar Senha */}
+          <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Lock className="h-5 w-5" />
@@ -432,7 +427,8 @@ const UserProfile = () => {
               </Button>
             </div>
           </CardContent>
-        </Card>
+          </Card>
+        </div>
 
         {/* Autenticação de Dois Fatores */}
         <Card>

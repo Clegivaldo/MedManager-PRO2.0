@@ -21,5 +21,9 @@ router.delete('/tenants/:id', authenticateToken, requirePermission('SUPERADMIN_A
 router.put('/tenants/:id/status', authenticateToken, requirePermission('SUPERADMIN_ACCESS'), (req, res) => controller.updateTenantStatus(req, res));
 router.put('/tenants/:id/plan', authenticateToken, requirePermission('SUPERADMIN_ACCESS'), (req, res) => controller.updateTenantPlan(req, res));
 
-export default router;
 router.get('/notifications', authenticateToken, requirePermission('SUPERADMIN_ACCESS'), (req, res) => controller.getNotifications(req, res));
+
+// Endpoint para corrigir permissões
+router.post('/fix-permissions', authenticateToken, requirePermission('SUPERADMIN_ACCESS'), (req, res) => controller.fixUserPermissions(req, res));
+
+export default router;
