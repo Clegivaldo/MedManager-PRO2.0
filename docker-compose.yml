@@ -65,6 +65,34 @@ services:
       start_period: 40s
     restart: unless-stopped
 
+  # Serviço de desenvolvimento para rodar testes e hot-reload
+  backend-dev:
+    image: node:20-alpine
+    container_name: backend-dev
+    working_dir: /app
+    environment:
+      NODE_ENV: development
+      PORT: 3333
+      DATABASE_URL: postgresql://postgres:postgres123@db:5432/medmanager_master
+      JWT_SECRET: devaccesssecretdevaccesssecretdev!
+      JWT_REFRESH_SECRET: devrefreshsecretdevrefreshsecretdev!
+      REDIS_URL: redis://redis:6379
+      CERTIFICATE_ENCRYPTION_KEY: medmanager-cert-encryption-key-2024-change-in-production!
+      API_BASE_URL: http://backend-dev:3333/api/v1
+    volumes:
+      - ./api:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "3334:3333"
+    networks:
+      - medmanager-network
+    command: sh -c "corepack enable && pnpm install --no-frozen-lockfile && npx prisma generate && pnpm dev"
+    restart: unless-stopped
+
   frontend:
     build:
       context: .

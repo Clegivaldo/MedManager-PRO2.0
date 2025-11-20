@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticateToken } from '../middleware/auth.js';
 import { requirePermission, PERMISSIONS } from '../middleware/permissions.js';
-import { prismaMaster } from '../lib/prisma.js';
+import { withTenantPrisma } from '../lib/tenant-prisma.js';
 import { logger } from '../utils/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
 
@@ -29,15 +29,19 @@ router.get('/', authenticateToken, requirePermission(PERMISSIONS.CUSTOMER_READ),
       where.isActive = status === 'active';
     }
 
-    const [customers, total] = await Promise.all([
-      prismaMaster.customer.findMany({
-        where,
-        skip,
-        take,
+    const result = await withTenantPrisma((req as any).tenant, async (prisma) => {
+      const [customers, total] = await Promise.all([
+        prisma.customer.findMany({
+          where,
+          skip,
+          take,
           orderBy: { companyName: 'asc' }
-      }),
-      prismaMaster.customer.count({ where })
-    ]);
+        }),
+        prisma.customer.count({ where })
+      ]);
+      return { customers, total };
+    });
+    const { customers, total } = result;
 
     res.json({
       success: true,
@@ -76,26 +80,28 @@ router.post('/', authenticateToken, requirePermission(PERMISSIONS.CUSTOMER_CREAT
     }
 
     // Verificar se já existe cliente com mesmo documento
-    const existingCustomer = await prismaMaster.customer.findFirst({
+    const customer = await withTenantPrisma((req as any).tenant, async (prisma) => {
+      const existingCustomer = await prisma.customer.findFirst({
         where: { cnpjCpf }
-    });
+      });
 
-    if (existingCustomer) {
-      throw new AppError('Customer with this document already exists', 400, 'DUPLICATE_CUSTOMER');
-    }
+      if (existingCustomer) {
+        throw new AppError('Customer with this document already exists', 400, 'DUPLICATE_CUSTOMER');
+      }
 
-    const customer = await prismaMaster.customer.create({
-      data: {
+      return await prisma.customer.create({
+        data: {
           companyName,
           tradeName,
           cnpjCpf,
-        email,
-        phone,
-        address,
-        customerType,
+          email,
+          phone,
+          address,
+          customerType,
           creditLimit,
-        isActive
-      }
+          isActive
+        }
+      });
     });
 
       logger.info(`Customer created: ${customer.companyName}`, {
@@ -118,8 +124,10 @@ router.get('/:id', authenticateToken, requirePermission(PERMISSIONS.CUSTOMER_REA
   try {
     const { id } = req.params;
 
-    const customer = await prismaMaster.customer.findUnique({
-      where: { id }
+    const customer = await withTenantPrisma((req as any).tenant, async (prisma) => {
+      return await prisma.customer.findUnique({
+        where: { id }
+      });
     });
 
     if (!customer) {
@@ -141,17 +149,19 @@ router.put('/:id', authenticateToken, requirePermission(PERMISSIONS.CUSTOMER_UPD
     const { id } = req.params;
     const updateData = req.body;
 
-    const existingCustomer = await prismaMaster.customer.findUnique({
-      where: { id }
-    });
+    const customer = await withTenantPrisma((req as any).tenant, async (prisma) => {
+      const existingCustomer = await prisma.customer.findUnique({
+        where: { id }
+      });
 
-    if (!existingCustomer) {
-      throw new AppError('Customer not found', 404, 'CUSTOMER_NOT_FOUND');
-    }
+      if (!existingCustomer) {
+        throw new AppError('Customer not found', 404, 'CUSTOMER_NOT_FOUND');
+      }
 
-    const customer = await prismaMaster.customer.update({
-      where: { id },
-      data: updateData
+      return await prisma.customer.update({
+        where: { id },
+        data: updateData
+      });
     });
 
       logger.info(`Customer updated: ${customer.companyName}`, {
@@ -174,17 +184,19 @@ router.delete('/:id', authenticateToken, requirePermission(PERMISSIONS.CUSTOMER_
   try {
     const { id } = req.params;
 
-    const existingCustomer = await prismaMaster.customer.findUnique({
-      where: { id }
-    });
+    const customer = await withTenantPrisma((req as any).tenant, async (prisma) => {
+      const existingCustomer = await prisma.customer.findUnique({
+        where: { id }
+      });
 
-    if (!existingCustomer) {
-      throw new AppError('Customer not found', 404, 'CUSTOMER_NOT_FOUND');
-    }
+      if (!existingCustomer) {
+        throw new AppError('Customer not found', 404, 'CUSTOMER_NOT_FOUND');
+      }
 
-    const customer = await prismaMaster.customer.update({
-      where: { id },
-      data: { isActive: false }
+      return await prisma.customer.update({
+        where: { id },
+        data: { isActive: false }
+      });
     });
 
       logger.info(`Customer deleted: ${customer.companyName}`, {

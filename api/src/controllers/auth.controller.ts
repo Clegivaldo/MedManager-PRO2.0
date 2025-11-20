@@ -7,6 +7,7 @@ import { config } from '../config/environment.js';
 import { validateRequest } from '../middleware/validation.js';
 import { z } from 'zod';
 import { PrismaClient, UserRole } from '@prisma/client';
+import { ROLES } from '../middleware/permissions.js';
 
 // Schemas de validação
 const loginSchema = z.object({
@@ -45,6 +46,7 @@ export class AuthController {
     async (req: Request, res: Response) => {
       try {
         const { email, password, tenantId, tenantCnpj } = req.body;
+        logger.info('Login attempt received', { email, tenantId: tenantId || undefined, tenantCnpj: tenantCnpj || undefined });
 
         // Identificar o tenant
         let tenant;
@@ -60,11 +62,13 @@ export class AuthController {
           });
 
           if (!tenant) {
+            logger.warn('Tenant not found or inactive during login', { tenantId, tenantCnpj });
             return res.status(404).json({
               success: false,
               message: 'Tenant not found or inactive'
             });
           }
+          logger.info('Tenant resolved for login', { tenantId: tenant.id, databaseName: tenant.databaseName });
         }
 
         // Buscar usuário no banco apropriado
@@ -72,21 +76,21 @@ export class AuthController {
         let userTenant;
 
         if (tenant) {
-          // Buscar no banco do tenant específico
+          const derivedUrl = config.DATABASE_URL.replace(/\/(\w+)$/, `/${tenant.databaseName}`);
+          logger.info('Instantiating tenant PrismaClient', { derivedUrl });
           const tenantPrisma = new PrismaClient({
             datasources: {
-              db: {
-                url: config.DATABASE_URL.replace(/\/(\w+)$/, `/${tenant.databaseName}`)
-              }
+              db: { url: derivedUrl }
             }
           });
-
-          user = await tenantPrisma.user.findUnique({
-            where: { email }
-          });
-
+          try {
+            user = await tenantPrisma.user.findUnique({ where: { email } });
+          } catch (e) {
+            logger.error('Error querying tenant user', { error: e instanceof Error ? e.message : 'Unknown' });
+          } finally {
+            await tenantPrisma.$disconnect();
+          }
           userTenant = tenant;
-          await tenantPrisma.$disconnect();
         } else {
           // Buscar no banco mestre (para superadmin)
           user = await prismaMaster.user.findUnique({
@@ -99,6 +103,7 @@ export class AuthController {
         }
 
         if (!user) {
+          logger.warn('Login failed: user not found', { email, scope: tenant ? 'tenant' : 'master' });
           return res.status(401).json({
             success: false,
             message: 'Invalid credentials'
@@ -116,14 +121,47 @@ export class AuthController {
         // Verificar senha
         const isPasswordValid = await bcrypt.compare(password, user.password);
         if (!isPasswordValid) {
+          logger.warn('Login failed: invalid password', { email });
           return res.status(401).json({
             success: false,
             message: 'Invalid credentials'
           });
         }
 
+        // Auto-inject role default permissions if empty
+        try {
+          const rawPerm = typeof user.permissions === 'string' ? user.permissions : JSON.stringify(user.permissions || []);
+          const parsed = rawPerm ? JSON.parse(rawPerm) : [];
+          if (parsed.length === 0) {
+            // Map role string to ROLES key (handles roles that may not be in Prisma enum like MANAGER/VIEWER)
+            const roleStr = String(user.role).toUpperCase();
+            const roleKey = (Object.keys(ROLES) as Array<keyof typeof ROLES>).find(r => r.toUpperCase() === roleStr);
+            if (roleKey) {
+              const defaultPerms = ROLES[roleKey].permissions;
+              if (tenant) {
+                const tenantPrisma = new PrismaClient({
+                  datasources: { db: { url: config.DATABASE_URL.replace(/\/(\w+)$/, `/${tenant.databaseName}`) } }
+                });
+                await tenantPrisma.user.update({
+                  where: { id: user.id },
+                  data: { permissions: JSON.stringify(defaultPerms) }
+                });
+                await tenantPrisma.$disconnect();
+                user.permissions = JSON.stringify(defaultPerms);
+              } else if (roleStr === 'SUPERADMIN') {
+                user.permissions = JSON.stringify(defaultPerms);
+              }
+              logger.info('Default permissions injected', { role: roleStr, count: defaultPerms.length });
+            } else {
+              logger.info('No permission template for role; skipping injection', { role: roleStr });
+            }
+          }
+        } catch (permErr) {
+          logger.error('Error injecting default permissions', { error: permErr instanceof Error ? permErr.message : 'Unknown' });
+        }
+
         // Gerar tokens
-    const tokens = this.generateTokens(user, userTenant?.id || 'master');
+      const tokens = this.generateTokens(user, userTenant?.id || 'master');
 
         // Registrar login
         logger.info(`User ${user.email} logged in successfully`);
@@ -148,7 +186,7 @@ export class AuthController {
           }
         });
       } catch (error) {
-        logger.error('Login error:', error);
+        logger.error('Login error', { error: error instanceof Error ? error.message : 'Unknown' });
         res.status(500).json({
           success: false,
           message: 'Login failed',

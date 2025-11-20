@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticateToken } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/permissions.js';
-import { prismaMaster } from '../lib/prisma.js';
+import { withTenantPrisma } from '../lib/tenant-prisma.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
 
@@ -22,19 +22,22 @@ router.get('/current', authenticateToken, requirePermission('INVENTORY_VIEW'), a
       };
     }
 
-    const [stocks, total] = await Promise.all([
-      prismaMaster.stock.findMany({
-        where,
-        skip,
-        take: Number(limit),
-        include: {
-          product: { select: { id: true, name: true, internalCode: true, isControlled: true } },
-          batch: { select: { id: true, batchNumber: true, expirationDate: true } }
-        },
-        orderBy: { createdAt: 'desc' }
-      }),
-      prismaMaster.stock.count({ where })
-    ]);
+    const { stocks, total } = await withTenantPrisma((req as any).tenant, async (prisma) => {
+      const [stocks, total] = await Promise.all([
+        prisma.stock.findMany({
+          where,
+          skip,
+          take: Number(limit),
+          include: {
+            product: { select: { id: true, name: true, internalCode: true, isControlled: true } },
+            batch: { select: { id: true, batchNumber: true, expirationDate: true } }
+          },
+          orderBy: { createdAt: 'desc' }
+        }),
+        prisma.stock.count({ where })
+      ]);
+      return { stocks, total };
+    });
 
     res.json({
       success: true,
@@ -55,32 +58,34 @@ router.post('/movements', authenticateToken, requirePermission('INVENTORY_MOVEME
       throw new AppError('stockId, movementType and quantity are required', 400);
     }
 
-    const stock = await prismaMaster.stock.findUnique({ where: { id: stockId } });
-    if (!stock) throw new AppError('Stock not found', 404);
+    await withTenantPrisma((req as any).tenant, async (prisma) => {
+      const stock = await prisma.stock.findUnique({ where: { id: stockId } });
+      if (!stock) throw new AppError('Stock not found', 404);
 
-    const previous = stock.availableQuantity;
-    const delta = movementType === 'ENTRY' ? quantity : -quantity;
-    const newBalance = previous + delta;
-    if (newBalance < 0) throw new AppError('Resulting stock cannot be negative', 400);
+      const previous = stock.availableQuantity;
+      const delta = movementType === 'ENTRY' ? quantity : -quantity;
+      const newBalance = previous + delta;
+      if (newBalance < 0) throw new AppError('Resulting stock cannot be negative', 400);
 
-    await prismaMaster.$transaction([
-      prismaMaster.stock.update({
-        where: { id: stockId },
-        data: { availableQuantity: newBalance, lastMovement: new Date() }
-      }),
-      prismaMaster.stockMovement.create({
-        data: {
-          stockId,
-          userId: req.user!.userId,
-          movementType,
-          quantity,
-          previousBalance: previous,
-          newBalance,
-          reason,
-          referenceDocument: undefined
-        }
-      })
-    ]);
+      await prisma.$transaction([
+        prisma.stock.update({
+          where: { id: stockId },
+          data: { availableQuantity: newBalance, lastMovement: new Date() }
+        }),
+        prisma.stockMovement.create({
+          data: {
+            stockId,
+            userId: req.user!.userId,
+            movementType,
+            quantity,
+            previousBalance: previous,
+            newBalance,
+            reason,
+            referenceDocument: undefined
+          }
+        })
+      ]);
+    });
 
     logger.info('Stock movement registered', { stockId, movementType, quantity, userId: req.user!.userId });
     res.status(201).json({ success: true });
@@ -96,19 +101,22 @@ router.get('/movements', authenticateToken, requirePermission('INVENTORY_VIEW'),
     const where: any = {};
     if (stockId) where.stockId = stockId;
 
-    const [movements, total] = await Promise.all([
-      prismaMaster.stockMovement.findMany({
-        where,
-        skip,
-        take: Number(limit),
-        orderBy: { createdAt: 'desc' },
-        include: {
-          stock: { include: { product: true, batch: true } },
-          user: { select: { id: true, name: true, email: true } }
-        }
-      }),
-      prismaMaster.stockMovement.count({ where })
-    ]);
+    const { movements, total } = await withTenantPrisma((req as any).tenant, async (prisma) => {
+      const [movements, total] = await Promise.all([
+        prisma.stockMovement.findMany({
+          where,
+          skip,
+          take: Number(limit),
+          orderBy: { createdAt: 'desc' },
+          include: {
+            stock: { include: { product: true, batch: true } },
+            user: { select: { id: true, name: true, email: true } }
+          }
+        }),
+        prisma.stockMovement.count({ where })
+      ]);
+      return { movements, total };
+    });
 
     res.json({ success: true, data: { movements, pagination: { page: Number(page), limit: Number(limit), total, pages: Math.ceil(total / Number(limit)) } } });
   } catch (error) {
@@ -123,14 +131,17 @@ router.get('/alerts', authenticateToken, requirePermission('INVENTORY_VIEW'), as
     const now = new Date();
     const soon = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
 
-    const [expiringSoon, expired, lowStock] = await Promise.all([
-      prismaMaster.batch.findMany({
-        where: { expirationDate: { gt: now, lte: soon } },
-        include: { product: true }
-      }),
-      prismaMaster.batch.findMany({ where: { expirationDate: { lte: now } }, include: { product: true } }),
-      prismaMaster.stock.findMany({ where: { availableQuantity: { lte: low } }, include: { product: true, batch: true } })
-    ]);
+    const { expiringSoon, expired, lowStock } = await withTenantPrisma((req as any).tenant, async (prisma) => {
+      const [expiringSoon, expired, lowStock] = await Promise.all([
+        prisma.batch.findMany({
+          where: { expirationDate: { gt: now, lte: soon } },
+          include: { product: true }
+        }),
+        prisma.batch.findMany({ where: { expirationDate: { lte: now } }, include: { product: true } }),
+        prisma.stock.findMany({ where: { availableQuantity: { lte: low } }, include: { product: true, batch: true } })
+      ]);
+      return { expiringSoon, expired, lowStock };
+    });
 
     res.json({
       success: true,
@@ -152,47 +163,51 @@ router.post('/alerts/generate', authenticateToken, requirePermission('INVENTORY_
     const now = new Date();
     const soon = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
 
-    const [expiringSoon, expired, lowStock] = await Promise.all([
-      prismaMaster.batch.findMany({ where: { expirationDate: { gt: now, lte: soon } }, include: { product: true } }),
-      prismaMaster.batch.findMany({ where: { expirationDate: { lte: now } }, include: { product: true } }),
-      prismaMaster.stock.findMany({ where: { availableQuantity: { lte: low } }, include: { product: true, batch: true } })
-    ]);
+    const result = await withTenantPrisma((req as any).tenant, async (prisma) => {
+      const [expiringSoon, expired, lowStock] = await Promise.all([
+        prisma.batch.findMany({ where: { expirationDate: { gt: now, lte: soon } }, include: { product: true } }),
+        prisma.batch.findMany({ where: { expirationDate: { lte: now } }, include: { product: true } }),
+        prisma.stock.findMany({ where: { availableQuantity: { lte: low } }, include: { product: true, batch: true } })
+      ]);
 
-    for (const b of expiringSoon) {
-      await prismaMaster.notification.create({
-        data: {
-          tenantId: (req as any).tenant?.id || undefined,
-          userId: req.user!.userId,
-          type: 'BATCH_EXPIRING_SOON',
-          severity: 'warning',
-          message: `Lote ${b.batchNumber} do produto ${b.product.name} vence em breve`
-        }
-      });
-    }
-    for (const b of expired) {
-      await prismaMaster.notification.create({
-        data: {
-          tenantId: (req as any).tenant?.id || undefined,
-          userId: req.user!.userId,
-          type: 'BATCH_EXPIRED',
-          severity: 'error',
-          message: `Lote ${b.batchNumber} do produto ${b.product.name} está vencido`
-        }
-      });
-    }
-    for (const s of lowStock) {
-      await prismaMaster.notification.create({
-        data: {
-          tenantId: (req as any).tenant?.id || undefined,
-          userId: req.user!.userId,
-          type: 'LOW_STOCK',
-          severity: 'warning',
-          message: `Estoque baixo do produto ${s.product.name} (lote ${s.batch.batchNumber})`
-        }
-      });
-    }
+      for (const b of expiringSoon) {
+        await prisma.notification.create({
+          data: {
+            tenantId: (req as any).tenant?.id || undefined,
+            userId: req.user!.userId,
+            type: 'BATCH_EXPIRING_SOON',
+            severity: 'warning',
+            message: `Lote ${b.batchNumber} do produto ${b.product.name} vence em breve`
+          }
+        });
+      }
+      for (const b of expired) {
+        await prisma.notification.create({
+          data: {
+            tenantId: (req as any).tenant?.id || undefined,
+            userId: req.user!.userId,
+            type: 'BATCH_EXPIRED',
+            severity: 'error',
+            message: `Lote ${b.batchNumber} do produto ${b.product.name} está vencido`
+          }
+        });
+      }
+      for (const s of lowStock) {
+        await prisma.notification.create({
+          data: {
+            tenantId: (req as any).tenant?.id || undefined,
+            userId: req.user!.userId,
+            type: 'LOW_STOCK',
+            severity: 'warning',
+            message: `Estoque baixo do produto ${s.product.name} (lote ${s.batch.batchNumber})`
+          }
+        });
+      }
 
-    res.json({ success: true, data: { expiringSoon: expiringSoon.length, expired: expired.length, lowStock: lowStock.length } });
+      return { expiringSoon: expiringSoon.length, expired: expired.length, lowStock: lowStock.length };
+    });
+
+    res.json({ success: true, data: result });
   } catch (error) {
     next(error);
   }

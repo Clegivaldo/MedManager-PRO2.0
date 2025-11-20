@@ -18,6 +18,7 @@ import supplierRouter from './routes/supplier.routes.js';
 import invoiceRouter from './routes/invoice.routes.js';
 import fiscalRouter from './routes/fiscal.routes.js';
 import dashboardRouter from './routes/dashboard.routes.js';
+import batchRouter from './routes/batch.routes.js';
 import { authenticateToken } from './middleware/auth.js';
 
 const app: Application = express();
@@ -104,6 +105,7 @@ app.use(`/api/${config.API_VERSION}/suppliers`, supplierRouter);
 app.use(`/api/${config.API_VERSION}/invoices`, invoiceRouter);
 app.use(`/api/${config.API_VERSION}/fiscal`, fiscalRouter);
 app.use(`/api/${config.API_VERSION}/dashboard`, dashboardRouter);
+app.use(`/api/${config.API_VERSION}/batches`, batchRouter);
 
 // Rota de teste
 app.get('/api/test', (req, res) => {

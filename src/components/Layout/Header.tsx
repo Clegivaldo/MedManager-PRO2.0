@@ -12,9 +12,12 @@ import {
 import { Bell, Search, User, LogOut, Settings, HelpCircle, Shield } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { ThemeSelector } from '@/components/ThemeSelector';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function Header() {
+  const { logout, user } = useAuth();
+  const navigate = useNavigate();
   return (
     <header className="border-b bg-card px-6 py-4 dark:bg-background">
       <div className="flex items-center justify-between">
@@ -91,13 +94,11 @@ export default function Header() {
             <DropdownMenuContent className="w-56" align="end" forceMount>
               <DropdownMenuLabel className="font-normal">
                 <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium leading-none">Dr. João Silva</p>
-                  <p className="text-xs leading-none text-muted-foreground">
-                    joao.silva@farmaciacentral.com.br
-                  </p>
-                  <p className="text-xs leading-none text-muted-foreground">
-                    Farmácia Central LTDA
-                  </p>
+                  <p className="text-sm font-medium leading-none">{user?.name || 'Usuário'}</p>
+                  <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
+                  {user?.tenantId && (
+                    <p className="text-xs leading-none text-muted-foreground">Tenant: {user.tenantId}</p>
+                  )}
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
@@ -118,7 +119,17 @@ export default function Header() {
                 <span>Suporte</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-red-600 focus:text-red-500 focus:bg-red-100/80">
+              <DropdownMenuItem
+                className="text-red-600 focus:text-red-500 focus:bg-red-100/80"
+                onClick={() => {
+                  try {
+                    logout();
+                    navigate('/login');
+                  } catch (e) {
+                    console.error('Erro ao sair', e);
+                  }
+                }}
+              >
                 <LogOut className="mr-2 h-4 w-4" />
                 <span>Sair</span>
               </DropdownMenuItem>

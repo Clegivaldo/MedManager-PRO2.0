@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { prismaMaster } from '../lib/prisma.js';
+import { withTenantPrisma } from '../lib/tenant-prisma.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
 import { NFeService } from '../services/nfe.service.js';
@@ -74,43 +74,45 @@ router.get('/', requirePermissions([PERMISSIONS.INVOICE_READ]), async (req, res,
       if (endDate) where.createdAt.lte = new Date(endDate as string);
     }
 
-    const [invoices, total] = await Promise.all([
-      prismaMaster.invoice.findMany({
-        where,
-        skip,
-        take: Number(limit),
-        include: {
-          customer: {
-            select: {
-              id: true,
-              companyName: true,
-              cnpjCpf: true,
-              email: true,
-            }
-          },
-          items: {
-            include: {
-              product: {
-                select: {
-                  id: true,
-                  name: true,
-                }
-              },
-              batch: {
-                select: {
-                  id: true,
-                  batchNumber: true,
-                  expirationDate: true,
+    const [invoices, total] = await withTenantPrisma((req as any).tenant, async (prisma) => {
+      return await Promise.all([
+        prisma.invoice.findMany({
+          where,
+          skip,
+          take: Number(limit),
+          include: {
+            customer: {
+              select: {
+                id: true,
+                companyName: true,
+                cnpjCpf: true,
+                email: true,
+              }
+            },
+            items: {
+              include: {
+                product: {
+                  select: {
+                    id: true,
+                    name: true,
+                  }
+                },
+                batch: {
+                  select: {
+                    id: true,
+                    batchNumber: true,
+                    expirationDate: true,
+                  }
                 }
               }
-            }
+            },
+            
           },
-          
-        },
-        orderBy: { createdAt: 'desc' }
-      }),
-      prismaMaster.invoice.count({ where })
-    ]);
+          orderBy: { createdAt: 'desc' }
+        }),
+        prisma.invoice.count({ where })
+      ]);
+    });
 
     res.json({
       invoices,
@@ -133,36 +135,40 @@ router.get('/:id', requirePermissions([PERMISSIONS.INVOICE_READ]), async (req, r
     const { id } = req.params;
     const tenantId = req.tenant!.id;
 
-    const invoice = await prismaMaster.invoice.findFirst({
-      where: { id },
-      include: {
-        customer: true,
-        items: {
-          include: {
-            product: {
-              select: {
-                id: true,
-                name: true,
-                isControlled: true,
-              }
-            },
-            batch: {
-              select: {
-                id: true,
-                batchNumber: true,
-                expirationDate: true,
-                manufactureDate: true,
+    const invoice = await withTenantPrisma((req as any).tenant, async (prisma) => {
+      const invoice = await prisma.invoice.findFirst({
+        where: { id },
+        include: {
+          customer: true,
+          items: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  isControlled: true,
+                }
+              },
+              batch: {
+                select: {
+                  id: true,
+                  batchNumber: true,
+                  expirationDate: true,
+                  manufactureDate: true,
+                }
               }
             }
-          }
-        },
-        // payments and nfe data are stored in the invoice itself
-      }
-    });
+          },
+          // payments and nfe data are stored in the invoice itself
+        }
+      });
 
-    if (!invoice) {
-      throw new AppError('Invoice not found', 404);
-    }
+      if (!invoice) {
+        throw new AppError('Invoice not found', 404);
+      }
+      
+      return invoice;
+    });
 
     res.json(invoice);
 
@@ -178,27 +184,31 @@ router.post('/', requirePermissions([PERMISSIONS.INVOICE_CREATE]), async (req, r
     const tenantId = req.tenant!.id;
     const userId = req.user!.userId;
 
-    // Verificar se o cliente existe
-    const customer = await prismaMaster.customer.findFirst({
-      where: { id: validatedData.customerId }
-    });
-
-    if (!customer) {
-      throw new AppError('Customer not found', 404, 'CUSTOMER_NOT_FOUND');
-    }
-
-    // Verificar produtos e estoque
+    // Verificar se o cliente existe e produtos
     const productIds = validatedData.items.map(item => item.productId);
-    const products = await prismaMaster.product.findMany({
-      where: { 
-        id: { in: productIds },
-        isActive: true
-      },
-      include: {
-        stock: {
-          where: { availableQuantity: { gt: 0 } }
-        }
+    const { customer, products } = await withTenantPrisma((req as any).tenant, async (prisma) => {
+      const customer = await prisma.customer.findFirst({
+        where: { id: validatedData.customerId }
+      });
+
+      if (!customer) {
+        throw new AppError('Customer not found', 404, 'CUSTOMER_NOT_FOUND');
       }
+
+      // Verificar produtos e estoque
+      const products = await prisma.product.findMany({
+        where: { 
+          id: { in: productIds },
+          isActive: true
+        },
+        include: {
+          stock: {
+            where: { availableQuantity: { gt: 0 } }
+          }
+        }
+      });
+      
+      return { customer, products };
     });
 
     if (products.length !== productIds.length) {
@@ -228,32 +238,34 @@ router.post('/', requirePermissions([PERMISSIONS.INVOICE_CREATE]), async (req, r
 
       // Verificar lote se fornecido
       if (item.batchId) {
-        const batch = await prismaMaster.batch.findFirst({
-          where: { 
-            id: item.batchId, 
-            productId: item.productId
+        await withTenantPrisma((req as any).tenant, async (prisma) => {
+          const batch = await prisma.batch.findFirst({
+            where: { 
+              id: item.batchId, 
+              productId: item.productId
+            }
+          });
+
+          if (!batch) {
+            throw new AppError(`Batch not found for product ${product.name}`, 404, 'BATCH_NOT_FOUND');
+          }
+
+          if (batch.expirationDate < new Date()) {
+            throw new AppError(`Batch ${batch.batchNumber} for product ${product.name} is expired`, 400);
+          }
+
+          // Verificar estoque do lote específico
+          const batchStock = await prisma.stock.findFirst({
+            where: { 
+              productId: item.productId,
+              batchId: item.batchId
+            }
+          });
+
+          if (!batchStock || batchStock.availableQuantity < item.quantity) {
+            throw new AppError(`Insufficient stock in batch ${batch.batchNumber} for product ${product.name}`, 400);
           }
         });
-
-        if (!batch) {
-          throw new AppError(`Batch not found for product ${product.name}`, 404, 'BATCH_NOT_FOUND');
-        }
-
-        if (batch.expirationDate < new Date()) {
-          throw new AppError(`Batch ${batch.batchNumber} for product ${product.name} is expired`, 400);
-        }
-
-        // Verificar estoque do lote específico
-        const batchStock = await prismaMaster.stock.findFirst({
-          where: { 
-            productId: item.productId,
-            batchId: item.batchId
-          }
-        });
-
-        if (!batchStock || batchStock.availableQuantity < item.quantity) {
-          throw new AppError(`Insufficient stock in batch ${batch.batchNumber} for product ${product.name}`, 400);
-        }
       }
     }
 
@@ -291,7 +303,8 @@ router.post('/', requirePermissions([PERMISSIONS.INVOICE_CREATE]), async (req, r
     const total = subtotal - totalDiscount + totalTax;
 
     // Criar nota fiscal em transação
-    const invoice = await prismaMaster.$transaction(async (tx) => {
+    const invoice = await withTenantPrisma((req as any).tenant, async (prisma) => {
+      return await prisma.$transaction(async (tx) => {
       // Criar a nota fiscal
       const createdInvoice = await tx.invoice.create({
         data: {
@@ -375,7 +388,8 @@ router.post('/', requirePermissions([PERMISSIONS.INVOICE_CREATE]), async (req, r
         }
       });
 
-      return completeInvoice;
+        return completeInvoice;
+      });
     });
 
     logger.info(`Invoice ${invoice!.number} created as draft`, {
@@ -400,18 +414,20 @@ router.post('/:id/emit', requirePermissions([PERMISSIONS.NFE_ISSUE]), async (req
     const userId = req.user!.userId;
 
     // Buscar nota fiscal com todos os dados necessários
-    const invoice = await prismaMaster.invoice.findFirst({
-      where: { id },
-      include: {
-        customer: true,
-        items: {
-          include: {
-            product: true,
-            batch: true
-          }
-        },
-        user: true
-      }
+    const invoice = await withTenantPrisma((req as any).tenant, async (prisma) => {
+      return await prisma.invoice.findFirst({
+        where: { id },
+        include: {
+          customer: true,
+          items: {
+            include: {
+              product: true,
+              batch: true
+            }
+          },
+          user: true
+        }
+      });
     });
 
     if (!invoice) {
@@ -491,7 +507,8 @@ router.post('/:id/emit', requirePermissions([PERMISSIONS.NFE_ISSUE]), async (req
     const nfeResult = await nfeService.emitNFe(nfeData, tenantId);
 
     // Atualizar nota fiscal com dados da NF-e
-    const updatedInvoice = await prismaMaster.$transaction(async (tx) => {
+    const updatedInvoice = await withTenantPrisma((req as any).tenant, async (prisma) => {
+      return await prisma.$transaction(async (tx) => {
       // Atualizar invoice com dados da NF-e
       const updated = await tx.invoice.update({
         where: { id: invoice.id },
@@ -616,7 +633,8 @@ router.post('/:id/emit', requirePermissions([PERMISSIONS.NFE_ISSUE]), async (req
         }
       });
 
-      return fullInvoice!;
+        return fullInvoice!;
+      });
     });
 
     logger.info(`Invoice ${updatedInvoice.number} emitted successfully`, {
@@ -643,7 +661,9 @@ router.post('/:id/cancel', requirePermissions([PERMISSIONS.NFE_CANCEL]), async (
     const userId = req.user!.userId;
 
     // Buscar nota fiscal
-    const invoice = await prismaMaster.invoice.findFirst({ where: { id } });
+    const invoice = await withTenantPrisma((req as any).tenant, async (prisma) => {
+      return await prisma.invoice.findFirst({ where: { id } });
+    });
 
     if (!invoice) {
       throw new AppError('Invoice not found', 404);
@@ -670,7 +690,8 @@ router.post('/:id/cancel', requirePermissions([PERMISSIONS.NFE_CANCEL]), async (
     }, req.user.tenantId);
 
     // Atualizar nota fiscal e estoque em transação
-    const updatedInvoice = await prismaMaster.$transaction(async (tx) => {
+    const updatedInvoice = await withTenantPrisma((req as any).tenant, async (prisma) => {
+      return await prisma.$transaction(async (tx) => {
       // Atualizar dados da nota fiscal com cancelamento
       await tx.invoice.update({
         where: { id },
@@ -766,7 +787,8 @@ router.post('/:id/cancel', requirePermissions([PERMISSIONS.NFE_CANCEL]), async (
         }
       });
 
-      return updated;
+        return updated;
+      });
     });
 
     logger.info(`Invoice ${updatedInvoice!.number} cancelled successfully`, {
@@ -790,28 +812,38 @@ router.get('/:id/nfe-status', requirePermissions([PERMISSIONS.INVOICE_READ]), as
     const { id } = req.params;
     const tenantId = req.tenant!.id;
 
-    const invoice = await prismaMaster.invoice.findFirst({ where: { id } });
+    const invoice = await withTenantPrisma((req as any).tenant, async (prisma) => {
+      const invoice = await prisma.invoice.findFirst({ where: { id } });
 
-    if (!invoice) {
-      throw new AppError('Invoice not found', 404);
-    }
+      if (!invoice) {
+        throw new AppError('Invoice not found', 404);
+      }
 
-    if (!invoice.accessKey) {
-      throw new AppError('No NF-e found for this invoice', 400);
-    }
+      if (!invoice.accessKey) {
+        throw new AppError('No NF-e found for this invoice', 400);
+      }
+      
+      return invoice;
+    });
 
     // Consultar status na Sefaz
     if (!req.user?.tenantId) {
       throw new AppError('Tenant ID not found', 401);
     }
     
+    if (!invoice.accessKey) {
+      throw new AppError('Invoice does not have an access key', 400);
+    }
+    
     const statusResult = await nfeService.consultarStatusNFe(invoice.accessKey, req.user.tenantId);
 
     // Atualizar status se necessário
     if (statusResult.status !== invoice.status) {
-      await prismaMaster.invoice.update({
-        where: { id: invoice.id },
-        data: { status: statusResult.status as InvoiceStatus }
+      await withTenantPrisma((req as any).tenant, async (prisma) => {
+        await prisma.invoice.update({
+          where: { id: invoice.id },
+          data: { status: statusResult.status as InvoiceStatus }
+        });
       });
     }
 
@@ -834,18 +866,20 @@ router.get('/:id/danfe', requirePermissions([PERMISSIONS.NFE_VIEW_DANFE]), async
     const { id } = req.params;
     const tenantId = req.tenant!.id;
 
-    const invoice = await prismaMaster.invoice.findFirst({
-      where: { id },
-      include: {
-        customer: true,
-        items: {
-          include: {
-            product: true,
-            batch: true
-          }
-        },
-        user: true
-      }
+    const invoice = await withTenantPrisma((req as any).tenant, async (prisma) => {
+      return await prisma.invoice.findFirst({
+        where: { id },
+        include: {
+          customer: true,
+          items: {
+            include: {
+              product: true,
+              batch: true
+            }
+          },
+          user: true
+        }
+      });
     });
 
     if (!invoice) {
@@ -899,16 +933,18 @@ router.get('/:id/xml', requirePermissions([PERMISSIONS.NFE_VIEW_DANFE]), async (
     const { id } = req.params;
     const tenantId = req.tenant!.id;
 
-    const invoice = await prismaMaster.invoice.findFirst({
-      where: { id },
-      select: {
-        id: true,
-        accessKey: true,
-        status: true,
-        xmlContent: true,
-        number: true,
-        series: true
-      }
+    const invoice = await withTenantPrisma((req as any).tenant, async (prisma) => {
+      return await prisma.invoice.findFirst({
+        where: { id },
+        select: {
+          id: true,
+          accessKey: true,
+          status: true,
+          xmlContent: true,
+          number: true,
+          series: true
+        }
+      });
     });
 
     if (!invoice) {

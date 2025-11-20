@@ -30,6 +30,7 @@ model Tenant {
   notifications     Notification[]
   sngpcSubmissions  SngpcSubmission[]
   fiscalProfile     TenantFiscalProfile?
+  passwordResetTokens PasswordResetToken[]
   
   @@map("tenants")
 }
@@ -157,6 +158,7 @@ model User {
   medicationTrackings MedicationTracking[]
   guia33Generated Guia33[]
   notifications   Notification[]
+  passwordResetTokens PasswordResetToken[]
   
   @@map("users")
   @@index([email])
@@ -563,4 +565,21 @@ enum InvoiceStatus {
   CANCELLED
   DENIED
   IN_CONTINGENCY
+}
+
+// Tokens de reset de senha (armazenados no banco master)
+model PasswordResetToken {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  tenantId   String?  @map("tenant_id")
+  token      String   @unique
+  expiresAt  DateTime @map("expires_at")
+  usedAt     DateTime? @map("used_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user   User   @relation(fields: [userId], references: [id])
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+
+  @@map("password_reset_tokens")
+  @@index([userId, expiresAt])
 }

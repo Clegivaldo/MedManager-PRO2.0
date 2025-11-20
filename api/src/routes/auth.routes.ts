@@ -12,8 +12,10 @@ import {
   comparePassword,
   extractTokenFromHeader
 } from '../services/auth.service.js';
+import crypto from 'crypto';
 import { AppError } from '../middleware/errorHandler.js';
 import { config } from '../config/environment.js';
+import { emailService } from '../services/email.service.js';
 
 const router: Router = Router();
 
@@ -21,53 +23,61 @@ const router: Router = Router();
 router.post('/login', async (req, res, next) => {
   try {
     const { email, password } = req.body;
+    logger.info('Login (master) attempt', { email });
 
     if (!email || !password) {
       throw new AppError('Email and password are required', 400);
     }
 
-    // Buscar usuário no tenant específico
     const user = await prismaMaster.user.findFirst({
       where: { email: email.toLowerCase() }
     });
 
     if (!user) {
+      logger.warn('Login failed: user not found', { email });
       throw new AppError('Invalid credentials', 401, 'INVALID_CREDENTIALS');
     }
 
-    // Verificar se o usuário está ativo
     if (!user.isActive) {
+      logger.warn('Login failed: inactive account', { email });
       throw new AppError('User account is inactive', 401);
     }
 
-    // Verificar senha
     const isPasswordValid = await comparePassword(password, user.password);
     if (!isPasswordValid) {
+      logger.warn('Login failed: wrong password', { email });
       throw new AppError('Invalid credentials', 401, 'INVALID_CREDENTIALS');
     }
 
-    // Atualizar último acesso
     await prismaMaster.user.update({
       where: { id: user.id },
       data: { lastAccess: new Date() }
     });
 
-    // Gerar tokens
-    const permissions = user.permissions as string[] || [];
+    // Inject default permissions if empty (SUPERADMIN bypass)
+    let permissions: string[] = [];
+    try {
+      const raw = user.permissions as any;
+      permissions = Array.isArray(raw) ? raw : (typeof raw === 'string' ? JSON.parse(raw || '[]') : []);
+      if (permissions.length === 0) {
+        // For SUPERADMIN assign all permissions (simplificado)
+        if (String(user.role).toUpperCase() === 'SUPERADMIN') {
+          permissions = [];// pode deixar vazio e backend ignora via bypass
+        }
+      }
+    } catch (permErr) {
+      logger.error('Permission parse error', { error: permErr instanceof Error ? permErr.message : 'Unknown' });
+    }
+
     const accessToken = generateAccessToken({
       userId: user.id,
       email: user.email,
       role: user.role,
       permissions
     });
-
     const refreshToken = generateRefreshToken({ userId: user.id });
 
-    // Registrar log de login
-    logger.info(`User ${user.email} logged in successfully`, {
-      userId: user.id,
-      role: user.role
-    });
+    logger.info(`User ${user.email} logged in successfully`, { userId: user.id, role: user.role });
 
     res.json({
       success: true,
@@ -87,6 +97,7 @@ router.post('/login', async (req, res, next) => {
       }
     });
   } catch (error) {
+    logger.error('Login master error', { error: error instanceof Error ? error.message : 'Unknown', stack: (error as any)?.stack });
     next(error);
   }
 });
@@ -95,62 +106,64 @@ router.post('/login', async (req, res, next) => {
 router.post('/login-tenant', async (req, res, next) => {
   try {
     const { cnpj, email, password } = req.body as { cnpj?: string; email?: string; password?: string };
+    logger.info('Login (tenant) attempt', { email, cnpj });
 
     if (!cnpj || !email || !password) {
       throw new AppError('CNPJ, email and password are required', 400);
     }
 
-    // Normalizar CNPJ (com e sem máscara)
     const onlyDigits = cnpj.replace(/\D/g, '');
 
-    // Buscar tenant por CNPJ (permitindo ambos formatos)
     const tenant = await prismaMaster.tenant.findFirst({
-      where: {
-        OR: [
-          { cnpj },
-          { cnpj: onlyDigits }
-        ],
-        status: 'active'
-      }
+      where: { OR: [{ cnpj }, { cnpj: onlyDigits }], status: 'active' }
     });
 
     if (!tenant) {
+      logger.warn('Tenant login failed: tenant not found or inactive', { cnpj });
       throw new AppError('Tenant not found or inactive', 404, 'TENANT_NOT_FOUND');
     }
 
-    // Conectar no banco do tenant
-    const tenantPrisma = new PrismaClient({
-      datasources: {
-        db: {
-          url: config.DATABASE_URL.replace(/\/(\w+)$/, `/${tenant.databaseName}`)
-        }
-      }
-    });
+    const tenantDbUrl = config.DATABASE_URL.replace(/\/(\w+)$/, `/${tenant.databaseName}`);
+    logger.info('Resolved tenant DB URL', { tenantDbUrl });
 
-    // Buscar usuário por email
-    const user = await tenantPrisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    const tenantPrisma = new PrismaClient({ datasources: { db: { url: tenantDbUrl } } });
+
+    let user;
+    try {
+      user = await tenantPrisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    } catch (queryErr) {
+      logger.error('Error querying tenant user', { error: queryErr instanceof Error ? queryErr.message : 'Unknown' });
+    }
 
     if (!user) {
       await tenantPrisma.$disconnect();
+      logger.warn('Tenant login failed: user not found', { email, cnpj });
       throw new AppError('Invalid credentials', 401, 'INVALID_CREDENTIALS');
     }
 
     if (!user.isActive) {
       await tenantPrisma.$disconnect();
+      logger.warn('Tenant login failed: inactive user', { email });
       throw new AppError('User account is inactive', 401);
     }
 
-    // Validar senha
     const isPasswordValid = await comparePassword(password, user.password);
     if (!isPasswordValid) {
       await tenantPrisma.$disconnect();
+      logger.warn('Tenant login failed: wrong password', { email });
       throw new AppError('Invalid credentials', 401, 'INVALID_CREDENTIALS');
     }
 
-    // Atualizar último acesso
     await tenantPrisma.user.update({ where: { id: user.id }, data: { lastAccess: new Date() } });
 
-    const permissions = (user.permissions as any) || [];
+    let permissions: string[] = [];
+    try {
+      const raw = user.permissions as any;
+      permissions = Array.isArray(raw) ? raw : (typeof raw === 'string' ? JSON.parse(raw || '[]') : []);
+    } catch (permErr) {
+      logger.error('Permission parse error (tenant)', { error: permErr instanceof Error ? permErr.message : 'Unknown' });
+    }
+
     const accessToken = generateAccessToken({
       userId: user.id,
       email: user.email,
@@ -162,32 +175,18 @@ router.post('/login-tenant', async (req, res, next) => {
 
     await tenantPrisma.$disconnect();
 
-    logger.info(`Tenant login success: ${email} @ ${tenant.name}`);
+    logger.info('Tenant login success', { email, tenant: tenant.name });
 
     res.json({
       success: true,
       data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          permissions
-        },
-        tenant: {
-          id: tenant.id,
-          name: tenant.name,
-          cnpj: tenant.cnpj,
-          plan: tenant.plan
-        },
-        tokens: {
-          accessToken,
-          refreshToken,
-          expiresIn: '24h'
-        }
+        user: { id: user.id, email: user.email, name: user.name, role: user.role, permissions },
+        tenant: { id: tenant.id, name: tenant.name, cnpj: tenant.cnpj, plan: tenant.plan },
+        tokens: { accessToken, refreshToken, expiresIn: '24h' }
       }
     });
   } catch (error) {
+    logger.error('Login tenant error', { error: error instanceof Error ? error.message : 'Unknown', stack: (error as any)?.stack });
     next(error);
   }
 });
@@ -302,6 +301,128 @@ router.post('/refresh', async (req, res, next) => {
         expiresIn: '24h'
       }
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Solicitação de reset de senha (placeholder – implementação de envio de email futura)
+router.post('/forgot-password', async (req, res, next) => {
+  try {
+    const { email, cnpj } = req.body as { email?: string; cnpj?: string };
+
+    if (!email) {
+      throw new AppError('Email is required', 400, 'EMAIL_REQUIRED');
+    }
+
+    // Normalizar email
+    const normalizedEmail = email.toLowerCase();
+    let user: any = null;
+    let tenant: any = null;
+
+    // Se veio CNPJ tentar localizar tenant e procurar usuário naquele banco
+    if (cnpj) {
+      const onlyDigits = cnpj.replace(/\D/g, '');
+      tenant = await prismaMaster.tenant.findFirst({
+        where: { OR: [{ cnpj }, { cnpj: onlyDigits }], status: 'active' }
+      });
+      if (tenant) {
+        try {
+          const tenantDbUrl = config.DATABASE_URL.replace(/\/(\w+)$/, `/${tenant.databaseName}`);
+          const tenantPrisma = new PrismaClient({ datasources: { db: { url: tenantDbUrl } } });
+          user = await tenantPrisma.user.findUnique({ where: { email: normalizedEmail } });
+          await tenantPrisma.$disconnect();
+        } catch (tenantErr) {
+          logger.error('Forgot password tenant query error', { error: tenantErr instanceof Error ? tenantErr.message : 'Unknown' });
+        }
+      }
+    }
+
+    // Se não achou via tenant, procurar no master (superadmin / usuários globais)
+    if (!user) {
+      try {
+        user = await prismaMaster.user.findFirst({ where: { email: normalizedEmail } });
+      } catch (masterErr) {
+        logger.error('Forgot password master query error', { error: masterErr instanceof Error ? masterErr.message : 'Unknown' });
+      }
+    }
+
+    if (user) {
+      // Gerar e persistir token
+      const resetToken = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutos
+      try {
+        await prismaMaster.passwordResetToken.create({
+          data: {
+            userId: user.id,
+            tenantId: tenant?.id || null,
+            token: resetToken,
+            expiresAt
+          }
+        });
+      } catch (persistErr) {
+        logger.error('Persist reset token failed', { error: persistErr instanceof Error ? persistErr.message : 'Unknown' });
+      }
+
+      // Enviar email com token de reset
+      try {
+        await emailService.sendPasswordResetEmail(user.email, resetToken);
+        logger.info('Password reset email sent', { userId: user.id, tenantId: tenant?.id || null });
+      } catch (emailErr) {
+        logger.error('Failed to send password reset email', { error: emailErr instanceof Error ? emailErr.message : 'Unknown' });
+      }
+
+      return res.json({
+        success: true,
+        data: {
+          message: 'Se o email existir, enviaremos instruções de recuperação.',
+          dev: process.env.NODE_ENV !== 'production' ? { token: resetToken } : undefined
+        }
+      });
+    }
+
+    // Resposta genérica se usuário não encontrado
+    return res.json({
+      success: true,
+      data: { message: 'Se o email existir, enviaremos instruções de recuperação.' }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Reset efetivo da senha
+router.post('/reset-password', async (req, res, next) => {
+  try {
+    const { token, password } = req.body as { token?: string; password?: string };
+    if (!token || !password) {
+      throw new AppError('Token and password are required', 400, 'MISSING_FIELDS');
+    }
+
+    const resetRecord = await prismaMaster.passwordResetToken.findUnique({ where: { token } });
+    if (!resetRecord) {
+      throw new AppError('Invalid token', 400, 'INVALID_TOKEN');
+    }
+    if (resetRecord.usedAt) {
+      throw new AppError('Token already used', 400, 'TOKEN_USED');
+    }
+    if (resetRecord.expiresAt.getTime() < Date.now()) {
+      throw new AppError('Token expired', 400, 'TOKEN_EXPIRED');
+    }
+
+    const user = await prismaMaster.user.findUnique({ where: { id: resetRecord.userId } });
+    if (!user || !user.isActive) {
+      throw new AppError('Invalid user', 400, 'INVALID_USER');
+    }
+
+    const newHash = await hashPassword(password);
+    await prismaMaster.$transaction([
+      prismaMaster.user.update({ where: { id: user.id }, data: { password: newHash } }),
+      prismaMaster.passwordResetToken.update({ where: { token }, data: { usedAt: new Date() } })
+    ]);
+
+    logger.info('Password successfully reset', { userId: user.id });
+    return res.json({ success: true, data: { message: 'Senha redefinida com sucesso.' } });
   } catch (error) {
     next(error);
   }

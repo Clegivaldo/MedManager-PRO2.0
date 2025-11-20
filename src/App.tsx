@@ -13,6 +13,8 @@ import SuperadminLayout from './components/Layout/SuperadminLayout';
 
 // Pages
 import Login from './pages/Login';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import Products from './pages/Products';
 import Inventory from './pages/Inventory';
@@ -53,6 +55,8 @@ const App = () => (
             <AuthProvider>
               <Routes>
                 <Route path="/login" element={<Login />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
                 
                 {/* Tenant Routes - Protected */}
                 <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'MANAGER', 'OPERATOR', 'VIEWER']} />}>

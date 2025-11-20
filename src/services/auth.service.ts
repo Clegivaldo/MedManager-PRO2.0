@@ -20,6 +20,20 @@ class AuthService {
     return response.data.data;
   }
 
+  // Solicitar reset de senha (endpoint futuro)
+  async requestPasswordReset(email: string): Promise<void> {
+    try {
+      await api.post<ApiResponse<any>>('/auth/forgot-password', { email });
+    } catch (error) {
+      // Se endpoint não existir ainda, apenas lançar erro controlado
+      throw new Error('Funcionalidade de reset de senha indisponível no momento.');
+    }
+  }
+
+  async resetPassword(token: string, password: string): Promise<void> {
+    await api.post<ApiResponse<any>>('/auth/reset-password', { token, password });
+  }
+
   // Logout
   logout(): void {
     this.clearStorage();

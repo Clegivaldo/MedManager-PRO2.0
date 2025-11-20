@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import authService from '@/services/auth.service';
-import { AuthContextType, AuthState, LoginCredentials, User, Tenant } from '@/types/auth.types';
+import { AuthContextType, AuthState, LoginCredentials, User, Tenant, LoginResponse } from '@/types/auth.types';
 import { getErrorMessage } from '@/services/api';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -63,7 +63,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     initAuth();
   }, []);
 
-  const login = async (credentials: LoginCredentials): Promise<void> => {
+  const login = async (credentials: LoginCredentials): Promise<LoginResponse> => {
     try {
       setState(prev => ({ ...prev, isLoading: true }));
 
@@ -75,6 +75,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         isAuthenticated: true,
         isLoading: false,
       });
+      return response;
     } catch (error) {
       setState(prev => ({ ...prev, isLoading: false }));
       throw new Error(getErrorMessage(error));
@@ -104,11 +105,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const requestPasswordReset = async (email: string) => {
+    try {
+      await authService.requestPasswordReset(email);
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  const resetPassword = async (token: string, password: string) => {
+    await authService.resetPassword(token, password);
+  };
+
   const value: AuthContextType = {
     ...state,
     login,
     logout,
     refreshUser,
+    requestPasswordReset,
+    resetPassword,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
