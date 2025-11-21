@@ -895,9 +895,9 @@ export class NFeService {
         throw new AppError('NF-e must be authorized to generate DANFE', 400);
       }
 
-      // Gerar PDF real com código de barras e QRCode
-      const { generateDanfePdf } = await import('../utils/danfePdf.js');
-      const pdfBuffer = await generateDanfePdf(invoiceData);
+      // Usar serviço dedicado de DANFE
+      const { danfeService } = await import('./danfe.service.js');
+      const pdfBuffer = await danfeService.generate(invoiceData);
 
       logger.info(`DANFE PDF generated successfully`, {
         invoiceId: invoiceData.id,

@@ -12,7 +12,8 @@ import {
   FileText,
   Activity,
   DollarSign,
-  Users
+  Users,
+  RefreshCw
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import dashboardService, { type DashboardMetrics } from '@/services/dashboard.service';

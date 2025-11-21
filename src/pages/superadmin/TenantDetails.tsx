@@ -1,10 +1,5 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { useEffect, useMemo, useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -28,39 +23,39 @@ import {
 } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
-
-const tenantData = {
-  "TEN-001": {
-    name: "Farmácia Central LTDA",
-    cnpj: "12.345.678/0001-99",
-    plan: "Profissional",
-    status: "active",
-    users: 15,
-    storage: 7.5, // in GB
-    storageLimit: 20,
-    apiUsage: [
-      { date: "Seg", requests: 4500 },
-      { date: "Ter", requests: 5200 },
-      { date: "Qua", requests: 7100 },
-      { date: "Qui", requests: 6300 },
-      { date: "Sex", requests: 8900 },
-      { date: "Sáb", requests: 3200 },
-      { date: "Dom", requests: 1500 },
-    ],
-    recentActivities: [
-      { user: "Dr. João Silva", action: "criou o pedido #PED-2024-004", time: "há 2 horas", icon: Package },
-      { user: "Ana Costa", action: "adicionou o produto 'Dipirona 500mg'", time: "há 5 horas", icon: Package },
-      { user: "Carlos Santos", action: "registrou entrada de 500 unidades de 'Paracetamol'", time: "há 8 horas", icon: Package },
-      { user: "Sistema", action: "gerou o relatório de vendas mensal", time: "ontem", icon: Activity },
-      { user: "Dr. João Silva", action: "convidou um novo usuário", time: "ontem", icon: User },
-    ],
-  },
-  // ... other tenants
-};
+import superadminService, { type SuperadminTenant } from "@/services/superadmin.service";
+import { useToast } from "@/hooks/use-toast";
 
 export default function TenantDetails() {
   const { tenantId } = useParams();
-  const tenant = tenantData[tenantId as keyof typeof tenantData] || tenantData['TEN-001']; // fallback for example
+  const { toast } = useToast();
+  const [tenant, setTenant] = useState<SuperadminTenant | null>(null);
+  const [activities, setActivities] = useState<Array<{ user?: string; action: string; time: string }>>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      if (!tenantId) return;
+      try {
+        setLoading(true);
+        const t = await superadminService.getTenant(tenantId);
+        setTenant(t);
+        const logs = await superadminService.getAuditLogs({ tenantId, limit: 5, page: 1 });
+        const mapped = logs.logs.map((l: any) => ({
+          user: l.user?.name || l.userId || 'Sistema',
+          action: l.action || l.details || 'Ação registrada',
+          time: new Date(l.createdAt).toLocaleString('pt-BR')
+        }));
+        setActivities(mapped);
+      } catch (err) {
+        console.error(err);
+        toast({ title: 'Erro ao carregar detalhes do tenant', variant: 'destructive' });
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [tenantId]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -83,11 +78,11 @@ export default function TenantDetails() {
             <div>
                 <h1 className="text-3xl font-bold flex items-center gap-3">
                     <Building className="h-8 w-8 text-muted-foreground" />
-                    {tenant.name}
+                    {tenant?.name || (loading ? 'Carregando...' : 'Tenant')}
                 </h1>
                 <div className="flex items-center gap-2 mt-1">
-                    <p className="text-muted-foreground font-mono">{tenant.cnpj}</p>
-                    {getStatusBadge(tenant.status)}
+                    {tenant?.cnpj && <p className="text-muted-foreground font-mono">{tenant.cnpj}</p>}
+                    {tenant?.status && getStatusBadge(tenant.status)}
                 </div>
             </div>
         </div>
@@ -100,8 +95,8 @@ export default function TenantDetails() {
                 <Layers className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-                <div className="text-2xl font-bold">{tenant.plan}</div>
-                <p className="text-xs text-muted-foreground">Próxima fatura em 15/12/2024</p>
+                  <div className="text-2xl font-bold">{tenant?.plan || '-'}</div>
+                  <p className="text-xs text-muted-foreground">{loading ? 'Carregando...' : 'Sem informação de fatura'}</p>
             </CardContent>
         </Card>
         <Card>
@@ -110,8 +105,8 @@ export default function TenantDetails() {
                 <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-                <div className="text-2xl font-bold">{tenant.users}</div>
-                <p className="text-xs text-muted-foreground">de 20 licenças contratadas</p>
+                  <div className="text-2xl font-bold">-</div>
+                  <p className="text-xs text-muted-foreground">Informação não disponível</p>
             </CardContent>
         </Card>
         <Card>
@@ -120,8 +115,8 @@ export default function TenantDetails() {
                 <HardDrive className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-                <div className="text-2xl font-bold">{tenant.storage} GB / {tenant.storageLimit} GB</div>
-                <Progress value={(tenant.storage / tenant.storageLimit) * 100} className="h-2 mt-2" />
+                  <div className="text-2xl font-bold">-</div>
+                  <Progress value={0} className="h-2 mt-2" />
             </CardContent>
         </Card>
       </div>
@@ -135,20 +130,25 @@ export default function TenantDetails() {
             <CardContent>
                 <Table>
                     <TableBody>
-                        {tenant.recentActivities.map((activity, index) => (
-                            <TableRow key={index}>
+                      {activities.map((activity, index) => (
+                        <TableRow key={index}>
                                 <TableCell className="flex items-center gap-3">
                                     <div className="bg-muted p-2 rounded-full">
-                                        <activity.icon className="h-4 w-4 text-muted-foreground"/>
+                              <Activity className="h-4 w-4 text-muted-foreground"/>
                                     </div>
                                     <div>
-                                        <p className="font-medium">{activity.user}</p>
-                                        <p className="text-sm text-muted-foreground">{activity.action}</p>
+                              <p className="font-medium">{activity.user}</p>
+                              <p className="text-sm text-muted-foreground">{activity.action}</p>
                                     </div>
                                 </TableCell>
                                 <TableCell className="text-right text-muted-foreground text-sm">{activity.time}</TableCell>
                             </TableRow>
                         ))}
+                      {activities.length === 0 && !loading && (
+                        <TableRow>
+                        <TableCell colSpan={2} className="text-sm text-muted-foreground">Sem atividades</TableCell>
+                        </TableRow>
+                      )}
                     </TableBody>
                 </Table>
             </CardContent>
@@ -159,13 +159,7 @@ export default function TenantDetails() {
                 <CardDescription>Número de requisições por dia.</CardDescription>
             </CardHeader>
             <CardContent>
-                 <ResponsiveContainer width="100%" height={250}>
-                    <BarChart data={tenant.apiUsage}>
-                        <XAxis dataKey="date" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                        <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value / 1000}k`} />
-                        <Bar dataKey="requests" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                </ResponsiveContainer>
+                  <div className="text-sm text-muted-foreground">Informação não disponível</div>
             </CardContent>
         </Card>
       </div>

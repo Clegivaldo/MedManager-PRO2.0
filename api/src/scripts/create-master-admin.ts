@@ -8,6 +8,7 @@ import { UserRole } from '@prisma/client';
  */
 async function createMasterAdmin() {
   try {
+    console.log('🔍 Verificando se master admin já existe...');
     logger.info('Creating master admin user...');
 
     // Verificar se já existe usuário admin
@@ -16,10 +17,17 @@ async function createMasterAdmin() {
     });
 
     if (existingUser) {
+      console.log('✅ Master admin já existe!');
+      console.log(`   Email: ${existingUser.email}`);
+      console.log(`   Nome: ${existingUser.name}`);
+      console.log(`   Role: ${existingUser.role}`);
+      console.log(`   Ativo: ${existingUser.isActive}`);
       logger.info('Master admin user already exists');
       return;
     }
 
+    console.log('🆕 Criando novo master admin...');
+    
     // Criar usuário admin
     const adminUser = await prismaMaster.user.create({
       data: {
@@ -32,8 +40,12 @@ async function createMasterAdmin() {
       }
     });
 
+    console.log('✅ Master admin criado com sucesso!');
+    console.log(`   Email: ${adminUser.email}`);
+    console.log(`   ID: ${adminUser.id}`);
     logger.info(`Master admin user created: ${adminUser.email}`);
   } catch (error) {
+    console.error('❌ Erro ao criar master admin:', error);
     logger.error('Error creating master admin:', error);
     throw error;
   } finally {
@@ -42,14 +54,12 @@ async function createMasterAdmin() {
 }
 
 // Executar o script
-if (import.meta.url === `file://${process.argv[1]}`) {
-  createMasterAdmin()
-    .then(() => {
-      console.log('✅ Master admin created successfully!');
-      process.exit(0);
-    })
-    .catch((error) => {
-      console.error('❌ Error creating master admin:', error);
-      process.exit(1);
-    });
-}
+createMasterAdmin()
+  .then(() => {
+    console.log('✅ Script concluído!');
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error('❌ Erro no script:', error);
+    process.exit(1);
+  });

@@ -1,4 +1,5 @@
 import { Toaster } from '@/components/ui/sonner';
+import { Suspense, lazy } from 'react';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
@@ -12,38 +13,41 @@ import TenantLayout from './components/Layout/TenantLayout';
 import SuperadminLayout from './components/Layout/SuperadminLayout';
 
 // Pages
-import Login from './pages/Login';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import Dashboard from './pages/Dashboard';
-import Products from './pages/Products';
-import Inventory from './pages/Inventory';
-import Orders from './pages/Orders';
-import Compliance from './pages/Compliance';
-import Clients from './pages/Clients';
-import Usage from './pages/Usage';
-import NotFound from './pages/NotFound';
+const Login = lazy(() => import('./pages/Login'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Products = lazy(() => import('./pages/Products'));
+const Inventory = lazy(() => import('./pages/Inventory'));
+const Orders = lazy(() => import('./pages/Orders'));
+const Compliance = lazy(() => import('./pages/Compliance'));
+const Clients = lazy(() => import('./pages/Clients'));
+const Usage = lazy(() => import('./pages/Usage'));
+const NotFound = lazy(() => import('./pages/NotFound'));
 
-import Quotes from './pages/tenant/Quotes';
-import Sales from './pages/tenant/Sales';
-import NFe from './pages/tenant/NFe';
-import Financials from './pages/tenant/Financials';
-import RoutesPage from './pages/tenant/Routes';
-import UserManagement from './pages/tenant/UserManagement';
-import UserProfile from './pages/tenant/UserProfile';
-import Audit from './pages/tenant/Audit';
-import FiscalProfile from './pages/tenant/FiscalProfile';
-import LicenseExpired from './pages/tenant/LicenseExpired';
-import PaymentGatewayConfig from './pages/tenant/PaymentGatewayConfig';
+const Quotes = lazy(() => import('./pages/tenant/Quotes'));
+const Sales = lazy(() => import('./pages/tenant/Sales'));
+const NFe = lazy(() => import('./pages/tenant/NFe'));
+const Financials = lazy(() => import('./pages/tenant/Financials'));
+const RoutesPage = lazy(() => import('./pages/tenant/Routes'));
+const UserManagement = lazy(() => import('./pages/tenant/UserManagement'));
+const UserProfile = lazy(() => import('./pages/tenant/UserProfile'));
+const Audit = lazy(() => import('./pages/tenant/Audit'));
+const FiscalProfile = lazy(() => import('./pages/tenant/FiscalProfile'));
+const LicenseExpired = lazy(() => import('./pages/tenant/LicenseExpired'));
+const PaymentGatewayConfig = lazy(() => import('./pages/tenant/PaymentGatewayConfig'));
 
 // Superadmin Pages
-import TenantManagement from './pages/superadmin/TenantManagement';
-import PlanManagement from './pages/superadmin/PlanManagement';
-import ModuleManagement from './pages/superadmin/ModuleManagement';
-import SystemHealth from './pages/superadmin/SystemHealth';
-import SystemSettings from './pages/superadmin/SystemSettings';
-import BackupManagement from './pages/superadmin/BackupManagement';
-import TenantDetails from './pages/superadmin/TenantDetails';
+const TenantManagement = lazy(() => import('./pages/superadmin/TenantManagement'));
+const SubscriptionsPage = lazy(() => import('./pages/superadmin/Subscriptions'));
+const BillingPage = lazy(() => import('./pages/superadmin/Billing'));
+const PlanManagement = lazy(() => import('./pages/superadmin/PlanManagement'));
+const ModuleManagement = lazy(() => import('./pages/superadmin/ModuleManagement'));
+const SystemHealth = lazy(() => import('./pages/superadmin/SystemHealth'));
+const SystemSettings = lazy(() => import('./pages/superadmin/SystemSettings'));
+const BackupManagement = lazy(() => import('./pages/superadmin/BackupManagement'));
+const TenantDetails = lazy(() => import('./pages/superadmin/TenantDetails'));
+const SuperadminPaymentProviders = lazy(() => import('./pages/superadmin/PaymentProviders'));
 
 const queryClient = new QueryClient();
 
@@ -55,7 +59,8 @@ const App = () => (
           <Toaster />
           <BrowserRouter>
             <AuthProvider>
-              <Routes>
+              <Suspense fallback={<div className="flex h-screen items-center justify-center text-sm text-muted-foreground">Carregando...</div>}>
+                <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
@@ -90,9 +95,12 @@ const App = () => (
                   <Route path="/superadmin" element={<SuperadminLayout />}>
                     <Route index element={<Navigate to="/superadmin/tenants" replace />} />
                     <Route path="tenants" element={<TenantManagement />} />
+                    <Route path="subscriptions" element={<SubscriptionsPage />} />
+                    <Route path="billing" element={<BillingPage />} />
                     <Route path="tenants/:tenantId" element={<TenantDetails />} />
                     <Route path="plans" element={<PlanManagement />} />
                     <Route path="modules" element={<ModuleManagement />} />
+                    <Route path="payments" element={<SuperadminPaymentProviders />} />
                     <Route path="health" element={<SystemHealth />} />
                     <Route path="settings" element={<SystemSettings />} />
                     <Route path="backups" element={<BackupManagement />} />
@@ -101,6 +109,7 @@ const App = () => (
 
                 <Route path="*" element={<NotFound />} />
               </Routes>
+              </Suspense>
             </AuthProvider>
           </BrowserRouter>
         </TooltipProvider>

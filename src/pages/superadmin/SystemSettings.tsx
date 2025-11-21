@@ -16,8 +16,7 @@ export default function SystemSettings() {
   };
 
   const onConfirmSave = () => {
-    // Lógica de salvamento aqui
-    toast.success("Configurações salvas com sucesso!");
+    toast.info("Salvar configurações globais não está disponível no backend ainda.");
     setIsConfirmOpen(false);
   };
 

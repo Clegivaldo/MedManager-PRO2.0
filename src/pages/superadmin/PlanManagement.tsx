@@ -56,8 +56,7 @@ export default function PlanManagement() {
   };
 
   const onConfirmSave = () => {
-    // Lógica de salvamento aqui
-    toast.success("Planos atualizados com sucesso!");
+    toast.info("Gestão de planos não está disponível no backend ainda.");
     setIsConfirmOpen(false);
   };
 
@@ -93,7 +92,7 @@ export default function PlanManagement() {
                     <Checkbox
                       id={`${plan.name}-${module.id}`}
                       checked={plan.modules.includes(module.id)}
-                      disabled={module.core}
+                      disabled
                       aria-label={module.name}
                     />
                     <div className="grid gap-1.5 leading-none">

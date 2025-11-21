@@ -4,18 +4,15 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Package, DollarSign, Truck, LineChart, Bot, Shield, Info } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import ToggleModuleModal from '@/components/superadmin/modals/ToggleModuleModal';
 import { toast } from 'sonner';
 
 export default function ModuleManagement() {
-  const [modules, setModules] = useState({
-    finance: true,
+  const [modules] = useState({
+    finance: false,
     routes: false,
     bi: false,
     automation: false,
   });
-  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-  const [selectedModule, setSelectedModule] = useState<{id: string, name: string, active: boolean} | null>(null);
 
   const coreModules = [
     { id: 'dashboard', name: 'Dashboard', description: 'Visão geral e métricas principais.', icon: LineChart, active: true, core: true },
@@ -31,18 +28,8 @@ export default function ModuleManagement() {
     { id: 'automation', name: 'Automação com IA', description: 'Sugestões de compra e otimizações automáticas.', icon: Bot, active: modules.automation },
   ];
 
-  const handleToggle = (moduleId: string, moduleName: string, currentStatus: boolean) => {
-    setSelectedModule({ id: moduleId, name: moduleName, active: currentStatus });
-    setIsConfirmOpen(true);
-  };
-
-  const onConfirmToggle = () => {
-    if (selectedModule) {
-      setModules(prev => ({ ...prev, [selectedModule.id]: !selectedModule.active }));
-      toast.success(`Módulo '${selectedModule.name}' foi ${!selectedModule.active ? 'ativado' : 'desativado'}.`);
-    }
-    setIsConfirmOpen(false);
-    setSelectedModule(null);
+  const handleToggle = () => {
+    toast.info('Gestão de módulos globais não está disponível no backend ainda.');
   };
 
   return (
@@ -56,7 +43,7 @@ export default function ModuleManagement() {
         <Info className="h-4 w-4" />
         <AlertTitle>Como funciona o gerenciamento de módulos?</AlertTitle>
         <AlertDescription>
-          Esta página controla a disponibilidade de módulos em toda a plataforma. Para atribuir módulos a um tenant específico, configure os <a href="/superadmin/plans" className="font-semibold text-primary underline">Planos de Assinatura</a>.
+          Esta página controla a disponibilidade de módulos em toda a plataforma. No momento, a alteração de módulos globais não está disponível no backend.
         </AlertDescription>
       </Alert>
 
@@ -105,23 +92,13 @@ export default function ModuleManagement() {
                   <Badge variant={module.active ? 'secondary' : 'outline'} className={module.active ? 'bg-green-100 text-green-800' : ''}>
                     {module.active ? 'Ativo' : 'Inativo'}
                   </Badge>
-                  <Switch
-                    id={`module-${module.id}`}
-                    checked={module.active}
-                    onCheckedChange={() => handleToggle(module.id, module.name, module.active)}
-                  />
+                  <Switch id={`module-${module.id}`} checked={module.active} disabled onClick={handleToggle} />
                 </div>
               </div>
             ))}
           </CardContent>
         </Card>
       </div>
-      <ToggleModuleModal
-        open={isConfirmOpen}
-        onOpenChange={setIsConfirmOpen}
-        onConfirm={onConfirmToggle}
-        module={selectedModule}
-      />
     </>
   );
 }

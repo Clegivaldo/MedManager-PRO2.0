@@ -32,23 +32,51 @@
 
 ## 🎯 Roadmap de Implementação
 
-### 🔴 FASE 1: CORE DO NEGÓCIO (Crítico - Semanas 1-2)
+### ✅ INFRAESTRUTURA DE PRODUÇÃO (COMPLETA)
 
-#### 1.1. Sistema de Assinaturas e Planos ⏱️ 3 dias
+**Status:** 🎉 100% IMPLEMENTADO
+
+#### Sistemas Implementados:
+- ✅ **Webhook Retry System** com exponential backoff (1min → 5min → 15min → 1h)
+- ✅ **Dead Letter Queue (DLQ)** para webhooks falhados
+- ✅ **Backup Automático** PostgreSQL com retenção e compressão
+- ✅ **Restore Seguro** com verificação de integridade
+- ✅ **Cron Job de Assinaturas** com notificações em 3 níveis
+- ✅ **Script Reprocess DLQ** com estatísticas e limpeza automática
+- ✅ **Monitoramento Completo** (Prometheus + Grafana + Alertmanager)
+- ✅ **Exporters** para Node, PostgreSQL e Redis
+- ✅ **Alertas Configurados** (20+ regras para sistema, DB, app, negócio)
+- ✅ **Deploy de Produção** com Caddy reverse proxy e TLS automático
+- ✅ **Secrets Management** (Docker Secrets, AWS Secrets Manager, Vault)
+- ✅ **Migração Prisma** para WebhookLog e DeadLetterQueue
+
+#### Documentação Criada:
+- ✅ `AUTOMATION_SYSTEMS.md` - Guia de backups, cron jobs, webhooks
+- ✅ `MONITORING_SETUP.md` - Setup Prometheus + Grafana completo
+- ✅ `SECRETS_MANAGEMENT.md` - Gerenciamento seguro de credenciais
+- ✅ `DEPLOY_PROD.md` - Deploy completo para produção
+- ✅ `INFRASTRUCTURE_COMPLETE.md` - Resumo executivo
+
+---
+
+### ✅ FASE 1: CORE DO NEGÓCIO (COMPLETA)
+
+#### 1.1. Sistema de Assinaturas e Planos ✅
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** Nenhuma  
+**Status:** ✅ IMPLEMENTADO
 
 **Tarefas:**
-- [ ] Criar tabelas `Subscription`, `Payment`, `BillingAccount` no schema master
-- [ ] Adicionar campos de assinatura em `Tenant`: `subscription_start`, `subscription_end`, `subscription_status`
-- [ ] Implementar `SubscriptionService` com métodos:
+- [x] Criar tabelas `Subscription`, `Payment`, `BillingAccount` no schema master
+- [x] Adicionar campos de assinatura em `Tenant`: `subscription_start`, `subscription_end`, `subscription_status`
+- [x] Implementar `SubscriptionService` com métodos:
   - `createSubscription(tenantId, planId, duration)`
   - `renewSubscription(tenantId, months)`
   - `checkValidity(tenantId)`
   - `suspendSubscription(tenantId)`
   - `reactivateSubscription(tenantId)`
-- [ ] Criar migration e rodar em dev
-- [ ] Criar seeds para planos padrão (Starter, Professional, Enterprise)
+- [x] Criar migration e rodar em dev
+- [x] Criar seeds para planos padrão (Starter, Professional, Enterprise)
 
 **Arquivos a criar:**
 - `api/prisma/migrations/XXXXX_add_subscriptions/migration.sql`
@@ -57,16 +85,17 @@
 
 ---
 
-#### 1.2. Middleware de Validação de Licença ⏱️ 2 dias
+#### 1.2. Middleware de Validação de Licença ✅
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** 1.1  
+**Status:** ✅ IMPLEMENTADO
 
 **Tarefas:**
-- [ ] Criar middleware `validateSubscription` em `api/src/middleware/subscription.middleware.ts`
-- [ ] Validar `subscription_end < now()` e `subscription_status !== 'ACTIVE'`
-- [ ] Retornar erro 403 com código `LICENSE_EXPIRED` se vencido
-- [ ] Aplicar middleware em todas as rotas de tenant (exceto `/auth/login` e `/license`)
-- [ ] Criar exceção para SUPERADMIN (bypass automático)
+- [x] Criar middleware `validateSubscription` em `api/src/middleware/subscription.middleware.ts`
+- [x] Validar `subscription_end < now()` e `subscription_status !== 'ACTIVE'`
+- [x] Retornar erro 403 com código `LICENSE_EXPIRED` se vencido
+- [x] Aplicar middleware em todas as rotas de tenant (exceto `/auth/login` e `/license`)
+- [x] Criar exceção para SUPERADMIN (bypass automático)
 
 **Arquivos a criar:**
 - `api/src/middleware/subscription.middleware.ts`
@@ -214,73 +243,72 @@ ASAAS_WEBHOOK_TOKEN=seu_webhook_token_aqui
 
 ### 🟡 FASE 3: UI DE GESTÃO (Alta - Semana 4)
 
-#### 3.1. Dashboard de Uso para Tenant ⏱️ 2 dias
+#### 3.1. Dashboard de Uso para Tenant ✅ (IMPLEMENTADO EM PROGRESSO)
 **Prioridade:** 🟠 ALTA  
-**Dependências:** 1.4  
+**Dependências:** FASE 1 concluída  
+**Status:** Parcial (serviços prontos, UI em construção)
 
 **Tarefas:**
-- [ ] Criar página `src/pages/tenant/Usage.tsx`
-- [ ] Exibir cards com métricas:
-  - Usuários: X / max_users (barra de progresso)
-  - Produtos: X / max_products
-  - Transações Mensais: X / max_monthly_transactions
-  - Armazenamento: X GB / max_storage_gb
-- [ ] Gráfico de tendência de uso (últimos 6 meses)
-- [ ] Alerta quando uso > 80% do limite
-- [ ] Botão "Fazer Upgrade" se próximo do limite
-- [ ] Criar endpoint `GET /api/usage/current` retornando métricas
+- [x] Modelo `UsageMetrics` criado no schema master
+- [x] Serviço `limits.service.ts` com métodos de verificação
+- [x] Middleware coleta e atualiza métricas automaticamente
+- [ ] Página `src/pages/tenant/Usage.tsx` (cards, barras, upgrade)
+- [ ] Endpoint `GET /api/usage/current` agregando métricas + limites
+- [ ] Gráfico de tendência (agregação mensal futura)
+- [ ] Alerta visual quando uso > 80%
+- [ ] Ação "Fazer Upgrade" integrando com pagamentos
 
-**Arquivos a criar:**
-- `src/pages/tenant/Usage.tsx`
-- `api/src/controllers/usage.controller.ts`
-- `api/src/routes/usage.routes.ts`
+**Arquivos criados/parciais:**
+- `api/src/services/limits.service.ts`
+- `api/prisma/schema.prisma` (UsageMetrics)
+- `api/src/middleware/subscription.middleware.ts` (limites)
+- `src/pages/tenant/Usage.tsx` (PENDENTE)
+  
 
 ---
 
-#### 3.2. Gestão de Assinaturas (Superadmin) ⏱️ 3 dias
+#### 3.2. Gestão de Assinaturas (Superadmin) 🔄 EM ANDAMENTO
 **Prioridade:** 🟠 ALTA  
-**Dependências:** 1.1, 2.1  
+**Dependências:** Assinaturas + Pagamentos prontos  
+**Status:** Planejado / em início
 
 **Tarefas:**
-- [ ] Criar página `src/pages/superadmin/Subscriptions.tsx`
-- [ ] Listar todos os tenants com:
-  - Nome, CNPJ, Plano Atual, Status (Ativa/Vencida/Suspensa)
-  - Data de Vencimento, Último Pagamento, Valor Mensal
-- [ ] Ações disponíveis:
-  - Renovar Manualmente (adiciona meses)
-  - Suspender Assinatura
-  - Reativar Assinatura
-  - Alterar Plano
-  - Gerar Cobrança Manual
-- [ ] Filtros: Status, Plano, Vencimento (próximos 7 dias)
-- [ ] Badge colorido por status (verde=ativa, amarelo=próximo vencimento, vermelho=vencida)
-- [ ] Criar endpoints:
-  - `GET /api/superadmin/subscriptions`
-  - `PATCH /api/superadmin/subscriptions/:tenantId/renew`
-  - `PATCH /api/superadmin/subscriptions/:tenantId/suspend`
-  - `PATCH /api/superadmin/subscriptions/:tenantId/change-plan`
+- [x] Tabelas `Subscription` e `Payment` existentes
+- [x] Renovação automática via webhook Asaas implementada
+- [ ] Página `src/pages/superadmin/Subscriptions.tsx`
+- [ ] Endpoint `GET /api/superadmin/subscriptions` (listar)
+- [ ] Endpoint `PATCH /api/superadmin/subscriptions/:tenantId/renew`
+- [ ] Endpoint `PATCH /api/superadmin/subscriptions/:tenantId/suspend`
+- [ ] Endpoint `PATCH /api/superadmin/subscriptions/:tenantId/change-plan`
+- [ ] Filtros e badges por status
+- [ ] Ações multi-seleção (renovar em massa)
+- [ ] Export CSV/Excel
 
-**Arquivos a criar:**
-- `src/pages/superadmin/Subscriptions.tsx`
+**Arquivos pendentes:**
 - `api/src/controllers/superadmin/subscription.controller.ts`
-- `api/src/routes/superadmin.routes.ts`
+- `api/src/routes/superadmin/subscription.routes.ts`
+- `src/pages/superadmin/Subscriptions.tsx`
 
 ---
 
-#### 3.3. Página de Billing (Superadmin) ⏱️ 2 dias
+#### 3.3. Página de Billing (Superadmin) 🔄 EM ANDAMENTO
 **Prioridade:** 🟡 MÉDIA  
-**Dependências:** 2.3  
+**Dependências:** Pagamentos / Cobranças automáticas  
+**Status:** Planejado
 
 **Tarefas:**
-- [ ] Criar página `src/pages/superadmin/Billing.tsx`
-- [ ] Listar todas as contas a receber:
-  - Tenant, Valor, Vencimento, Status, Método de Pagamento
-- [ ] Filtros: Status (Pendente/Pago/Vencido), Período, Tenant
-- [ ] Botões de ação: Marcar como Pago, Cancelar, Reenviar Cobrança
-- [ ] Dashboard resumo: Total a Receber, Recebido no Mês, Inadimplência
-- [ ] Exportar relatório Excel/PDF
+- [x] Tabela `BillingAccount` existente
+- [ ] Página `src/pages/superadmin/Billing.tsx`
+- [ ] Endpoint `GET /api/superadmin/billing` (listagem)
+- [ ] Filtros por status, período, tenant
+- [ ] Ação marcar como pago manualmente
+- [ ] Reenviar cobrança (recreate charge)
+- [ ] KPIs: Total a receber, recebido no mês, inadimplência
+- [ ] Exportar CSV/PDF
 
-**Arquivos a criar:**
+**Arquivos pendentes:**
+- `api/src/controllers/superadmin/billing.controller.ts`
+- `api/src/routes/superadmin/billing.routes.ts`
 - `src/pages/superadmin/Billing.tsx`
 
 ---

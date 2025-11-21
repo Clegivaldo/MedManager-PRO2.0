@@ -36,6 +36,8 @@ const envSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   FROM_EMAIL: z.string().optional(),
+  CORS_ORIGINS: z.string().optional(),
+  TRUST_PROXY: z.string().optional(),
 });
 
 // Validar e parsear variáveis de ambiente
@@ -72,6 +74,8 @@ export const config = {
   SMTP_USER: env.SMTP_USER,
   SMTP_PASS: env.SMTP_PASS,
   FROM_EMAIL: env.FROM_EMAIL,
+  CORS_ORIGINS: env.CORS_ORIGINS,
+  TRUST_PROXY: env.TRUST_PROXY === 'true',
   isProduction: env.NODE_ENV === 'production',
   isDevelopment: env.NODE_ENV === 'development',
   isTest: env.NODE_ENV === 'test',

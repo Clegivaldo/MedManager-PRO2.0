@@ -35,6 +35,9 @@ importers:
       '@types/uuid':
         specifier: ^9.0.7
         version: 9.0.8
+      asaas:
+        specifier: ^1.1.0
+        version: 1.1.0
       axios:
         specifier: ^1.6.2
         version: 1.13.2
@@ -1037,6 +1040,9 @@ packages:
 
   array-flatten@1.1.1:
     resolution: {integrity: sha512-PCVAQswWemu6UdxsDFFX/+gVeYqKAod3D3UVm91jHwynguOwAvYPhx8nNlM++NqRcK6CxxpUafjmhIdKiHibqg==}
+
+  asaas@1.1.0:
+    resolution: {integrity: sha512-PqD+BFBF5QMtu1mrkiFBCodLABSMQCFYWa/0/mZRN73JMTl0X3zMIQ59FDZC+1sPhhLrg2sBZVr9nTJX3O/WYA==}
 
   assertion-error@1.1.0:
     resolution: {integrity: sha512-jgsaNduz+ndvGyFt3uSuWqvy4lCnIJiovtouQN5JZHOKCS2QuhEdbcQHFhVksz2N2U9hXJo8odG7ETyWlEeuDw==}
@@ -3195,6 +3201,12 @@ snapshots:
   argparse@2.0.1: {}
 
   array-flatten@1.1.1: {}
+
+  asaas@1.1.0:
+    dependencies:
+      axios: 1.13.2
+    transitivePeerDependencies:
+      - debug
 
   assertion-error@1.1.0: {}
 

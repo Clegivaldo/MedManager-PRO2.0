@@ -28,15 +28,14 @@ export const errorHandler = (
   res: Response,
   next: NextFunction
 ): void => {
-  let error = { ...err };
-  error.message = err.message;
-
-  // Log do erro
+  // Log detalhado do erro original (sem sobrescrever propriedades)
   logger.error({
     error: {
       message: err.message,
       stack: err.stack,
-      name: err.name
+      name: err.name,
+      statusCode: (err as any)?.statusCode,
+      code: (err as any)?.code,
     },
     request: {
       method: req.method,
@@ -49,44 +48,41 @@ export const errorHandler = (
     timestamp: new Date().toISOString()
   });
 
-  // Erros do Prisma
-  if (err.name === 'PrismaClientKnownRequestError') {
-    const message = 'Database operation failed';
-    error = new AppError(message, 400, 'DATABASE_ERROR');
+  // Valores padrão preservando possíveis propriedades personalizadas
+  let statusCode = (err as any)?.statusCode ?? 500;
+  let code: string | undefined = (err as any)?.code ?? 'INTERNAL_ERROR';
+  let message = err.message || 'Server Error';
+
+  // Especializações somente se não houver status explícito do erro original
+  if (statusCode === 500) {
+    // Erros do Prisma
+    if (err.name === 'PrismaClientKnownRequestError') {
+      statusCode = 400;
+      code = 'DATABASE_ERROR';
+      message = 'Database operation failed';
+    } else if (err.name === 'PrismaClientValidationError') {
+      statusCode = 400;
+      code = 'VALIDATION_ERROR';
+      message = 'Database validation error';
+    } else if ((err as any).code === 11000) { // Duplicate key (ex.: Mongo)
+      statusCode = 400;
+      code = 'DUPLICATE_FIELD';
+      message = 'Duplicate field value entered';
+    } else if (err.name === 'JsonWebTokenError') {
+      statusCode = 401;
+      code = 'INVALID_TOKEN';
+      message = 'Invalid token';
+    } else if (err.name === 'TokenExpiredError') {
+      statusCode = 401;
+      code = 'TOKEN_EXPIRED';
+      message = 'Token expired';
+    }
   }
 
-  if (err.name === 'PrismaClientValidationError') {
-    const message = 'Database validation error';
-    error = new AppError(message, 400, 'VALIDATION_ERROR');
-  }
-
-  // Erros de validação do Mongoose (se usado)
-  if (err.name === 'ValidationError') {
-    const message = Object.values(err).map((val: any) => val.message).join(', ');
-    error = new AppError(message, 400, 'VALIDATION_ERROR');
-  }
-
-  // Erro de chave duplicada
-  if ((err as any).code === 11000) {
-    const message = 'Duplicate field value entered';
-    error = new AppError(message, 400, 'DUPLICATE_FIELD');
-  }
-
-  // JWT errors
-  if (err.name === 'JsonWebTokenError') {
-    const message = 'Invalid token';
-    error = new AppError(message, 401, 'INVALID_TOKEN');
-  }
-
-  if (err.name === 'TokenExpiredError') {
-    const message = 'Token expired';
-    error = new AppError(message, 401, 'TOKEN_EXPIRED');
-  }
-
-  res.status((error as AppError).statusCode || 500).json({
+  res.status(statusCode).json({
     success: false,
-    error: error.message || 'Server Error',
-    code: (error as AppError).code || 'INTERNAL_ERROR',
+    error: message,
+    code,
     ...(config.isDevelopment && { stack: err.stack }),
     timestamp: new Date().toISOString()
   });

@@ -11,6 +11,27 @@ export default defineConfig(({ mode }) => ({
     }),
     react(),
   ],
+  build: {
+    chunkSizeWarningLimit: 1500,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'radix-ui': [
+            '@radix-ui/react-dialog',
+            '@radix-ui/react-popover',
+            '@radix-ui/react-tooltip',
+            '@radix-ui/react-dropdown-menu',
+            '@radix-ui/react-select'
+          ],
+          'forms': ['react-hook-form', '@hookform/resolvers', 'zod'],
+          'charts': ['recharts'],
+          'motion': ['framer-motion'],
+          'query': ['@tanstack/react-query'],
+        }
+      }
+    }
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { AppError } from '../../utils/errors.js';
+import { GlobalPaymentConfigService } from './globalPaymentConfig.service.js';
 
 interface CreateChargeParams {
   tenantId: string;
@@ -36,31 +37,28 @@ interface AsaasChargeResponse {
 }
 
 export class AsaasService {
-  private apiKey: string;
-  private baseUrl: string;
+  private globalCfg: GlobalPaymentConfigService;
 
   constructor(private prisma: PrismaClient) {
-    this.apiKey = process.env.ASAAS_API_KEY || '';
-    const env = process.env.ASAAS_ENVIRONMENT || 'sandbox';
-    this.baseUrl = env === 'production' ? 'https://www.asaas.com/api/v3' : 'https://sandbox.asaas.com/api/v3';
-
-    if (!this.apiKey) {
-      // Não lança erro imediatamente para permitir inicialização parcial
-      console.warn('[AsaasService] API key não configurada. Configure ASAAS_API_KEY no .env');
-    }
+    this.globalCfg = new GlobalPaymentConfigService(prisma);
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    if (!this.apiKey) {
+    const cfg = await this.globalCfg.getAsaasConfig();
+    const apiKey = cfg.apiKey;
+    const env = cfg.environment || 'sandbox';
+
+    if (!apiKey) {
       throw new AppError('Gateway Asaas não configurado', 500, 'ASAAS_NOT_CONFIGURED');
     }
 
-    const url = `${this.baseUrl}${endpoint}`;
+    const baseUrl = env === 'production' ? 'https://www.asaas.com/api/v3' : 'https://sandbox.asaas.com/api/v3';
+    const url = `${baseUrl}${endpoint}`;
     const response = await fetch(url, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
-        'access_token': this.apiKey,
+        'access_token': apiKey,
         ...(options.headers || {}),
       },
     });

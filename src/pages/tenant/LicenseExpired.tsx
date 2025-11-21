@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, CreditCard, Calendar, DollarSign } from 'lucide-react';
+import { AlertCircle, CreditCard, Calendar, DollarSign, X } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { api } from '@/services/api';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { api, getErrorMessage } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 
+// Estrutura normalizada local (independente do formato exato da API)
 interface SubscriptionInfo {
   subscription: {
     id: string;
@@ -30,6 +32,7 @@ export default function LicenseExpired() {
   const [subscriptionInfo, setSubscriptionInfo] = useState<SubscriptionInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [generatingPayment, setGeneratingPayment] = useState(false);
+  const [errorModal, setErrorModal] = useState<{ open: boolean; title: string; message: string }>({ open: false, title: '', message: '' });
 
   useEffect(() => {
     loadSubscriptionInfo();
@@ -38,9 +41,41 @@ export default function LicenseExpired() {
   const loadSubscriptionInfo = async () => {
     try {
       const response = await api.get('/subscriptions/info');
-      setSubscriptionInfo(response.data);
+      // Esperado: { success: true, data: { id, endDate, status, billingCycle, plan: {...}, daysUntilExpiration, isExpired } }
+      const raw = (response.data && response.data.data) ? response.data.data : response.data;
+
+      if (!raw) {
+        setSubscriptionInfo(null);
+        return;
+      }
+
+      // Se não estiver expirada, redirecionar (defensive)
+      if (raw.isExpired === false) {
+        navigate('/dashboard');
+        return;
+      }
+
+      const normalized: SubscriptionInfo = {
+        subscription: {
+          id: String(raw.id || ''),
+          endDate: raw.endDate ? new Date(raw.endDate).toISOString() : '',
+          status: String(raw.status || 'expired'),
+          billingCycle: String(raw.billingCycle || 'monthly'),
+        },
+        plan: {
+          name: String(raw.plan?.name || ''),
+          displayName: String(raw.plan?.displayName || raw.plan?.name || 'Plano'),
+          priceMonthly: Number(raw.plan?.priceMonthly || 0),
+          priceAnnual: Number(raw.plan?.priceAnnual || 0),
+        },
+        daysUntilExpiration: Number(raw.daysUntilExpiration ?? -1),
+        isExpired: Boolean(raw.isExpired ?? true),
+      };
+
+      setSubscriptionInfo(normalized);
     } catch (error) {
       console.error('Erro ao carregar informações da assinatura:', error);
+      setSubscriptionInfo(null);
     } finally {
       setLoading(false);
     }
@@ -53,21 +88,27 @@ export default function LicenseExpired() {
       const response = await api.post('/payments/create-charge', {
         amount: subscriptionInfo?.plan.priceMonthly,
         description: `Renovação mensal - Plano ${subscriptionInfo?.plan.displayName}`,
+        paymentMethod: 'pix', // Método padrão (pode ser alterado depois)
         billingCycle: 'monthly',
       });
 
       // Redirecionar para página de pagamento
-      navigate('/payment', { state: { charge: response.data } });
+      navigate('/payment', { state: { charge: response.data.data } });
     } catch (error) {
       console.error('Erro ao gerar cobrança:', error);
-      alert('Erro ao gerar cobrança. Entre em contato com o suporte.');
+      const errorMessage = getErrorMessage(error);
+      setErrorModal({
+        open: true,
+        title: 'Erro ao Gerar Cobrança',
+        message: errorMessage || 'Não foi possível gerar a cobrança. Por favor, entre em contato com o suporte.',
+      });
     } finally {
       setGeneratingPayment(false);
     }
   };
 
   const handleContactSupport = () => {
-    window.open('mailto:suporte@medmanager.com.br', '_blank');
+    window.open('https://wa.me/5593992089384?text=Olá,%20preciso%20de%20ajuda%20com%20a%20renovação%20da%20minha%20assinatura', '_blank');
   };
 
   const handleLogout = () => {
@@ -86,11 +127,11 @@ export default function LicenseExpired() {
     );
   }
 
-  const expiredDate = subscriptionInfo?.subscription.endDate 
-    ? new Date(subscriptionInfo.subscription.endDate).toLocaleDateString('pt-BR') 
+  const expiredDate = subscriptionInfo?.subscription?.endDate
+    ? new Date(subscriptionInfo.subscription.endDate).toLocaleDateString('pt-BR')
     : 'N/A';
 
-  const renewalAmount = subscriptionInfo?.plan.priceMonthly 
+  const renewalAmount = subscriptionInfo?.plan?.priceMonthly
     ? subscriptionInfo.plan.priceMonthly.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
     : 'N/A';
 
@@ -138,7 +179,7 @@ export default function LicenseExpired() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Plano Atual</p>
-                  <p className="font-semibold">{subscriptionInfo?.plan.displayName || 'N/A'}</p>
+                  <p className="font-semibold">{subscriptionInfo?.plan?.displayName || 'N/A'}</p>
                 </div>
               </div>
 
@@ -233,20 +274,49 @@ export default function LicenseExpired() {
                 <p className="font-semibold mb-1">Precisa de ajuda?</p>
                 <p>
                   Nossa equipe está disponível para auxiliá-lo na renovação da assinatura.
-                  Entre em contato pelo e-mail{' '}
+                  Entre em contato via WhatsApp:{' '}
                   <a 
-                    href="mailto:suporte@medmanager.com.br" 
+                    href="https://wa.me/5593992089384?text=Olá,%20preciso%20de%20ajuda%20com%20a%20renovação%20da%20minha%20assinatura" 
                     className="underline font-medium"
+                    target="_blank"
+                    rel="noopener noreferrer"
                   >
-                    suporte@medmanager.com.br
+                    (93) 99208-9384
                   </a>
-                  {' '}ou telefone (11) 9999-9999.
                 </p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Error Modal */}
+      <Dialog open={errorModal.open} onOpenChange={(open) => setErrorModal({ ...errorModal, open })}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertCircle className="h-5 w-5" />
+              {errorModal.title}
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              {errorModal.message}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              onClick={handleContactSupport}
+              variant="outline"
+            >
+              Falar com Suporte
+            </Button>
+            <Button
+              onClick={() => setErrorModal({ ...errorModal, open: false })}
+            >
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

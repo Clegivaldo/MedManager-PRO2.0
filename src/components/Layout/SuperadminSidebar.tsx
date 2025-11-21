@@ -14,6 +14,7 @@ import {
   LogOut,
   DatabaseBackup
 } from 'lucide-react';
+import { CreditCard } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 
 interface SidebarProps {
@@ -35,6 +36,11 @@ const menuItems = [
     title: 'Módulos',
     icon: Package,
     href: '/superadmin/modules',
+  },
+  {
+    title: 'Pagamentos',
+    icon: CreditCard,
+    href: '/superadmin/payments',
   },
   {
     title: 'Saúde do Sistema',

@@ -1,0 +1,65 @@
+# Configuração do Prometheus para MedManager PRO
+
+global:
+  scrape_interval: 15s # Intervalo padrão de coleta
+  evaluation_interval: 15s # Intervalo de avaliação de regras
+  external_labels:
+    monitor: 'medmanager-monitor'
+    environment: 'production'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# Load rules once and periodically evaluate them
+rule_files:
+  - '/etc/prometheus/alerts.yml'
+
+# A scrape configuration containing exactly one endpoint to scrape
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Node Exporter - Métricas do sistema operacional
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          instance: 'medmanager-host'
+
+  # PostgreSQL Exporter - Métricas do banco de dados
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          instance: 'medmanager-db'
+
+  # Redis Exporter - Métricas do cache
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          instance: 'medmanager-cache'
+
+  # Backend API - Health check e métricas customizadas
+  - job_name: 'backend-api'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['backend:3333']
+        labels:
+          service: 'medmanager-api'
+    # Timeout para evitar blocking
+    scrape_timeout: 10s
+
+  # Caddy - Métricas do reverse proxy
+  - job_name: 'caddy'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['caddy:2019']
+        labels:
+          service: 'medmanager-proxy'

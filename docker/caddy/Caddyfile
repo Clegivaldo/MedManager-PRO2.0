@@ -1,0 +1,90 @@
+# Caddyfile para MedManager PRO
+# Configuração do reverse proxy com TLS automático via Let's Encrypt
+#
+# Substitua {$DOMAIN} pela sua URL real antes de usar em produção
+# Exemplo: medmanager.seudominio.com.br
+
+{$DOMAIN:medmanager.example.com} {
+	# TLS automático via Let's Encrypt
+	tls {$ACME_EMAIL:admin@example.com}
+
+	# Headers de segurança
+	header {
+		# Prevenir clickjacking
+		X-Frame-Options "SAMEORIGIN"
+		# XSS Protection
+		X-Content-Type-Options "nosniff"
+		X-XSS-Protection "1; mode=block"
+		# HSTS (HTTPS obrigatório por 1 ano)
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		# CSP básico (ajuste conforme necessário)
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; frame-ancestors 'self';"
+		# Remover info do servidor
+		-Server
+	}
+
+	# Logs estruturados
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 10mb
+			roll_keep 5
+			roll_keep_for 720h
+		}
+		format json
+	}
+
+	# Endpoint de health check
+	handle /health {
+		respond "OK" 200
+	}
+
+	# API Backend
+	handle /api/* {
+		reverse_proxy backend:3333 {
+			# Health check do upstream
+			health_uri /health
+			health_interval 30s
+			health_timeout 10s
+
+			# Headers para IP real do cliente
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+			header_up X-Forwarded-Host {host}
+		}
+	}
+
+	# Frontend (SPA)
+	handle {
+		# Servir arquivos estáticos do frontend
+		reverse_proxy web:80 {
+			# Tentar arquivo estático, senão retorna index.html (SPA)
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+		}
+
+		# Cache para assets estáticos
+		@static {
+			path *.js *.css *.png *.jpg *.jpeg *.gif *.svg *.woff *.woff2 *.ttf *.ico
+		}
+		header @static Cache-Control "public, max-age=31536000, immutable"
+	}
+
+	# Compressão automática
+	encode zstd gzip
+
+	# Rate limiting básico (ajuste conforme necessário)
+	# Exemplo: 100 req/s por IP
+	rate_limit {
+		zone {
+			key {remote_host}
+			events 100
+			window 1s
+		}
+	}
+}
+
+# Redirecionar www para domínio principal (opcional)
+# www.{$DOMAIN:medmanager.example.com} {
+# 	redir https://{$DOMAIN:medmanager.example.com}{uri} permanent
+# }

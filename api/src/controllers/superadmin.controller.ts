@@ -23,13 +23,56 @@ export class SuperAdminController {
           skip: offset,
           take: Number(limit),
           orderBy: { createdAt: 'desc' },
-          select: { id: true, name: true, cnpj: true, plan: true, status: true, createdAt: true }
+          select: {
+            id: true,
+            name: true,
+            cnpj: true,
+            plan: true,
+            status: true,
+            createdAt: true,
+            subscriptionStart: true,
+            subscriptionEnd: true,
+            subscriptionStatus: true,
+            metadata: true
+          }
         }),
         prisma.tenant.count({ where })
       ]);
 
+      // Buscar contagem de usuários para cada tenant
+      const tenantsWithUsers = await Promise.all(
+        tenants.map(async (tenant) => {
+          try {
+            const { PrismaClient } = await import('@prisma/client');
+            const { config } = await import('../config/environment.js');
+            const tenantDbUrl = config.DATABASE_URL.replace(/\/([\w]+)$/, `/${tenant.id}`);
+            const tenantPrisma = new PrismaClient({ datasources: { db: { url: tenantDbUrl } } });
+            
+            const userCount = await tenantPrisma.user.count();
+            await tenantPrisma.$disconnect();
+            
+            return {
+              ...tenant,
+              userCount,
+              daysRemaining: tenant.subscriptionEnd 
+                ? Math.ceil((new Date(tenant.subscriptionEnd).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+                : null
+            };
+          } catch (err) {
+            logger.error(`Error getting user count for tenant ${tenant.id}:`, err);
+            return {
+              ...tenant,
+              userCount: 0,
+              daysRemaining: tenant.subscriptionEnd 
+                ? Math.ceil((new Date(tenant.subscriptionEnd).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+                : null
+            };
+          }
+        })
+      );
+
       res.json({
-        tenants,
+        tenants: tenantsWithUsers,
         pagination: {
           page: Number(page),
           limit: Number(limit),
@@ -384,6 +427,46 @@ export class SuperAdminController {
     } catch (error) {
       logger.error('Error getting notifications:', error);
       res.status(500).json({ error: 'Internal server error' });
+    }
+  };
+
+  extendSubscription = async (req: Request, res: Response) => {
+    try {
+      const { tenantId } = req.params;
+      const { months = 1 } = req.body;
+
+      const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+      if (!tenant) {
+        throw new AppError('Tenant not found', 404);
+      }
+
+      const currentEnd = tenant.subscriptionEnd || new Date();
+      const newEnd = new Date(currentEnd);
+      newEnd.setMonth(newEnd.getMonth() + months);
+
+      const updatedTenant = await prisma.tenant.update({
+        where: { id: tenantId },
+        data: {
+          subscriptionEnd: newEnd,
+          subscriptionStatus: 'active'
+        }
+      });
+
+      res.json({
+        message: `Subscription extended by ${months} month(s)`,
+        subscription: {
+          tenantId: updatedTenant.id,
+          subscriptionEnd: updatedTenant.subscriptionEnd,
+          subscriptionStatus: updatedTenant.subscriptionStatus
+        }
+      });
+    } catch (error) {
+      logger.error('Error extending subscription:', error);
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({ error: error.message });
+      } else {
+        res.status(500).json({ error: 'Internal server error' });
+      }
     }
   };
 

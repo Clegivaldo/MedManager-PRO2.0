@@ -2,7 +2,8 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  role: 'SUPERADMIN' | 'ADMIN' | 'MANAGER' | 'OPERATOR' | 'VIEWER';
+  // Incluímos MASTER para refletir enum do backend e evitar falha de narrowing
+  role: 'SUPERADMIN' | 'MASTER' | 'ADMIN' | 'MANAGER' | 'OPERATOR' | 'VIEWER';
   tenantId?: string;
   avatarUrl?: string;
   twoFactorEnabled?: boolean;

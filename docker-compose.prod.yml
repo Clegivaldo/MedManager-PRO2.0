@@ -1,0 +1,157 @@
+# Docker Compose para ambiente de PRODUÇÃO
+# Inclui Caddy como reverse proxy com TLS automático
+# 
+# IMPORTANTE: 
+# - Configure seu domínio antes de usar
+# - Ajuste variáveis de ambiente
+# - Use secrets externos para senhas
+#
+# Uso: docker compose -f docker-compose.prod.yml up -d
+
+version: '3.8'
+
+services:
+  # Reverse Proxy com TLS automático (Let's Encrypt)
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy-proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"       # HTTP (redirect para HTTPS)
+      - "443:443"     # HTTPS
+      - "443:443/udp" # HTTP/3 QUIC
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      - DOMAIN=${DOMAIN:-medmanager.example.com}
+      - ACME_EMAIL=${ACME_EMAIL:-admin@example.com}
+    networks:
+      - medmanager-network
+    depends_on:
+      - backend
+      - web
+
+  # PostgreSQL Database
+  db:
+    image: postgres:16-alpine
+    container_name: postgres-prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD not set}
+      POSTGRES_DB: medmanager_master
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init-multiple-databases.sh:/docker-entrypoint-initdb.d/init-multiple-databases.sh
+      - ./docker/postgres/backups:/backups
+    networks:
+      - medmanager-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Não expor porta 5432 externamente em produção
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: redis-prod
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD not set} --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - medmanager-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    # Não expor porta 6379 externamente
+
+  # Backend API
+  backend:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: backend-prod
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3333
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/medmanager_master
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET not set}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET not set}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      CORS_ORIGINS: https://${DOMAIN:-medmanager.example.com}
+      TRUST_PROXY: "true"
+      # Sefaz/Certificados
+      SEFAZ_NFE_ENDPOINT: ${SEFAZ_NFE_ENDPOINT}
+      SEFAZ_CERT_PATH: ${SEFAZ_CERT_PATH}
+      SEFAZ_CERT_PASSWORD: ${SEFAZ_CERT_PASSWORD}
+      ALLOW_NFE_SIMULATION: "false"
+      # Email (SMTP)
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      FROM_EMAIL: ${FROM_EMAIL:-noreply@medmanager.com}
+      # Payment Gateway
+      ASAAS_API_KEY: ${ASAAS_API_KEY}
+      # Logs e Monitoring
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - backend_uploads:/app/uploads
+      - backend_logs:/app/logs
+    networks:
+      - medmanager-network
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3333/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    # Não expor porta 3333 externamente - apenas via Caddy
+
+  # Frontend Web
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    container_name: web-prod
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      VITE_API_URL: https://${DOMAIN:-medmanager.example.com}/api/v1
+    networks:
+      - medmanager-network
+    # Não expor porta diretamente - apenas via Caddy
+
+networks:
+  medmanager-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  backend_uploads:
+    driver: local
+  backend_logs:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local

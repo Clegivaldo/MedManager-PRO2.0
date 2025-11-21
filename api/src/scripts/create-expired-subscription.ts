@@ -102,11 +102,17 @@ async function createExpiredSubscription() {
     - Auto-Renovar: ${subscription.autoRenew ? 'Sim' : 'Não'}
     `);
 
-    // Persistir tenantId em arquivo para consumo pelos testes E2E
+    // Persistir tenantId e CNPJ em arquivo para consumo pelos testes E2E
     try {
       // Gerar sempre na raiz do projeto (um nível acima de /api)
       const outputPath = path.resolve(process.cwd(), '../tenant-expired.json');
-      fs.writeFileSync(outputPath, JSON.stringify({ tenantId: tenant.id, createdAt: new Date().toISOString() }, null, 2));
+      const outputData = {
+        tenantId: tenant.id,
+        cnpj: tenant.cnpj,
+        name: tenant.name,
+        createdAt: new Date().toISOString()
+      };
+      fs.writeFileSync(outputPath, JSON.stringify(outputData, null, 2));
       console.log(`📝 Arquivo gerado na raiz do projeto: ${outputPath}`);
     } catch (fileErr) {
       console.error('⚠️ Falha ao escrever tenant-expired.json:', fileErr);

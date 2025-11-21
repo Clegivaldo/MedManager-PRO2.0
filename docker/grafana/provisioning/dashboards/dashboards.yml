@@ -1,0 +1,23 @@
+# Provisioning de Dashboards para Grafana
+# Este arquivo configura automaticamente os dashboards ao iniciar o Grafana
+
+apiVersion: 1
+
+providers:
+  # Dashboards customizados do MedManager PRO
+  - name: 'MedManager Dashboards'
+    orgId: 1
+    folder: 'MedManager PRO'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: true
+
+  # Dashboards da comunidade (importar manualmente via UI)
+  # Recomendados:
+  # - Node Exporter Full (ID: 1860)
+  # - PostgreSQL Database (ID: 9628)
+  # - Caddy Metrics (ID: 14280)

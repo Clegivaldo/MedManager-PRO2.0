@@ -1,0 +1,207 @@
+# Regras de Alerta para MedManager PRO
+
+groups:
+  - name: system_alerts
+    interval: 30s
+    rules:
+      # CPU alta
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+        for: 10m
+        labels:
+          severity: warning
+          category: system
+        annotations:
+          summary: "CPU alta no servidor {{ $labels.instance }}"
+          description: "Uso de CPU está em {{ $value | humanize }}% por mais de 10 minutos"
+
+      # Memória alta
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+          category: system
+        annotations:
+          summary: "Memória alta no servidor {{ $labels.instance }}"
+          description: "Uso de memória está em {{ $value | humanize }}% por mais de 5 minutos"
+
+      # Disco quase cheio
+      - alert: DiskSpaceLow
+        expr: (1 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: system
+        annotations:
+          summary: "Espaço em disco baixo no servidor {{ $labels.instance }}"
+          description: "Disco está {{ $value | humanize }}% cheio"
+
+      # Disco crítico
+      - alert: DiskSpaceCritical
+        expr: (1 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})) * 100 > 95
+        for: 1m
+        labels:
+          severity: critical
+          category: system
+        annotations:
+          summary: "⚠️ CRÍTICO: Espaço em disco extremamente baixo no servidor {{ $labels.instance }}"
+          description: "Disco está {{ $value | humanize }}% cheio - AÇÃO IMEDIATA NECESSÁRIA"
+
+  - name: database_alerts
+    interval: 30s
+    rules:
+      # PostgreSQL down
+      - alert: PostgreSQLDown
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: database
+        annotations:
+          summary: "PostgreSQL está offline"
+          description: "Banco de dados PostgreSQL não está respondendo há mais de 1 minuto"
+
+      # Conexões altas
+      - alert: HighDatabaseConnections
+        expr: (pg_stat_database_numbackends / pg_settings_max_connections) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+        annotations:
+          summary: "Alto número de conexões no PostgreSQL"
+          description: "{{ $value | humanize }}% das conexões estão em uso"
+
+      # Queries lentas
+      - alert: SlowQueries
+        expr: rate(pg_stat_activity_max_tx_duration[5m]) > 30
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+        annotations:
+          summary: "Queries lentas detectadas"
+          description: "Transações levando mais de 30 segundos"
+
+  - name: redis_alerts
+    interval: 30s
+    rules:
+      # Redis down
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: cache
+        annotations:
+          summary: "Redis está offline"
+          description: "Cache Redis não está respondendo há mais de 1 minuto"
+
+      # Memória Redis alta
+      - alert: RedisMemoryHigh
+        expr: (redis_memory_used_bytes / redis_memory_max_bytes) * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+          category: cache
+        annotations:
+          summary: "Memória do Redis quase cheia"
+          description: "Redis está usando {{ $value | humanize }}% da memória máxima"
+
+  - name: application_alerts
+    interval: 30s
+    rules:
+      # API down
+      - alert: APIDown
+        expr: up{job="backend-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          category: application
+        annotations:
+          summary: "⚠️ API MedManager está offline"
+          description: "Backend não responde há mais de 2 minutos"
+
+      # Taxa de erro alta
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) * 100 > 5
+        for: 5m
+        labels:
+          severity: warning
+          category: application
+        annotations:
+          summary: "Alta taxa de erros HTTP 5xx"
+          description: "{{ $value | humanize }}% das requisições retornam erro 5xx"
+
+      # Latência alta
+      - alert: HighAPILatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          category: application
+        annotations:
+          summary: "Latência alta na API"
+          description: "P95 da latência está em {{ $value | humanize }}s"
+
+  - name: business_alerts
+    interval: 60s
+    rules:
+      # Webhooks falhando
+      - alert: HighWebhookFailureRate
+        expr: (sum(rate(webhook_failures_total[10m])) / sum(rate(webhook_requests_total[10m]))) * 100 > 10
+        for: 10m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "Alta taxa de falhas em webhooks"
+          description: "{{ $value | humanize }}% dos webhooks estão falhando"
+
+      # DLQ crescendo
+      - alert: DeadLetterQueueGrowing
+        expr: increase(dead_letter_queue_size[1h]) > 50
+        for: 10m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "Dead Letter Queue crescendo rapidamente"
+          description: "DLQ aumentou em {{ $value }} itens na última hora"
+
+      # Assinaturas expirando
+      - alert: ManySubscriptionsExpiring
+        expr: subscriptions_expiring_soon > 10
+        for: 1h
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "Muitas assinaturas expirando em breve"
+          description: "{{ $value }} assinaturas expiram nas próximas 24 horas"
+
+  - name: caddy_alerts
+    interval: 30s
+    rules:
+      # Caddy down
+      - alert: CaddyDown
+        expr: up{job="caddy"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          category: proxy
+        annotations:
+          summary: "Caddy reverse proxy está offline"
+          description: "Proxy não responde há mais de 2 minutos"
+
+      # Taxa de erro alta no proxy
+      - alert: HighProxyErrorRate
+        expr: rate(caddy_http_response_status_count{status=~"5.."}[5m]) / rate(caddy_http_response_status_count[5m]) * 100 > 5
+        for: 5m
+        labels:
+          severity: warning
+          category: proxy
+        annotations:
+          summary: "Alta taxa de erros no Caddy"
+          description: "{{ $value | humanize }}% das requisições retornam erro 5xx no proxy"

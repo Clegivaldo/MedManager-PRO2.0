@@ -775,3 +775,58 @@ model PaymentGatewayCredentials {
   @@map("payment_gateway_credentials")
   @@index([tenantId])
 }
+
+// Webhook Logs para retry com exponential backoff
+model WebhookLog {
+  id            String    @id @default(uuid())
+  tenantId      String?   @map("tenant_id")
+  url           String
+  event         String
+  payload       Json
+  status        String    @default("pending") // pending, retrying, delivered, failed, dead_letter
+  attempts      Int       @default(0)
+  lastError     String?   @map("last_error")
+  nextRetryAt   DateTime? @map("next_retry_at")
+  deliveredAt   DateTime? @map("delivered_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  
+  @@map("webhook_logs")
+  @@index([tenantId, status])
+  @@index([status, nextRetryAt])
+}
+
+// Dead Letter Queue para webhooks e outros processos falhados
+model DeadLetterQueue {
+  id            String    @id @default(uuid())
+  tenantId      String?   @map("tenant_id")
+  type          String    // webhook, payment, notification, etc
+  referenceId   String    @map("reference_id")
+  payload       Json
+  reason        String
+  status        String    @default("pending") // pending, reprocessing, reprocessed, failed
+  processedAt   DateTime? @map("processed_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  
+  @@map("dead_letter_queue")
+  @@index([tenantId, type, status])
+  @@index([type, status, createdAt])
+}
+
+// Configuração Global de Gateways de Pagamento (chaves da plataforma)
+model GlobalPaymentConfig {
+  id                           String   @id @default("global")
+  activeGateway                String   @default("asaas") @map("active_gateway") // asaas, infinitypay
+  asaasEnvironment             String   @default("sandbox") @map("asaas_environment") // sandbox, production
+  asaasApiKeyEnc               String?  @map("asaas_api_key_enc")
+  asaasWebhookTokenEnc         String?  @map("asaas_webhook_token_enc")
+  infinityPayMerchantIdEnc     String?  @map("infinitypay_merchant_id_enc")
+  infinityPayApiKeyEnc         String?  @map("infinitypay_api_key_enc")
+  infinityPayPublicKeyEnc      String?  @map("infinitypay_public_key_enc")
+  infinityPayWebhookSecretEnc  String?  @map("infinitypay_webhook_secret_enc")
+  createdAt                    DateTime @default(now()) @map("created_at")
+  updatedAt                    DateTime @updatedAt @map("updated_at")
+  
+  @@map("global_payment_config")
+}

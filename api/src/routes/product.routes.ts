@@ -8,7 +8,7 @@ import { AppError } from '../middleware/errorHandler.js';
 const router: Router = Router();
 
 // Rotas de produtos
-router.get('/', authenticateToken, requirePermission('PRODUCT_LIST'), async (req, res, next) => {
+router.get('/', authenticateToken, requirePermission('PRODUCT_READ'), async (req, res, next) => {
   try {
     const { page = 1, limit = 50, search, category, status } = req.query;
     const tenantId = req.user?.tenantId;
@@ -215,7 +215,7 @@ router.post('/', authenticateToken, requirePermission('PRODUCT_CREATE'), async (
   }
 });
 
-router.get('/:id', authenticateToken, requirePermission('PRODUCT_VIEW'), async (req, res, next) => {
+router.get('/:id', authenticateToken, requirePermission('PRODUCT_READ'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const tenantId = req.user?.tenantId;

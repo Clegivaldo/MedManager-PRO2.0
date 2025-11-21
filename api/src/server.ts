@@ -10,6 +10,8 @@ import { tenantMiddleware, optionalTenantMiddleware } from './middleware/tenantM
 import authRouter from './routes/auth.routes.js';
 import tenantRouter from './routes/tenant.routes.js';
 import superadminRouter from './routes/superadmin.routes.js';
+import superadminSubscriptionRouter from './routes/superadmin/subscription.routes.js';
+import superadminBillingRouter from './routes/superadmin/billing.routes.js';
 import regulatoryRouter from './routes/regulatory.routes.js';
 import userRouter from './routes/user.routes.js';
 import productRouter from './routes/product.routes.js';
@@ -19,6 +21,7 @@ import supplierRouter from './routes/supplier.routes.js';
 import invoiceRouter from './routes/invoice.routes.js';
 import fiscalRouter from './routes/fiscal.routes.js';
 import subscriptionRouter from './routes/subscription.routes.js';
+import usageRouter from './routes/usage.routes.js';
 import paymentRouter from './routes/payment.routes.js';
 import webhookRouter from './routes/webhook.routes.js';
 import paymentGatewayRouter from './routes/payment-gateway.routes.js';
@@ -28,6 +31,11 @@ import { authenticateToken } from './middleware/auth.js';
 import { validateSubscription } from './middleware/subscription.middleware.js';
 
 const app: Application = express();
+
+// Trust proxy (para setups atrás de reverse proxy / load balancer)
+if (config.TRUST_PROXY) {
+  app.set('trust proxy', 1);
+}
 
 // Helmet - Security headers
 app.use(helmet({
@@ -74,10 +82,20 @@ const authLimiter = rateLimit({
 
 // Middlewares globais
 app.use(limiter);
+
+// CORS dinâmico via env CORS_ORIGINS (lista separada por vírgula)
+const defaultProdOrigins = ['https://medmanager.com', 'https://app.medmanager.com'];
+const defaultDevOrigins = ['http://localhost:3000', 'http://localhost:5173'];
+const envOrigins = (config.CORS_ORIGINS || '')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean);
+const allowedOrigins = envOrigins.length > 0
+  ? envOrigins
+  : (config.isProduction ? defaultProdOrigins : defaultDevOrigins);
+
 app.use(cors({
-  origin: config.NODE_ENV === 'production' 
-    ? ['https://medmanager.com', 'https://app.medmanager.com'] 
-    : ['http://localhost:3000', 'http://localhost:5173'],
+  origin: allowedOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-tenant-id'],
@@ -124,12 +142,15 @@ app.use(`/api/${config.API_VERSION}/tenants`, tenantRouter);
 // Rotas de assinatura (informações de assinatura) - precisam de autenticação e tenant, mas NÃO bloqueiam por expiração
 // Rotas de assinatura (informações e uso) não devem ser bloqueadas por expiração
 app.use(`/api/${config.API_VERSION}/subscriptions`, authenticateToken, tenantMiddleware, subscriptionRouter);
+app.use(`/api/${config.API_VERSION}/usage`, authenticateToken, tenantMiddleware, usageRouter);
 app.use(`/api/${config.API_VERSION}/payments`, authenticateToken, tenantMiddleware, paymentRouter);
 app.use(`/api/${config.API_VERSION}/payment-gateways`, authenticateToken, tenantMiddleware, paymentGatewayRouter);
 app.use(`/api/${config.API_VERSION}/webhooks`, webhookRouter);
 
 // Rotas protegidas que exigem assinatura ativa
 app.use(`/api/${config.API_VERSION}/superadmin`, authenticateToken, superadminRouter);
+app.use(`/api/${config.API_VERSION}/superadmin/subscriptions`, authenticateToken, superadminSubscriptionRouter);
+app.use(`/api/${config.API_VERSION}/superadmin/billing`, authenticateToken, superadminBillingRouter);
 app.use(`/api/${config.API_VERSION}/regulatory`, authenticateToken, tenantMiddleware, validateSubscription, regulatoryRouter);
 app.use(`/api/${config.API_VERSION}/users`, authenticateToken, validateSubscription, userRouter);
 app.use(`/api/${config.API_VERSION}/products`, authenticateToken, tenantMiddleware, validateSubscription, productRouter);

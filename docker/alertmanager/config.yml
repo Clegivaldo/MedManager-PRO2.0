@@ -1,0 +1,145 @@
+# Configuração do Alertmanager para MedManager PRO
+# Envia alertas via email, Slack, PagerDuty, etc.
+
+global:
+  resolve_timeout: 5m
+  smtp_smarthost: '${SMTP_HOST}:${SMTP_PORT}'
+  smtp_from: '${SMTP_FROM}'
+  smtp_auth_username: '${SMTP_USER}'
+  smtp_auth_password: '${SMTP_PASSWORD}'
+  smtp_require_tls: true
+
+# Templates para formatar mensagens
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# Rotas de roteamento de alertas
+route:
+  # Agrupamento padrão
+  group_by: ['alertname', 'severity', 'category']
+  group_wait: 10s        # Aguardar antes de enviar o primeiro alerta
+  group_interval: 10s    # Intervalo entre grupos
+  repeat_interval: 12h   # Não repetir alerta antes de 12h
+
+  # Receiver padrão
+  receiver: 'default'
+
+  # Rotas específicas por severidade
+  routes:
+    # Alertas críticos - notificação imediata
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      group_wait: 0s
+      repeat_interval: 4h
+      continue: true
+
+    # Alertas de sistema - equipe de infraestrutura
+    - match:
+        category: system
+      receiver: 'infra-team'
+      continue: true
+
+    # Alertas de banco de dados - DBA
+    - match:
+        category: database
+      receiver: 'dba-team'
+      continue: true
+
+    # Alertas de negócio - equipe comercial
+    - match:
+        category: business
+      receiver: 'business-team'
+      continue: true
+
+# Receivers - destinos dos alertas
+receivers:
+  # Receiver padrão - email geral
+  - name: 'default'
+    email_configs:
+      - to: '${ALERT_EMAIL_DEFAULT}'
+        headers:
+          Subject: '[MedManager] {{ .GroupLabels.alertname }}'
+        html: |
+          <h2>Alerta: {{ .GroupLabels.alertname }}</h2>
+          <p><strong>Severidade:</strong> {{ .GroupLabels.severity }}</p>
+          <p><strong>Categoria:</strong> {{ .GroupLabels.category }}</p>
+          <ul>
+          {{ range .Alerts }}
+            <li>{{ .Annotations.summary }}<br/>{{ .Annotations.description }}</li>
+          {{ end }}
+          </ul>
+
+  # Alertas críticos - múltiplos canais
+  - name: 'critical-alerts'
+    email_configs:
+      - to: '${ALERT_EMAIL_CRITICAL}'
+        headers:
+          Subject: '🚨 [CRÍTICO] {{ .GroupLabels.alertname }}'
+          Priority: 'urgent'
+        html: |
+          <h1 style="color: red;">🚨 ALERTA CRÍTICO</h1>
+          <h2>{{ .GroupLabels.alertname }}</h2>
+          <p><strong>Ação imediata necessária!</strong></p>
+          <ul>
+          {{ range .Alerts }}
+            <li><strong>{{ .Annotations.summary }}</strong><br/>{{ .Annotations.description }}</li>
+          {{ end }}
+          </ul>
+    # Slack (opcional - descomentar e configurar)
+    # slack_configs:
+    #   - api_url: '${SLACK_WEBHOOK_URL}'
+    #     channel: '#alerts-critical'
+    #     title: '🚨 ALERTA CRÍTICO: {{ .GroupLabels.alertname }}'
+    #     text: |
+    #       {{ range .Alerts }}
+    #       *{{ .Annotations.summary }}*
+    #       {{ .Annotations.description }}
+    #       {{ end }}
+    # PagerDuty (opcional - descomentar e configurar)
+    # pagerduty_configs:
+    #   - service_key: '${PAGERDUTY_SERVICE_KEY}'
+
+  # Equipe de infraestrutura
+  - name: 'infra-team'
+    email_configs:
+      - to: '${ALERT_EMAIL_INFRA}'
+        headers:
+          Subject: '[Infra] {{ .GroupLabels.alertname }}'
+
+  # Equipe DBA
+  - name: 'dba-team'
+    email_configs:
+      - to: '${ALERT_EMAIL_DBA}'
+        headers:
+          Subject: '[Database] {{ .GroupLabels.alertname }}'
+
+  # Equipe de negócios
+  - name: 'business-team'
+    email_configs:
+      - to: '${ALERT_EMAIL_BUSINESS}'
+        headers:
+          Subject: '[Business] {{ .GroupLabels.alertname }}'
+
+# Inibições - evitar alertas redundantes
+inhibit_rules:
+  # Se API está down, não alertar sobre latência alta
+  - source_match:
+      alertname: 'APIDown'
+    target_match:
+      alertname: 'HighAPILatency'
+    equal: ['instance']
+
+  # Se PostgreSQL está down, não alertar sobre conexões
+  - source_match:
+      alertname: 'PostgreSQLDown'
+    target_match:
+      alertname: 'HighDatabaseConnections'
+    equal: ['instance']
+
+  # Alertas críticos inibem warnings similares
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'instance']

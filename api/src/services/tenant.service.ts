@@ -70,8 +70,8 @@ export class TenantService {
       // Executar migrations no banco do tenant
       await this.runTenantMigrations(databaseName);
 
-      // Criar usuário admin padrão para o tenant
-      await this.createDefaultAdminUser(databaseName, name);
+      // Criar usuário admin padrão para o tenant (usar email metadata se fornecido)
+      await this.createDefaultAdminUser(databaseName, name, metadata.email);
 
       logger.info(`Tenant created successfully: ${tenant.id} - ${name}`);
 
@@ -273,7 +273,7 @@ export class TenantService {
   /**
    * Criar usuário admin padrão para o tenant
    */
-  async createDefaultAdminUser(databaseName: string, tenantName: string) {
+  async createDefaultAdminUser(databaseName: string, tenantName: string, adminEmail?: string) {
     try {
       logger.info(`Creating default admin user for tenant: ${tenantName}`);
 
@@ -288,20 +288,29 @@ export class TenantService {
       });
 
       // Criar usuário admin padrão
-      await prismaTenant.user.create({
+      const emailToUse = (adminEmail || 'admin@medmanager.com.br').toLowerCase();
+
+      // Verificar se já existe usuário com esse email para evitar duplicar
+      const existing = await prismaTenant.user.findUnique({ where: { email: emailToUse } });
+      if (!existing) {
+        await prismaTenant.user.create({
         data: {
-          email: 'admin@medmanager.com.br',
+          email: emailToUse,
           name: 'Administrador',
           password: await hashPassword('admin123'),
           role: UserRole.ADMIN,
           isActive: true,
           permissions: '[]'
         }
-      });
+        });
+        logger.info(`Default admin user created (${emailToUse}) for tenant: ${tenantName}`);
+      } else {
+        logger.info(`Admin user already exists (${emailToUse}) for tenant: ${tenantName}`);
+      }
 
       await prismaTenant.$disconnect();
 
-      logger.info(`Default admin user created for tenant: ${tenantName}`);
+      // Informação já logada acima
     } catch (error) {
       logger.error(`Error creating default admin user for tenant ${tenantName}:`, error);
       throw error;

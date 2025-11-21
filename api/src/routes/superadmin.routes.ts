@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticateToken } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/permissions.js';
 import { SuperAdminController } from '../controllers/superadmin.controller.js';
+import { GlobalPaymentConfigController } from '../controllers/globalPaymentConfig.controller.js';
 
 const controller = new SuperAdminController();
 
@@ -19,11 +20,14 @@ router.get('/tenants/:id', authenticateToken, requirePermission('SUPERADMIN_ACCE
 router.put('/tenants/:id', authenticateToken, requirePermission('SUPERADMIN_ACCESS'), (req, res) => controller.updateTenant(req, res));
 router.delete('/tenants/:id', authenticateToken, requirePermission('SUPERADMIN_ACCESS'), (req, res) => controller.deleteTenant(req, res));
 router.put('/tenants/:id/status', authenticateToken, requirePermission('SUPERADMIN_ACCESS'), (req, res) => controller.updateTenantStatus(req, res));
-router.put('/tenants/:id/plan', authenticateToken, requirePermission('SUPERADMIN_ACCESS'), (req, res) => controller.updateTenantPlan(req, res));
-
-router.get('/notifications', authenticateToken, requirePermission('SUPERADMIN_ACCESS'), (req, res) => controller.getNotifications(req, res));
+  router.put('/tenants/:id/plan', authenticateToken, requirePermission('SUPERADMIN_ACCESS'), (req, res) => controller.updateTenantPlan(req, res));
+router.post('/tenants/:tenantId/extend-subscription', authenticateToken, requirePermission('SUPERADMIN_ACCESS'), (req, res) => controller.extendSubscription(req, res));router.get('/notifications', authenticateToken, requirePermission('SUPERADMIN_ACCESS'), (req, res) => controller.getNotifications(req, res));
 
 // Endpoint para corrigir permissões
 router.post('/fix-permissions', authenticateToken, requirePermission('SUPERADMIN_ACCESS'), (req, res) => controller.fixUserPermissions(req, res));
+
+// Configuração Global de Gateways de Pagamento
+router.get('/payment-providers', authenticateToken, requirePermission('SUPERADMIN_ACCESS'), GlobalPaymentConfigController.get);
+router.put('/payment-providers', authenticateToken, requirePermission('SUPERADMIN_ACCESS'), GlobalPaymentConfigController.update);
 
 export default router;

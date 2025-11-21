@@ -1,0 +1,37 @@
+# Provisioning de Datasources para Grafana
+# Este arquivo configura automaticamente as fontes de dados ao iniciar o Grafana
+
+apiVersion: 1
+
+datasources:
+  # Prometheus - Principal fonte de métricas
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      httpMethod: POST
+      timeInterval: 15s
+
+  # PostgreSQL - Queries diretas no banco (opcional)
+  - name: PostgreSQL
+    type: postgres
+    url: db:5432
+    database: ${POSTGRES_DB:-medmanager_master}
+    user: ${POSTGRES_USER:-postgres}
+    secureJsonData:
+      password: ${POSTGRES_PASSWORD}
+    jsonData:
+      sslmode: 'disable'
+      maxOpenConns: 10
+      maxIdleConns: 2
+      connMaxLifetime: 14400
+    editable: true
+
+  # Redis (via plugin, se necessário)
+  # - name: Redis
+  #   type: redis-datasource
+  #   url: redis:6379
+  #   editable: true

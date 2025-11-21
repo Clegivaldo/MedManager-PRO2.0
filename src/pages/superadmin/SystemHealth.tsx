@@ -1,65 +1,72 @@
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { Server, Database, Cpu, MemoryStick, AlertTriangle, CheckCircle } from 'lucide-react';
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from 'recharts';
+import { Users, AlertTriangle, CheckCircle, Layers, FileText, PackageCheck } from 'lucide-react';
+import superadminService from '@/services/superadmin.service';
 
 export default function SystemHealth() {
-  const chartData = [
-    { name: '08:00', api_latency: 120 },
-    { name: '09:00', api_latency: 150 },
-    { name: '10:00', api_latency: 110 },
-    { name: '11:00', api_latency: 180 },
-    { name: '12:00', api_latency: 90 },
-  ];
+  const [overview, setOverview] = useState<{ totalTenants: number; activeTenants: number; recentTenants: any[] } | null>(null);
+  const [metrics, setMetrics] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const services = [
-    { name: 'API Principal', status: 'operational', icon: Server },
-    { name: 'Banco de Dados Primário', status: 'operational', icon: Database },
-    { name: 'Serviço de NFe', status: 'operational', icon: Server },
-    { name: 'Fila de Background Jobs', status: 'degraded', icon: Server },
-  ];
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoading(true);
+        const [ov, mt] = await Promise.all([
+          superadminService.getSystemOverview(),
+          superadminService.getSystemMetrics(),
+        ]);
+        setOverview(ov);
+        setMetrics(mt);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
 
   return (
     <>
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Saúde do Sistema</h1>
-        <p className="text-gray-600 mt-1">Monitoramento em tempo real da infraestrutura do MedManager-PRO</p>
+        <p className="text-gray-600 mt-1">Visão geral real do ambiente e operações</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <Card>
-          <CardHeader><CardTitle>Uso de CPU</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Tenants Totais</CardTitle></CardHeader>
           <CardContent>
             <div className="flex items-center space-x-4">
-              <Cpu className="h-10 w-10 text-blue-500" />
+              <Layers className="h-10 w-10 text-blue-500" />
               <div className="w-full">
-                <p className="text-2xl font-bold">34%</p>
-                <Progress value={34} className="h-2 mt-2" />
+                <p className="text-2xl font-bold">{overview?.totalTenants ?? (loading ? '...' : 0)}</p>
+                <Progress value={100} className="h-2 mt-2" />
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle>Uso de Memória</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Tenants Ativos</CardTitle></CardHeader>
           <CardContent>
             <div className="flex items-center space-x-4">
-              <MemoryStick className="h-10 w-10 text-green-500" />
+              <Users className="h-10 w-10 text-green-500" />
               <div className="w-full">
-                <p className="text-2xl font-bold">58%</p>
-                <Progress value={58} className="h-2 mt-2" />
+                <p className="text-2xl font-bold">{overview?.activeTenants ?? (loading ? '...' : 0)}</p>
+                <Progress value={overview && overview.totalTenants ? (overview.activeTenants / overview.totalTenants) * 100 : 0} className="h-2 mt-2" />
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle>Conexões ao Banco</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Notificações Não Lidas</CardTitle></CardHeader>
           <CardContent>
             <div className="flex items-center space-x-4">
-              <Database className="h-10 w-10 text-purple-500" />
+              <AlertTriangle className="h-10 w-10 text-purple-500" />
               <div className="w-full">
-                <p className="text-2xl font-bold">128 / 500</p>
-                <Progress value={(128/500)*100} className="h-2 mt-2" />
+                <p className="text-2xl font-bold">{metrics?.notifications?.unread ?? (loading ? '...' : 0)}</p>
+                <Progress value={0} className="h-2 mt-2" />
               </div>
             </div>
           </CardContent>
@@ -69,38 +76,60 @@ export default function SystemHealth() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Latência da API (ms)</CardTitle>
-            <CardDescription>Tempo de resposta médio nos últimos 5 minutos.</CardDescription>
+            <CardTitle>Indicadores Operacionais</CardTitle>
+            <CardDescription>Dados reais do último período.</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartData}>
-                <XAxis dataKey="name" stroke="#888888" fontSize={12} />
-                <YAxis stroke="#888888" fontSize={12} />
-                <Bar dataKey="api_latency" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="space-y-3 text-sm">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2"><FileText className="h-4 w-4 text-muted-foreground" /> Notas Fiscais (30 dias)</div>
+                <div className="text-right">
+                  <span className="mr-4">Autorizadas: <strong>{metrics?.invoices?.authorizedLast30Days ?? '-'}</strong></span>
+                  <span>Canceladas: <strong>{metrics?.invoices?.cancelledLast30Days ?? '-'}</strong></span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2"><PackageCheck className="h-4 w-4 text-muted-foreground" /> Estoque</div>
+                <div className="text-right">
+                  <span className="mr-4">Vencendo: <strong>{metrics?.inventory?.expiringSoonCount ?? '-'}</strong></span>
+                  <span>Vencidos: <strong>{metrics?.inventory?.expiredCount ?? '-'}</strong></span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2"><Layers className="h-4 w-4 text-muted-foreground" /> Tenants</div>
+                <div className="text-right">
+                  <span className="mr-4">Totais: <strong>{overview?.totalTenants ?? '-'}</strong></span>
+                  <span>Ativos: <strong>{overview?.activeTenants ?? '-'}</strong></span>
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Status dos Serviços</CardTitle>
-            <CardDescription>Disponibilidade dos microserviços.</CardDescription>
+            <CardTitle>Tenants Recentes</CardTitle>
+            <CardDescription>Últimos cadastrados no sistema.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {services.map(service => (
-              <div key={service.name} className="flex items-center justify-between">
+            {(overview?.recentTenants || []).map((t) => (
+              <div key={t.id} className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
-                  <service.icon className="h-5 w-5 text-gray-500" />
-                  <span>{service.name}</span>
+                  <Layers className="h-5 w-5 text-gray-500" />
+                  <div>
+                    <div className="font-medium">{t.name}</div>
+                    <div className="text-xs text-muted-foreground">{t.cnpj} • Plano: {t.plan}</div>
+                  </div>
                 </div>
-                {service.status === 'operational' ? (
-                  <Badge className="bg-green-100 text-green-800"><CheckCircle className="h-3 w-3 mr-1"/> Operacional</Badge>
+                {t.status === 'active' ? (
+                  <Badge className="bg-green-100 text-green-800"><CheckCircle className="h-3 w-3 mr-1"/> Ativo</Badge>
                 ) : (
-                  <Badge variant="destructive"><AlertTriangle className="h-3 w-3 mr-1"/> Degradado</Badge>
+                  <Badge variant="secondary"><AlertTriangle className="h-3 w-3 mr-1"/> {t.status}</Badge>
                 )}
               </div>
             ))}
+            {(!overview || (overview.recentTenants?.length ?? 0) === 0) && !loading && (
+              <div className="text-sm text-muted-foreground">Nenhum tenant recente</div>
+            )}
           </CardContent>
         </Card>
       </div>

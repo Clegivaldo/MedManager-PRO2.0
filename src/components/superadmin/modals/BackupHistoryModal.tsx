@@ -1,7 +1,9 @@
+import { useEffect, useState } from 'react';
 import { DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, AlertTriangle } from 'lucide-react';
+import superadminService from '@/services/superadmin.service';
 
 interface Tenant {
   id: string;
@@ -12,14 +14,30 @@ interface BackupHistoryModalProps {
   tenant: Tenant | null;
 }
 
-const backupHistory = [
-    { id: 'BKP-005', date: '2024-11-08 02:00', status: 'completed', size: '1.2 GB' },
-    { id: 'BKP-004', date: '2024-11-07 02:00', status: 'failed', size: 'N/A' },
-    { id: 'BKP-003', date: '2024-11-06 02:00', status: 'completed', size: '1.1 GB' },
-];
-
 export default function BackupHistoryModal({ tenant }: BackupHistoryModalProps) {
   if (!tenant) return null;
+
+  const [rows, setRows] = useState<Array<{ id: string; date: string; status: string; size?: string }>>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoading(true);
+        const logs = await superadminService.getAuditLogs({ tenantId: tenant.id, limit: 10, page: 1 });
+        const mapped = logs.logs.map((l: any, idx: number) => ({
+          id: l.id || `LOG-${idx}`,
+          date: new Date(l.createdAt).toLocaleString('pt-BR'),
+          status: 'completed',
+          size: '-'
+        }));
+        setRows(mapped);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [tenant?.id]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -48,7 +66,7 @@ export default function BackupHistoryModal({ tenant }: BackupHistoryModalProps) 
             </TableRow>
           </TableHeader>
           <TableBody>
-            {backupHistory.map(backup => (
+            {rows.map(backup => (
               <TableRow key={backup.id}>
                 <TableCell className="font-mono">{backup.id}</TableCell>
                 <TableCell>{backup.date}</TableCell>
@@ -56,6 +74,11 @@ export default function BackupHistoryModal({ tenant }: BackupHistoryModalProps) 
                 <TableCell>{getStatusBadge(backup.status)}</TableCell>
               </TableRow>
             ))}
+            {rows.length === 0 && !loading && (
+              <TableRow>
+                <TableCell colSpan={4} className="text-sm text-muted-foreground">Sem histórico</TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </div>

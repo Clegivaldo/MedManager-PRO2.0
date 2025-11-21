@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,19 +8,31 @@ import { DatabaseBackup, Play, History, CheckCircle, Clock, AlertTriangle, Build
 import BackupHistoryModal from '@/components/superadmin/modals/BackupHistoryModal';
 import StartBackupConfirmationModal from '@/components/superadmin/modals/StartBackupConfirmationModal';
 import { toast } from 'sonner';
+import superadminService, { type SuperadminTenant } from '@/services/superadmin.service';
 
 export default function BackupManagement() {
-  const [selectedTenant, setSelectedTenant] = useState<any>(null);
+  const [selectedTenant, setSelectedTenant] = useState<SuperadminTenant | null>(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [confirmTenantName, setConfirmTenantName] = useState<string | undefined>(undefined);
+  const [tenants, setTenants] = useState<SuperadminTenant[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const tenants = [
-    { id: 'TEN-001', name: 'Farmácia Central LTDA', lastBackup: '2024-11-08 02:00', status: 'completed' },
-    { id: 'TEN-002', name: 'Drogaria Pacheco S/A', lastBackup: '2024-11-08 02:00', status: 'completed' },
-    { id: 'TEN-003', name: 'Farma Conde', lastBackup: '2024-11-07 02:00', status: 'failed' },
-    { id: 'TEN-004', name: 'Ultrafarma', lastBackup: '2024-11-08 02:00', status: 'in_progress' },
-  ];
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoading(true);
+        const res = await superadminService.listTenants({ page: 1, limit: 100 });
+        setTenants(res.tenants);
+      } catch (err) {
+        console.error(err);
+        toast.error('Erro ao carregar tenants');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
 
   const handleViewHistory = (tenant: any) => {
     setSelectedTenant(tenant);
@@ -33,10 +45,7 @@ export default function BackupManagement() {
   };
 
   const onConfirmBackup = () => {
-    const message = confirmTenantName
-      ? `Backup para ${confirmTenantName} iniciado.`
-      : "Backup geral do sistema iniciado.";
-    toast.info(message);
+    toast.info('Funcionalidade de backup não disponível no backend');
     setIsConfirmOpen(false);
   };
 
@@ -64,7 +73,7 @@ export default function BackupManagement() {
         <CardContent className="flex items-center justify-between p-6">
           <div>
             <p className="text-sm text-muted-foreground">Último backup</p>
-            <p className="font-semibold">08 de Novembro de 2024, 03:00</p>
+            <p className="font-semibold">Indisponível</p>
             <div className="mt-1">{getStatusBadge('completed')}</div>
           </div>
           <Button onClick={() => handleStartBackup()}><Play className="h-4 w-4 mr-2" />Criar Novo Backup Geral</Button>
@@ -98,7 +107,7 @@ export default function BackupManagement() {
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell>{tenant.lastBackup}</TableCell>
+                  <TableCell>-</TableCell>
                   <TableCell>{getStatusBadge(tenant.status)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end space-x-2">
@@ -114,6 +123,11 @@ export default function BackupManagement() {
                   </TableCell>
                 </TableRow>
               ))}
+              {tenants.length === 0 && !loading && (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-sm text-muted-foreground">Nenhum tenant encontrado</TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>

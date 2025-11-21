@@ -10,11 +10,14 @@ function normalizeRole(role?: string) {
 interface ProtectedRouteProps {
   allowedRoles?: Array<'SUPERADMIN' | 'MASTER' | 'ADMIN' | 'MANAGER' | 'OPERATOR' | 'VIEWER'>;
   redirectTo?: string;
+  // Se true, MASTER será tratado como ADMIN para fins de acesso
+  treatMasterAsAdmin?: boolean;
 }
 
 export default function ProtectedRoute({ 
   allowedRoles, 
-  redirectTo = '/login' 
+  redirectTo = '/login',
+  treatMasterAsAdmin = true
 }: ProtectedRouteProps) {
   const { isAuthenticated, isLoading, user } = useAuth();
   const userRole = normalizeRole(user?.role);
@@ -42,7 +45,14 @@ export default function ProtectedRoute({
   // Verificar permissões de role se especificado
   if (allowedRoles && user) {
     const normalizedAllowed = allowedRoles.map(r => r.toUpperCase());
-    const isAllowed = normalizedAllowed.includes(userRole);
+    let effectiveRole = userRole;
+
+    // Permitir que MASTER atue como ADMIN nas rotas que esperam ADMIN
+    if (treatMasterAsAdmin && userRole === 'MASTER' && normalizedAllowed.includes('ADMIN') && !normalizedAllowed.includes('MASTER')) {
+      effectiveRole = 'ADMIN';
+    }
+
+    const isAllowed = normalizedAllowed.includes(effectiveRole);
 
     // Caso SUPERADMIN tente acessar rota que não inclui SUPERADMIN, redirecionar para painel superadmin
     if (userRole === 'SUPERADMIN' && !isAllowed) {
