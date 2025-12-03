@@ -54,9 +54,18 @@ export default function Sidebar({ className }: SidebarProps) {
   const location = useLocation();
   const { user } = useAuth();
   const role = (user?.role || '').toUpperCase();
-  const managementItems = role === 'MASTER' || role === 'SUPERADMIN'
-    ? [...baseManagementItems, { title: 'Gateways Pagamento', icon: Settings, href: '/payment-gateway-config' }]
-    : baseManagementItems;
+  const managementItems = (() => {
+    const base = [...baseManagementItems];
+    // Mostrar Jobs do Sistema apenas para ADMIN ou SUPERADMIN
+    if (role === 'ADMIN' || role === 'SUPERADMIN' || role === 'MASTER') {
+      base.push({ title: 'Jobs do Sistema', icon: Settings, href: '/system-jobs' } as any);
+    }
+    // Gateways Pagamento apenas para MASTER/SUPERADMIN
+    if (role === 'MASTER' || role === 'SUPERADMIN') {
+      base.push({ title: 'Gateways Pagamento', icon: Settings, href: '/payment-gateway-config' } as any);
+    }
+    return base;
+  })();
 
   return (
     <div className={cn(

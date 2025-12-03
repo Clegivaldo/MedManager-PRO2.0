@@ -12,9 +12,10 @@ import {
   HeartPulse,
   Settings,
   LogOut,
-  DatabaseBackup
+  DatabaseBackup,
+  CreditCard,
+  Receipt
 } from 'lucide-react';
-import { CreditCard } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 
 interface SidebarProps {
@@ -41,6 +42,16 @@ const menuItems = [
     title: 'Pagamentos',
     icon: CreditCard,
     href: '/superadmin/payments',
+  },
+  {
+    title: 'Cobranças',
+    icon: CreditCard,
+    href: '/superadmin/charges',
+  },
+  {
+    title: 'Faturamento',
+    icon: Receipt,
+    href: '/superadmin/billing-accounts',
   },
   {
     title: 'Saúde do Sistema',

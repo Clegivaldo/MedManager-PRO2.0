@@ -4,6 +4,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { AppError } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
 import { tenantService } from '../services/tenant.service.js';
+import { PaymentService } from '../services/payment/payment.service.js';
+import { AsaasGateway } from '../services/payment/AsaasGateway.js';
+import { GlobalPaymentConfigService } from '../services/payment/globalPaymentConfig.service.js';
 
 const prisma = prismaMaster;
 
@@ -47,14 +50,14 @@ export class SuperAdminController {
             const { config } = await import('../config/environment.js');
             const tenantDbUrl = config.DATABASE_URL.replace(/\/([\w]+)$/, `/${tenant.id}`);
             const tenantPrisma = new PrismaClient({ datasources: { db: { url: tenantDbUrl } } });
-            
+
             const userCount = await tenantPrisma.user.count();
             await tenantPrisma.$disconnect();
-            
+
             return {
               ...tenant,
               userCount,
-              daysRemaining: tenant.subscriptionEnd 
+              daysRemaining: tenant.subscriptionEnd
                 ? Math.ceil((new Date(tenant.subscriptionEnd).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
                 : null
             };
@@ -63,7 +66,7 @@ export class SuperAdminController {
             return {
               ...tenant,
               userCount: 0,
-              daysRemaining: tenant.subscriptionEnd 
+              daysRemaining: tenant.subscriptionEnd
                 ? Math.ceil((new Date(tenant.subscriptionEnd).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
                 : null
             };
@@ -475,7 +478,7 @@ export class SuperAdminController {
       const { PrismaClient } = await import('@prisma/client');
       const { ROLES } = await import('../middleware/permissions.js');
       const { config } = await import('../config/environment.js');
-      
+
       const results = {
         tenantsProcessed: 0,
         usersUpdated: 0,
@@ -499,10 +502,10 @@ export class SuperAdminController {
 
           for (const user of users) {
             try {
-              const rawPerm = typeof user.permissions === 'string' 
-                ? user.permissions 
+              const rawPerm = typeof user.permissions === 'string'
+                ? user.permissions
                 : JSON.stringify(user.permissions || []);
-              
+
               const parsed = rawPerm ? JSON.parse(rawPerm) : [];
 
               if (parsed.length === 0) {
@@ -513,7 +516,7 @@ export class SuperAdminController {
 
                 if (roleKey) {
                   const defaultPerms = ROLES[roleKey].permissions;
-                  
+
                   await tenantPrisma.user.update({
                     where: { id: user.id },
                     data: { permissions: JSON.stringify(defaultPerms) }
@@ -553,15 +556,15 @@ export class SuperAdminController {
 
       for (const user of masterUsers) {
         try {
-          const rawPerm = typeof user.permissions === 'string' 
-            ? user.permissions 
+          const rawPerm = typeof user.permissions === 'string'
+            ? user.permissions
             : JSON.stringify(user.permissions || []);
-          
+
           const parsed = rawPerm ? JSON.parse(rawPerm) : [];
 
           if (parsed.length === 0) {
             const defaultPerms = ROLES.SUPERADMIN.permissions;
-            
+
             await prisma.user.update({
               where: { id: user.id },
               data: { permissions: JSON.stringify(defaultPerms) }
@@ -588,7 +591,7 @@ export class SuperAdminController {
       });
     } catch (error) {
       logger.error('Error fixing user permissions:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         success: false,
         error: 'Internal server error',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -603,5 +606,340 @@ export class SuperAdminController {
       enterprise: { users: 100, storage: 200 }
     };
     return limits[plan as keyof typeof limits]?.[type] || 10;
+  }
+
+  // Payment Methods
+  listCharges = async (req: Request, res: Response) => {
+    try {
+      const { page = 1, limit = 10, search, status, method } = req.query;
+      const offset = (Number(page) - 1) * Number(limit);
+
+      const where: any = {};
+      if (status) where.status = status;
+      if (method) where.paymentMethod = method;
+      if (search) {
+        where.OR = [
+          { gatewayChargeId: { contains: String(search), mode: 'insensitive' } },
+          { tenant: { name: { contains: String(search), mode: 'insensitive' } } }
+        ];
+      }
+
+      const [charges, total] = await Promise.all([
+        prisma.payment.findMany({
+          where,
+          skip: offset,
+          take: Number(limit),
+          orderBy: { createdAt: 'desc' },
+          include: {
+            tenant: { select: { id: true, name: true } }
+          }
+        }),
+        prisma.payment.count({ where })
+      ]);
+
+      res.json({
+        charges: charges.map(c => ({
+          id: c.id,
+          chargeId: c.gatewayChargeId || c.id,
+          tenantId: c.tenantId,
+          tenantName: c.tenant?.name,
+          amount: c.amount.toString(),
+          currency: c.currency,
+          paymentMethod: c.paymentMethod,
+          gateway: c.gateway,
+          gatewayChargeId: c.gatewayChargeId,
+          status: c.status,
+          dueDate: c.dueDate,
+          paidAt: c.paidAt,
+          pixQrCode: c.pixQrCode,
+          pixQrCodeBase64: c.pixQrCodeBase64,
+          boletoUrl: c.boletoUrl,
+          boletoBarcode: c.boletoBarcode,
+          createdAt: c.createdAt,
+          updatedAt: c.updatedAt
+        })),
+        pagination: {
+          page: Number(page),
+          limit: Number(limit),
+          total,
+          pages: Math.ceil(total / Number(limit))
+        }
+      });
+    } catch (error) {
+      logger.error('Error listing charges:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  };
+
+  createChargeForTenant = async (req: Request, res: Response) => {
+    try {
+      const { tenantId } = req.params;
+      const { amount, paymentMethod, description, billingCycle } = req.body;
+
+      if (!amount || !paymentMethod) {
+        throw new AppError('amount e paymentMethod são obrigatórios', 400);
+      }
+
+      const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+      if (!tenant) throw new AppError('Tenant não encontrado', 404);
+
+      const paymentService = new PaymentService(prisma);
+      const { charge, payment } = await paymentService.createCharge({
+        tenantId,
+        amount: parseFloat(String(amount)),
+        description: description || `Cobrança ${paymentMethod}`,
+        paymentMethod: paymentMethod.toUpperCase() as 'PIX' | 'BOLETO',
+        billingCycle: (billingCycle as 'monthly' | 'annual') || 'monthly'
+      });
+
+      res.json({
+        success: true,
+        message: 'Cobrança criada com sucesso',
+        data: {
+          chargeId: charge.id,
+          status: payment.status,
+          dueDate: charge.dueDate,
+          pixQrCode: charge.pixQrCode,
+          pixQrCodeBase64: charge.pixQrCodeBase64,
+          boletoUrl: charge.boletoUrl,
+          boletoBarcode: (payment.metadata as any)?.barcode
+        }
+      });
+    } catch (error) {
+      logger.error('Error creating charge for tenant:', error);
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({ success: false, message: error.message });
+      } else {
+        res.status(500).json({
+          success: false,
+          message: error instanceof Error ? error.message : 'Erro desconhecido'
+        });
+      }
+    }
+  };
+
+  syncChargeStatus = async (req: Request, res: Response) => {
+    try {
+      const { chargeId } = req.params;
+
+      const paymentService = new PaymentService(prisma);
+      const result = await paymentService.syncChargeStatus(chargeId);
+
+      res.json({
+        success: true,
+        message: result.updated ? 'Status sincronizado com sucesso' : 'Status já estava atualizado',
+        data: {
+          chargeId: result.payment.gatewayChargeId,
+          status: result.payment.status,
+          updated: result.updated
+        }
+      });
+    } catch (error) {
+      logger.error('Error syncing charge status:', error);
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({ success: false, message: error.message });
+      } else {
+        res.status(500).json({
+          success: false,
+          message: error instanceof Error ? error.message : 'Erro desconhecido'
+        });
+      }
+    }
+  };
+
+  importChargesFromAsaas = async (req: Request, res: Response) => {
+    try {
+      const configService = new GlobalPaymentConfigService(prisma);
+      const config = await configService.getFullConfig();
+
+      if (!config.asaasApiKey) {
+        throw new AppError('Asaas API Key não configurada', 400);
+      }
+
+      const asaasGateway = new AsaasGateway({
+        apiKey: config.asaasApiKey,
+        environment: config.asaasEnvironment
+      });
+
+      const { data: charges } = await asaasGateway.listAllCharges({ limit: 100 });
+
+      let imported = 0;
+      let skipped = 0;
+      let errors = 0;
+
+      for (const charge of charges) {
+        try {
+          const existing = await prisma.payment.findUnique({
+            where: { gatewayChargeId: charge.id }
+          });
+
+          if (existing) {
+            skipped++;
+            continue;
+          }
+
+          const tenant = await prisma.tenant.findFirst({
+            where: {
+              metadata: {
+                path: ['asaasCustomerId'],
+                equals: charge.customer
+              }
+            }
+          });
+
+          if (!tenant) {
+            logger.warn(`Tenant não encontrado para customer ${charge.customer}, cobrança ${charge.id}`);
+            errors++;
+            continue;
+          }
+
+          await prisma.payment.create({
+            data: {
+              tenantId: tenant.id,
+              amount: charge.value,
+              paymentMethod: charge.billingType.toLowerCase(),
+              gateway: 'asaas',
+              gatewayChargeId: charge.id,
+              status: this.mapAsaasStatus(charge.status),
+              dueDate: new Date(charge.dueDate),
+              pixQrCodeBase64: charge.pixQrCode?.encodedImage,
+              pixQrCode: charge.pixQrCode?.payload,
+              boletoUrl: charge.bankSlipUrl,
+              metadata: {
+                invoiceNumber: charge.invoiceNumber,
+                paymentLink: charge.paymentLink,
+                importedFromAsaas: true,
+                importedAt: new Date().toISOString()
+              },
+            },
+          });
+
+          imported++;
+        } catch (error) {
+          logger.error(`Erro ao importar cobrança ${charge.id}:`, error);
+          errors++;
+        }
+      }
+
+      res.json({
+        success: true,
+        message: `Importação concluída: ${imported} importadas, ${skipped} já existiam, ${errors} erros`,
+        data: { imported, skipped, errors, total: charges.length }
+      });
+    } catch (error) {
+      logger.error('Error importing charges from Asaas:', error);
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({ success: false, message: error.message });
+      } else {
+        res.status(500).json({
+          success: false,
+          message: error instanceof Error ? error.message : 'Erro ao importar cobranças'
+        });
+      }
+    }
+  };
+
+  syncAllCharges = async (req: Request, res: Response) => {
+    try {
+      const paymentService = new PaymentService(prisma);
+      const result = await paymentService.syncAllCharges();
+
+      res.json({
+        success: true,
+        message: `Sincronização concluída: ${result.synced} atualizadas, ${result.errors} erros`,
+        data: result
+      });
+    } catch (error) {
+      logger.error('Error syncing all charges:', error);
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({ success: false, message: error.message });
+      } else {
+        res.status(500).json({
+          success: false,
+          message: error instanceof Error ? error.message : 'Erro ao sincronizar cobranças'
+        });
+      }
+    }
+  };
+
+  cancelCharge = async (req: Request, res: Response) => {
+    try {
+      const { chargeId } = req.params;
+      const { reason } = req.body;
+
+      const paymentService = new PaymentService(prisma);
+      await paymentService.cancelCharge(chargeId);
+
+      logger.info(`Charge ${chargeId} cancelled`, { reason });
+
+      res.json({
+        success: true,
+        message: 'Cobrança cancelada com sucesso',
+        data: {
+          chargeId,
+          status: 'cancelled'
+        }
+      });
+    } catch (error) {
+      logger.error('Error cancelling charge:', error);
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({ success: false, message: error.message });
+      } else {
+        res.status(500).json({
+          success: false,
+          message: error instanceof Error ? error.message : 'Erro ao cancelar cobrança'
+        });
+      }
+    }
+  };
+
+  listBillingAccounts = async (req: Request, res: Response) => {
+    try {
+      const { page = 1, limit = 10 } = req.query;
+      const offset = (Number(page) - 1) * Number(limit);
+
+      const [accounts, total] = await Promise.all([
+        prisma.billingAccount.findMany({
+          skip: offset,
+          take: Number(limit),
+          orderBy: { dueDate: 'desc' },
+          include: {
+            tenant: { select: { id: true, name: true } }
+          }
+        }),
+        prisma.billingAccount.count()
+      ]);
+
+      res.json({
+        accounts,
+        pagination: {
+          page: Number(page),
+          limit: Number(limit),
+          total,
+          pages: Math.ceil(total / Number(limit))
+        }
+      });
+    } catch (error) {
+      logger.error('Error listing billing accounts:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  };
+
+  private mapAsaasStatus(status: string): string {
+    switch (status) {
+      case 'PENDING':
+        return 'pending';
+      case 'RECEIVED':
+      case 'CONFIRMED':
+        return 'confirmed';
+      case 'OVERDUE':
+        return 'overdue';
+      case 'CANCELLED':
+        return 'cancelled';
+      case 'REFUNDED':
+        return 'refunded';
+      default:
+        return 'pending';
+    }
   }
 }

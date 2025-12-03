@@ -1,10 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { AsaasService } from '../services/payment/asaas.service.js';
+import { PaymentService } from '../services/payment/payment.service.js';
 import { AppError } from '../utils/errors.js';
 
 const prisma = new PrismaClient();
-const asaasService = new AsaasService(prisma);
+const paymentService = new PaymentService(prisma);
 
 export class PaymentController {
   static async createCharge(req: Request, res: Response, next: NextFunction) {
@@ -18,7 +18,7 @@ export class PaymentController {
         throw new AppError('Campos obrigatórios: amount, paymentMethod', 400);
       }
 
-      const { charge, payment } = await asaasService.createCharge({
+      const { charge, payment } = await paymentService.createCharge({
         tenantId,
         amount,
         description: description || 'Assinatura MedManager',
@@ -33,9 +33,9 @@ export class PaymentController {
           chargeId: charge.id,
           status: payment.status,
           dueDate: charge.dueDate,
-          pixQrCode: charge.pixQrCode?.payload,
-          pixQrCodeBase64: charge.pixQrCode?.encodedImage,
-          boletoUrl: charge.bankSlipUrl,
+          pixQrCode: charge.pixQrCode,
+          pixQrCodeBase64: charge.pixQrCodeBase64,
+          boletoUrl: charge.boletoUrl,
         },
       });
     } catch (error) {
@@ -48,7 +48,7 @@ export class PaymentController {
       const { chargeId } = req.params;
       if (!chargeId) throw new AppError('chargeId é obrigatório', 400);
 
-      const status = await asaasService.getChargeStatus(chargeId);
+      const status = await paymentService.syncChargeStatus(chargeId);
       res.json({ success: true, data: status });
     } catch (error) {
       next(error);

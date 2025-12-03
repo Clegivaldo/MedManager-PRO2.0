@@ -6,6 +6,7 @@ import rateLimit from 'express-rate-limit';
 import { config } from './config/environment.js';
 import { logger } from './utils/logger.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { initializeAdminUser } from './scripts/init-admin.js';
 import { tenantMiddleware, optionalTenantMiddleware } from './middleware/tenantMiddleware.js';
 import authRouter from './routes/auth.routes.js';
 import tenantRouter from './routes/tenant.routes.js';
@@ -27,8 +28,13 @@ import webhookRouter from './routes/webhook.routes.js';
 import paymentGatewayRouter from './routes/payment-gateway.routes.js';
 import dashboardRouter from './routes/dashboard.routes.js';
 import batchRouter from './routes/batch.routes.js';
+import tenantBillingRouter from './routes/tenant-billing.routes.js';
+import docsRouter from './routes/docs.routes.js';
+import backupRouter from './routes/backup.routes.js';
 import { authenticateToken } from './middleware/auth.js';
 import { validateSubscription } from './middleware/subscription.middleware.js';
+import { initPaymentSyncJob, paymentSyncJob } from './jobs/paymentSync.job.js';
+import { initBackupCleanupJob, backupCleanupJob } from './jobs/backupCleanup.job.js';
 
 const app: Application = express();
 
@@ -83,22 +89,35 @@ const authLimiter = rateLimit({
 // Middlewares globais
 app.use(limiter);
 
-// CORS dinâmico via env CORS_ORIGINS (lista separada por vírgula)
-const defaultProdOrigins = ['https://medmanager.com', 'https://app.medmanager.com'];
-const defaultDevOrigins = ['http://localhost:3000', 'http://localhost:5173'];
-const envOrigins = (config.CORS_ORIGINS || '')
-  .split(',')
-  .map(o => o.trim())
-  .filter(Boolean);
-const allowedOrigins = envOrigins.length > 0
-  ? envOrigins
-  : (config.isProduction ? defaultProdOrigins : defaultDevOrigins);
-
+// CORS - Permitir requests locais e de produção
 app.use(cors({
-  origin: allowedOrigins,
+  origin: (origin, callback) => {
+    // Sempre permitir se for localhost ou sem origin (mobile apps)
+    if (!origin || origin.includes('localhost') || origin.includes('127.0.0.1') || origin.includes('5173') || origin.includes('3000')) {
+      callback(null, true);
+    }
+    // Em produção, verificar origens configuradas
+    else if ((config.CORS_ORIGINS || '')
+      .split(',')
+      .map(o => o.trim())
+      .filter(Boolean)
+      .includes(origin)) {
+      callback(null, true);
+    }
+    // Origens padrão de produção
+    else if (['https://medmanager.com', 'https://app.medmanager.com'].includes(origin)) {
+      callback(null, true);
+    }
+    // Tudo else é rejeitado
+    else if (config.isDevelopment) {
+      callback(null, true); // Em dev, aceitar tudo
+    } else {
+      callback(new Error('CORS not allowed'));
+    }
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-tenant-id'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-tenant-id', 'x-webhook-token'],
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -115,6 +134,7 @@ app.use('/static', (req, res, next) => {
 // Static files (logos e avatars) - SEM AUTENTICAÇÃO
 app.use('/static/logos', express.static(path.join(process.cwd(), 'uploads', 'logos')));
 app.use('/static/avatars', express.static(path.join(process.cwd(), 'uploads', 'avatars')));
+app.use('/static/docs', express.static(path.join(process.cwd(), 'uploads', 'docs')));
 
 // Middleware de tenant (deve vir antes das rotas) - SKIP para rotas estáticas
 app.use((req, res, next) => {
@@ -145,7 +165,10 @@ app.use(`/api/${config.API_VERSION}/subscriptions`, authenticateToken, tenantMid
 app.use(`/api/${config.API_VERSION}/usage`, authenticateToken, tenantMiddleware, usageRouter);
 app.use(`/api/${config.API_VERSION}/payments`, authenticateToken, tenantMiddleware, paymentRouter);
 app.use(`/api/${config.API_VERSION}/payment-gateways`, authenticateToken, tenantMiddleware, paymentGatewayRouter);
+app.use(`/api/${config.API_VERSION}/tenant/billing`, tenantBillingRouter);
 app.use(`/api/${config.API_VERSION}/webhooks`, webhookRouter);
+app.use(`/api/${config.API_VERSION}/docs`, authenticateToken, tenantMiddleware, docsRouter);
+app.use(`/api/${config.API_VERSION}/backup`, authenticateToken, backupRouter);
 
 // Rotas protegidas que exigem assinatura ativa
 app.use(`/api/${config.API_VERSION}/superadmin`, authenticateToken, superadminRouter);
@@ -196,10 +219,55 @@ app.use('*', (req, res) => {
 
 const PORT = config.PORT || 3333;
 
+// Initialize admin user on startup
+initializeAdminUser().catch(error => {
+  logger.error('Failed to initialize admin user:', error instanceof Error ? error.message : String(error));
+  // Continue even if initialization fails
+});
+
 app.listen(PORT, () => {
   logger.info(`🚀 MedManager API running on port ${PORT}`);
   logger.info(`📝 Environment: ${config.NODE_ENV}`);
   logger.info(`🔐 Rate limiting: ${config.RATE_LIMIT_MAX_REQUESTS} requests per ${config.RATE_LIMIT_WINDOW_MS}ms`);
+  // Inicializa cron de sincronização de cobranças (se habilitado via env)
+  initPaymentSyncJob();
+  // Inicializa job automático de limpeza de backups (se habilitado via env)
+  initBackupCleanupJob();
+});
+
+// Rotas de status de crons
+app.get(`/api/${config.API_VERSION}/system/cron/payments/status`, (req, res) => {
+  res.json({ success: true, job: paymentSyncJob.getStatus() });
+});
+
+app.get(`/api/${config.API_VERSION}/system/cron/backups/status`, (req, res) => {
+  res.json({ success: true, job: backupCleanupJob.getStatus() });
+});
+
+// Logs recentes do cron de pagamentos
+app.get(`/api/${config.API_VERSION}/system/cron/payments/logs`, (req, res) => {
+  const limit = Number((req.query.limit as string) || '100');
+  const levelFilter = (req.query.level as string) || '';
+  let logs = paymentSyncJob.getLogs(limit);
+  if (levelFilter) {
+    logs = logs.filter(l => l.level === levelFilter);
+  }
+  res.json({ success: true, logs });
+});
+
+// Download arquivo diário de logs do cron de pagamentos
+app.get(`/api/${config.API_VERSION}/system/cron/payments/logs/file`, (req, res) => {
+  const date = (req.query.date as string) || new Date().toISOString().substring(0, 10); // YYYY-MM-DD
+  const pathLib = require('path');
+  const fs = require('fs');
+  const filePath = pathLib.join(process.cwd(), 'logs', `payment-sync-${date}.log`);
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ success: false, error: 'Log file not found for date', date });
+  }
+  res.setHeader('Content-Type', 'text/plain');
+  res.setHeader('Content-Disposition', `attachment; filename=payment-sync-${date}.log`);
+  const stream = fs.createReadStream(filePath);
+  stream.pipe(res);
 });
 
 export default app;

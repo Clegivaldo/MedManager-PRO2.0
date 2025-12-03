@@ -167,9 +167,10 @@ export default function NewNFeModal({ onCreated }: NewNFeModalProps) {
         <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="client">Cliente</Label>
-            <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
+            <Select value={selectedCustomer || 'unselected'} onValueChange={(v) => setSelectedCustomer(v === 'unselected' ? '' : v)}>
               <SelectTrigger><SelectValue placeholder="Selecione o cliente" /></SelectTrigger>
               <SelectContent>
+                <SelectItem value="unselected" disabled>Selecione um cliente</SelectItem>
                 {customers.map((c) => (
                   <SelectItem key={c.id} value={c.id}>{c.companyName} • {c.cnpjCpf}</SelectItem>
                 ))}

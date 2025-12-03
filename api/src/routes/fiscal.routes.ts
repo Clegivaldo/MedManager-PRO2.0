@@ -10,8 +10,12 @@ import { z } from 'zod';
 import path from 'path';
 import fs from 'fs/promises';
 import fsSync from 'fs';
+import { NFeService } from '../services/nfe.service.js';
+import { withTenantPrisma } from '../lib/tenant-prisma.js';
+import { tenantMiddleware } from '../middleware/tenantMiddleware.js';
 
 const router: Router = Router();
+const nfeService = new NFeService();
 
 // Configurar multer para upload de certificado
 // Upload de certificado (memória)
@@ -402,3 +406,151 @@ router.get('/certificate', authenticateToken, requirePermissions([PERMISSIONS.SY
 });
 
 export default router;
+
+/**
+ * NF-e Actions (Emit, Status, Cancel, CC-e)
+ */
+// Emitir NF-e a partir de uma `invoice` existente
+router.post('/nfe/emit/:invoiceId', authenticateToken, requirePermissions([PERMISSIONS.NFE_ISSUE]), tenantMiddleware, async (req, res, next) => {
+  try {
+    const { invoiceId } = req.params;
+    const tenantId = req.tenant?.id as string;
+    if (!tenantId) throw new AppError('Tenant not identified', 400);
+    // Buscar invoice completa para montar dados da NF-e
+    const invoice = await withTenantPrisma({ id: tenantId } as any, async (prisma) => {
+      return prisma.invoice.findFirst({
+        where: { id: invoiceId },
+        include: {
+          customer: true,
+          items: { include: { product: true, batch: true } }
+        }
+      });
+    });
+    if (!invoice) throw new AppError('Invoice not found', 404);
+    if (!invoice.items || invoice.items.length === 0) throw new AppError('Invoice has no items', 400);
+
+    // Calcular totais básicos
+    const subtotal = invoice.items.reduce((sum: number, it: any) => sum + Number(it.totalPrice || 0), 0);
+    const discount = invoice.items.reduce((sum: number, it: any) => sum + Number(it.discount || 0), 0);
+    const total = Number(invoice.totalValue || subtotal - discount);
+    const tax = Number((total * 0.18).toFixed(2));
+
+    const nfeData: any = {
+      invoice: {
+        id: invoice.id,
+        invoiceNumber: String(invoice.number || invoice.id.substring(0,8)),
+        operationType: 'SAIDA',
+        cfop: invoice.items[0]?.cfop || '5405',
+        naturezaOperacao: 'VENDA DE MERCADORIA PARA TERCEIROS',
+        paymentMethod: 'billet',
+        installments: 1,
+        observations: undefined,
+        subtotal,
+        discount,
+        tax,
+        total,
+        createdAt: invoice.issueDate || new Date(),
+      },
+      issuer: {
+        cnpj: req.tenant!.cnpj,
+        name: req.tenant!.name,
+        stateRegistration: '',
+        municipalRegistration: undefined,
+        address: '',
+        phone: undefined,
+        email: undefined,
+      },
+      customer: {
+        id: invoice.customer?.id,
+        name: invoice.customer?.companyName,
+        cnpjCpf: invoice.customer?.cnpjCpf,
+        email: invoice.customer?.email,
+        phone: invoice.customer?.phone,
+        address: invoice.customer?.address,
+        stateRegistration: undefined,
+        municipalRegistration: undefined,
+        customerType: invoice.customer?.customerType,
+      },
+      items: invoice.items.map((item: any) => ({
+        id: item.id,
+        product: {
+          id: item.productId,
+          name: item.product?.name,
+          ncm: item.ncm || '3003.90.00',
+          unit: 'UN',
+          cfop: item.cfop || '5405',
+        },
+        quantity: item.quantity,
+        unitPrice: Number(item.unitPrice),
+        discount: Number(item.discount || 0),
+        subtotal: Number(item.totalPrice),
+        total: Number(item.totalPrice),
+        icms: Number(item.totalPrice) * 0.18,
+        batch: item.batch ? {
+          id: item.batch.id,
+          batchNumber: item.batch.batchNumber,
+          expirationDate: item.batch.expirationDate,
+          manufacturingDate: item.batch.manufactureDate || undefined,
+        } : undefined,
+      }))
+    };
+
+    const result = await nfeService.emitNFe(nfeData, tenantId);
+    res.json({ success: result.success, data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Consultar status da NF-e pela chave de acesso
+router.get('/nfe/status/:accessKey', authenticateToken, requirePermissions([PERMISSIONS.INVOICE_READ]), tenantMiddleware, async (req, res, next) => {
+  try {
+    const { accessKey } = req.params;
+    const tenantId = req.tenant?.id as string;
+    if (!tenantId) throw new AppError('Tenant not identified', 400);
+
+    const result = await nfeService.consultarStatusNFe(accessKey, tenantId);
+    res.json({ success: result.status === 'authorized', data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Cancelar NF-e autorizada
+router.post('/nfe/cancel/:invoiceId', authenticateToken, requirePermissions([PERMISSIONS.NFE_CANCEL]), tenantMiddleware, async (req, res, next) => {
+  try {
+    const { invoiceId } = req.params;
+    const { justification, protocolNumber } = req.body || {};
+    const tenantId = req.tenant?.id as string;
+    if (!tenantId) throw new AppError('Tenant not identified', 400);
+    const invoice = await withTenantPrisma({ id: tenantId } as any, async (prisma) => {
+      return prisma.invoice.findFirst({ where: { id: invoiceId } });
+    });
+    if (!invoice) throw new AppError('Invoice not found', 404);
+    if (!invoice.accessKey) throw new AppError('Invoice has no NF-e access key', 400);
+    const result = await nfeService.cancelNFe({
+      accessKey: invoice.accessKey,
+      protocolNumber: protocolNumber || invoice.protocol || '',
+      justification: justification || 'Cancelamento solicitado',
+      cnpj: req.tenant!.cnpj,
+    }, tenantId);
+    res.json({ success: result.success, data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Carta de Correção Eletrônica (CC-e)
+router.post('/nfe/cce/:invoiceId', authenticateToken, requirePermissions([PERMISSIONS.NFE_CORRECT]), tenantMiddleware, async (req, res, next) => {
+  try {
+    const { invoiceId } = req.params;
+    const { correctionText } = req.body || {};
+    const tenantId = req.tenant?.id as string;
+    if (!tenantId) throw new AppError('Tenant not identified', 400);
+
+    const result = await nfeService.enviarCCe(invoiceId, tenantId, correctionText);
+    res.json({ success: result.success, data: result });
+  } catch (error) {
+    next(error);
+  }
+});

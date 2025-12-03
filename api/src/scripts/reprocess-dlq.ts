@@ -1,4 +1,3 @@
-#!/usr/bin/env tsx
 /**
  * Script para reprocessar Dead Letter Queue (DLQ)
  * 

@@ -560,6 +560,104 @@ export class SefazService {
   }
 
   /**
+   * Envia Carta de Correção Eletrônica (CC-e) - Evento 110110
+   */
+  async enviarCartaCorrecao(
+    chaveAcesso: string,
+    cnpj: string,
+    textoCorrecao: string
+  ): Promise<{
+    status: 'success' | 'error';
+    statusCode: string;
+    statusMessage: string;
+    protocol?: string;
+  }> {
+    if (!textoCorrecao || textoCorrecao.length < 15) {
+      throw new Error('Correction text must have at least 15 characters');
+    }
+
+    const versaoDados = '4.00';
+    const tpAmb = this.config.environment === 'production' ? '1' : '2';
+    const dhEvento = new Date().toISOString();
+    const nSeqEvento = '1';
+
+    const evento = create({ version: '1.0', encoding: 'UTF-8' })
+      .ele('evento', {
+        versao: versaoDados,
+        xmlns: 'http://www.portalfiscal.inf.br/nfe'
+      })
+      .ele('infEvento', { Id: `ID110110${chaveAcesso}01` })
+        .ele('cOrgao').txt('35').up() // Ajustar por UF; SP=35
+        .ele('tpAmb').txt(tpAmb).up()
+        .ele('CNPJ').txt(cnpj).up()
+        .ele('chNFe').txt(chaveAcesso).up()
+        .ele('dhEvento').txt(dhEvento).up()
+        .ele('tpEvento').txt('110110').up() // CC-e
+        .ele('nSeqEvento').txt(nSeqEvento).up()
+        .ele('verEvento').txt('1.00').up()
+        .ele('detEvento', { versao: '1.00' })
+          .ele('descEvento').txt('Carta de Correcao').up()
+          .ele('xCorrecao').txt(textoCorrecao).up()
+          .ele('xCondUso').txt('A Carta de Correção é disciplinada pelo art. 7o, § 1o do Convenio S/N, de 15 de dezembro de 1970 e pelo Ajuste SINIEF 01/2007').up()
+        .up()
+      .up()
+      .end({ prettyPrint: false });
+
+    const envEvento = create({ version: '1.0', encoding: 'UTF-8' })
+      .ele('envEvento', {
+        versao: '1.00',
+        xmlns: 'http://www.portalfiscal.inf.br/nfe'
+      })
+      .ele('idLote').txt(Date.now().toString()).up()
+      .import(create(evento).first())
+      .end({ prettyPrint: false });
+
+    try {
+      const soapResponse = await this.sendSoapRequest(
+        'NFeRecepcaoEvento',
+        'nfeRecepcaoEvento',
+        envEvento
+      );
+
+      const parsed = await parseStringPromise(soapResponse);
+      const result = parsed['soap:Envelope']['soap:Body'][0].nfeRecepcaoEventoResult[0].retEnvEvento[0];
+
+      const cStat = result.cStat[0];
+      const xMotivo = result.xMotivo[0];
+
+      if (cStat === '128') {
+        const retEvento = result.retEvento[0];
+        const infEvento = retEvento.infEvento[0];
+        const eventStat = infEvento.cStat[0];
+
+        if (eventStat === '135' || eventStat === '136') {
+          return {
+            status: 'success',
+            statusCode: eventStat,
+            statusMessage: infEvento.xMotivo[0],
+            protocol: infEvento.nProt?.[0]
+          };
+        } else {
+          return {
+            status: 'error',
+            statusCode: eventStat,
+            statusMessage: infEvento.xMotivo[0]
+          };
+        }
+      } else {
+        return {
+          status: 'error',
+          statusCode: cStat,
+          statusMessage: xMotivo
+        };
+      }
+    } catch (error) {
+      logger.error('Error sending CC-e:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Inutiliza uma numeração de NF-e
    */
   async inutilizarNumeracao(

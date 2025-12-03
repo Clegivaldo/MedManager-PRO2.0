@@ -24,7 +24,7 @@ export interface UpdateGlobalPaymentConfigDTO {
 }
 
 export class GlobalPaymentConfigService {
-  constructor(private prisma: PrismaClient) {}
+  constructor(private prisma: PrismaClient) { }
 
   private async ensureSingleton(): Promise<any> {
     // Usamos any aqui para evitar erros de tipagem antes do prisma generate
@@ -41,12 +41,12 @@ export class GlobalPaymentConfigService {
     return {
       activeGateway: (cfg.activeGateway as any) || 'asaas',
       asaasEnvironment: (cfg.asaasEnvironment as any) || 'sandbox',
-      asaasApiKeyMasked: maskSecret(decrypt(cfg.asaasApiKeyEnc) || ''),
-      asaasWebhookTokenMasked: maskSecret(decrypt(cfg.asaasWebhookTokenEnc) || ''),
-      infinityPayMerchantIdMasked: maskSecret(decrypt(cfg.infinityPayMerchantIdEnc) || ''),
-      infinityPayApiKeyMasked: maskSecret(decrypt(cfg.infinityPayApiKeyEnc) || ''),
-      infinityPayPublicKeyMasked: maskSecret(decrypt(cfg.infinityPayPublicKeyEnc) || ''),
-      infinityPayWebhookSecretMasked: maskSecret(decrypt(cfg.infinityPayWebhookSecretEnc) || ''),
+      asaasApiKeyMasked: maskSecret(decrypt(cfg.asaasApiKeyEnc) || null),
+      asaasWebhookTokenMasked: maskSecret(decrypt(cfg.asaasWebhookTokenEnc) || null),
+      infinityPayMerchantIdMasked: maskSecret(decrypt(cfg.infinityPayMerchantIdEnc) || null),
+      infinityPayApiKeyMasked: maskSecret(decrypt(cfg.infinityPayApiKeyEnc) || null),
+      infinityPayPublicKeyMasked: maskSecret(decrypt(cfg.infinityPayPublicKeyEnc) || null),
+      infinityPayWebhookSecretMasked: maskSecret(decrypt(cfg.infinityPayWebhookSecretEnc) || null),
     };
   }
 
@@ -77,6 +77,30 @@ export class GlobalPaymentConfigService {
       apiKey: decrypt(cfg.asaasApiKeyEnc) || process.env.ASAAS_API_KEY || '',
       environment: (cfg.asaasEnvironment as any) || (process.env.ASAAS_ENVIRONMENT as any) || 'sandbox',
       webhookToken: decrypt(cfg.asaasWebhookTokenEnc) || process.env.ASAAS_WEBHOOK_TOKEN || '',
+    };
+  }
+
+  async getInfinityPayConfig() {
+    const cfg = await this.ensureSingleton();
+    return {
+      merchantId: decrypt(cfg.infinityPayMerchantIdEnc) || process.env.INFINITYPAY_MERCHANT_ID || '',
+      apiKey: decrypt(cfg.infinityPayApiKeyEnc) || process.env.INFINITYPAY_API_KEY || '',
+      publicKey: decrypt(cfg.infinityPayPublicKeyEnc) || process.env.INFINITYPAY_PUBLIC_KEY || '',
+      webhookSecret: decrypt(cfg.infinityPayWebhookSecretEnc) || process.env.INFINITYPAY_WEBHOOK_SECRET || '',
+    };
+  }
+
+  async getFullConfig() {
+    const cfg = await this.ensureSingleton();
+    return {
+      activeGateway: (cfg.activeGateway as 'asaas' | 'infinitypay') || 'asaas',
+      asaasEnvironment: (cfg.asaasEnvironment as 'sandbox' | 'production') || 'sandbox',
+      asaasApiKey: decrypt(cfg.asaasApiKeyEnc) || process.env.ASAAS_API_KEY || '',
+      asaasWebhookToken: decrypt(cfg.asaasWebhookTokenEnc) || process.env.ASAAS_WEBHOOK_TOKEN || '',
+      infinityPayMerchantId: decrypt(cfg.infinityPayMerchantIdEnc) || process.env.INFINITYPAY_MERCHANT_ID || '',
+      infinityPayApiKey: decrypt(cfg.infinityPayApiKeyEnc) || process.env.INFINITYPAY_API_KEY || '',
+      infinityPayPublicKey: decrypt(cfg.infinityPayPublicKeyEnc) || process.env.INFINITYPAY_PUBLIC_KEY || '',
+      infinityPayWebhookSecret: decrypt(cfg.infinityPayWebhookSecretEnc) || process.env.INFINITYPAY_WEBHOOK_SECRET || '',
     };
   }
 }

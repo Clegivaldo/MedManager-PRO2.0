@@ -15,12 +15,14 @@ import {
   ToggleLeft,
   ToggleRight,
   Users,
-  Calendar
+  Calendar,
+  CreditCard
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import EditTenantModal from '@/components/superadmin/modals/EditTenantModal';
 import ToggleTenantStatusModal from '@/components/superadmin/modals/ToggleTenantStatusModal';
 import ExtendSubscriptionModal from '@/components/superadmin/modals/ExtendSubscriptionModal';
+import CreateChargeModal from '@/components/superadmin/modals/CreateChargeModal';
 import superadminService, { type SuperadminTenant } from '@/services/superadmin.service';
 import { useToast } from '@/hooks/use-toast';
 
@@ -30,12 +32,13 @@ export default function TenantManagement() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isToggleStatusOpen, setIsToggleStatusOpen] = useState(false);
   const [isExtendOpen, setIsExtendOpen] = useState(false);
+  const [isChargeOpen, setIsChargeOpen] = useState(false);
   const [editMode, setEditMode] = useState<'create' | 'edit'>('create');
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<SuperadminTenant[]>([]);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
-  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [planFilter, setPlanFilter] = useState<string>('');
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -44,7 +47,7 @@ export default function TenantManagement() {
   const load = async () => {
     try {
       setLoading(true);
-      const res = await superadminService.listTenants({ page, limit, status: statusFilter || undefined, plan: planFilter || undefined });
+      const res = await superadminService.listTenants({ page, limit, status: statusFilter !== 'all' ? statusFilter : undefined, plan: planFilter || undefined });
       setItems(res.tenants);
       setPages(res.pagination.pages);
       setTotal(res.pagination.total);
@@ -78,6 +81,11 @@ export default function TenantManagement() {
   const handleExtendSubscription = (tenant: SuperadminTenant) => {
     setSelectedTenant(tenant);
     setIsExtendOpen(true);
+  };
+
+  const handleCreateCharge = (tenant: SuperadminTenant) => {
+    setSelectedTenant(tenant);
+    setIsChargeOpen(true);
   };
 
   const getStatusBadge = (status: string) => {
@@ -125,7 +133,7 @@ export default function TenantManagement() {
             <div className="flex flex-wrap gap-3 items-center">
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">Status</span>
-                <Select value={statusFilter} onValueChange={(v) => { setPage(1); setStatusFilter(v === 'all' ? '' : v); }}>
+                <Select value={statusFilter} onValueChange={(v) => { setPage(1); setStatusFilter(v); }}>
                   <SelectTrigger className="w-[160px]"><SelectValue placeholder="Todos" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos</SelectItem>
@@ -214,9 +222,12 @@ export default function TenantManagement() {
                       <Button variant="ghost" size="sm" onClick={() => handleExtendSubscription(tenant)} title="Estender licença">
                         <Calendar className="h-4 w-4 text-blue-500" />
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleToggleStatus(tenant)} title={tenant.status === 'active' ? 'Desativar' : 'Ativar'}>
+                    <Button variant="ghost" size="sm" onClick={() => handleToggleStatus(tenant)} title={tenant.status === 'active' ? 'Desativar' : 'Ativar'}>
                         {tenant.status === 'active' ? <ToggleLeft className="h-4 w-4 text-red-500"/> : <ToggleRight className="h-4 w-4 text-green-500"/>}
-                      </Button>
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleCreateCharge(tenant)} title="Gerar cobrança">
+                      <CreditCard className="h-4 w-4 text-purple-500" />
+                    </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -240,6 +251,8 @@ export default function TenantManagement() {
       <ToggleTenantStatusModal tenant={selectedTenant} open={isToggleStatusOpen} onOpenChange={setIsToggleStatusOpen} onToggled={load} />
       
       <ExtendSubscriptionModal tenant={selectedTenant} open={isExtendOpen} onOpenChange={setIsExtendOpen} onExtended={load} />
+
+      <CreateChargeModal tenantId={selectedTenant?.id} tenantName={selectedTenant?.name} open={isChargeOpen} onOpenChange={setIsChargeOpen} onSuccess={load} />
     </>
   );
 }

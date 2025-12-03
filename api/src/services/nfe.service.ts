@@ -2,11 +2,14 @@ import { config } from '../config/environment.js';
 import { logger } from '../utils/logger.js';
 import { AppError } from '../utils/errors.js';
 import { prismaMaster } from '../lib/prisma.js';
+import { withTenantPrisma } from '../lib/tenant-prisma.js';
 import { v4 as uuidv4 } from 'uuid';
 import { signXml, validateCertificate } from '../utils/xmlSigner.js';
 import { buildNFeXml, generateAccessKey, type NFeXmlData } from '../utils/nfeXmlBuilder.js';
 import { decryptCertificate } from '../utils/certificate.js';
 import { SefazService, type SefazConfig } from './sefaz.service.js';
+import { normalizeNFeStatus } from '../utils/nfeStatusCodes.js';
+import { InvoiceStatus } from '@prisma/client';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -157,6 +160,21 @@ export class NFeService {
     this.certificatePassword = config.SEFAZ_CERT_PASSWORD || '';
   }
 
+  // Map normalized NFe status strings to InvoiceStatus enum values
+  private mapInvoiceStatus(norm?: string | null): InvoiceStatus | undefined {
+    if (!norm) return undefined;
+    const map: Record<string, InvoiceStatus> = {
+      'authorized': InvoiceStatus.AUTHORIZED,
+      'denied': InvoiceStatus.DENIED,
+      'cancelled': InvoiceStatus.CANCELLED,
+      'cancelled_homologated': InvoiceStatus.CANCELLED as any,
+      'in_contingency': InvoiceStatus.IN_CONTINGENCY as any,
+      'issued': InvoiceStatus.ISSUED as any,
+      'error': InvoiceStatus.DENIED as any
+    } as any;
+    return map[norm] || undefined;
+  }
+
   /**
    * Emite uma NF-e na Sefaz
    */
@@ -242,6 +260,24 @@ export class NFeService {
         seriesNumber: activeSeries.seriesNumber,
         invoiceNumber: nextNumber
       });
+
+      // Persistir resultado básico em invoice.nfe (se disponível)
+      try {
+        await withTenantPrisma({ id: tenantId } as any, async (prisma) => {
+          await prisma.invoice.update({
+            where: { id: nfeData.invoice.id },
+            data: {
+              accessKey: sefazResponse.accessKey,
+              protocol: sefazResponse.protocolNumber,
+              status: this.mapInvoiceStatus(normalizeNFeStatus(sefazResponse.statusCode) || sefazResponse.status) || undefined,
+              xmlContent: sefazResponse.xml || sefazResponse.xmlContent || undefined,
+              authorizationDate: sefazResponse.authorizationDate || undefined
+            }
+          });
+        });
+      } catch (e) {
+        logger.warn('Failed to persist NFe emission result to invoice', { error: (e as Error).message });
+      }
 
       return sefazResponse;
 
@@ -769,7 +805,7 @@ export class NFeService {
             accessKey: cancelData.accessKey,
             cancellationProtocol: cancelResponse.protocol 
           });
-          return {
+          const resp = {
             success: true,
             accessKey: cancelData.accessKey,
             protocolNumber: cancelResponse.protocol,
@@ -781,6 +817,22 @@ export class NFeService {
             cancellationProtocol: cancelResponse.protocol,
             cancellationJustification: cancelData.justification
           };
+          try {
+            await withTenantPrisma({ id: tenantId } as any, async (prisma) => {
+              await prisma.invoice.updateMany({
+                where: { accessKey: cancelData.accessKey },
+                data: {
+                  status: 'CANCELLED',
+                  protocol: cancelResponse.protocol,
+                  xmlContent: JSON.stringify({ cancellationJustification: cancelData.justification }),
+                  authorizationDate: new Date()
+                }
+              });
+            });
+          } catch (e) {
+            logger.warn('Failed to persist NFe cancellation to invoice', { error: (e as Error).message });
+          }
+          return resp;
         } else {
           return {
             success: false,
@@ -855,7 +907,7 @@ export class NFeService {
         status: consultaResponse.status 
       });
 
-      return {
+      const result = {
         success: consultaResponse.status === 'authorized',
         accessKey,
         status: consultaResponse.status,
@@ -871,6 +923,25 @@ export class NFeService {
         }
       };
 
+      try {
+        await withTenantPrisma({ id: tenantId } as any, async (prisma) => {
+          await prisma.invoice.updateMany({
+            where: { accessKey },
+            data: {
+              accessKey,
+              protocol: consultaResponse.protocol,
+              status: this.mapInvoiceStatus(normalizeNFeStatus(consultaResponse.statusCode) || consultaResponse.status) || undefined,
+              xmlContent: consultaResponse.xml || undefined,
+              authorizationDate: consultaResponse.authorizationDate || undefined
+            }
+          });
+        });
+      } catch (e) {
+        logger.warn('Failed to persist NFe status to invoice', { error: (e as Error).message });
+      }
+
+      return result;
+
     } catch (error) {
       logger.error(`NFe status consultation failed`, { 
         accessKey, 
@@ -878,6 +949,100 @@ export class NFeService {
       });
       
       throw new AppError(`NFe status consultation failed: ${(error as Error).message}`, 500);
+    }
+  }
+
+  /**
+   * Envia Carta de Correção (CC-e) para uma NF-e
+   */
+  async enviarCCe(invoiceId: string, tenantId: string, correctionText: string): Promise<SefazResponse> {
+    try {
+      if (!correctionText || correctionText.length < 15) {
+        throw new AppError('Correction text must have at least 15 characters', 400);
+      }
+
+      // Buscar dados da invoice (acesso à chave e CNPJ do emitente)
+      const invoice = await withTenantPrisma({ id: tenantId } as any, async (prisma) => {
+        return prisma.invoice.findFirst({ where: { id: invoiceId } });
+      });
+      if (!invoice || !invoice.accessKey) {
+        throw new AppError('Invoice not found or NFe access key missing', 404);
+      }
+
+      // Buscar perfil fiscal
+      const fiscalProfile = await prismaMaster.tenantFiscalProfile.findUnique({ where: { tenantId } });
+      if (!fiscalProfile) {
+        throw new AppError('Fiscal profile not configured', 400);
+      }
+
+      const useSimulation = (!fiscalProfile.certificatePath || !fiscalProfile.certificatePassword) && config.ALLOW_NFE_SIMULATION && fiscalProfile.sefazEnvironment === 'homologacao' && config.isDevelopment;
+      if (useSimulation) {
+        logger.warn('CC-e simulated (no certificate).');
+        return {
+          success: true,
+          accessKey: invoice.accessKey,
+          status: 'authorized',
+          statusCode: '135',
+          statusMessage: 'CC-e homologada (Simulação)',
+          protocolNumber: 'SIM-CCE-' + Date.now(),
+          authorizationDate: new Date(),
+          xml: undefined,
+          details: { simulation: true }
+        };
+      }
+
+      // Real CC-e
+      const environment = fiscalProfile.sefazEnvironment === 'producao' ? 'production' : 'homologation';
+      const sefazConfig: SefazConfig = {
+        environment,
+        state: 'SP',
+        certificatePath: fiscalProfile.certificatePath || undefined,
+        certificatePassword: fiscalProfile.certificatePassword || undefined
+      };
+      const sefazService = new SefazService(sefazConfig);
+      if (fiscalProfile.certificatePath) {
+        await sefazService.loadCertificate();
+      }
+
+      const cceResponse = await sefazService.enviarCartaCorrecao(
+        invoice.accessKey as string,
+        fiscalProfile.cnpj,
+        correctionText
+      );
+
+      const resp = {
+        success: cceResponse.status === 'success',
+        accessKey: invoice.accessKey as string,
+        status: cceResponse.status === 'success' ? 'authorized' : 'error',
+        statusCode: cceResponse.statusCode,
+        statusMessage: cceResponse.statusMessage,
+        protocolNumber: cceResponse.protocol,
+        authorizationDate: new Date(),
+        xml: undefined,
+        details: { correctionText }
+      };
+
+      try {
+        await withTenantPrisma({ id: tenantId } as any, async (prisma) => {
+          await prisma.invoice.update({
+            where: { id: invoiceId },
+            data: {
+              accessKey: invoice.accessKey as string,
+              protocol: cceResponse.protocol,
+              status: this.mapInvoiceStatus(normalizeNFeStatus(cceResponse.statusCode) || (cceResponse.status === 'success' ? 'authorized' : 'error')) || undefined,
+              xmlContent: undefined,
+              authorizationDate: new Date()
+            }
+          });
+        });
+      } catch (e) {
+        logger.warn('Failed to persist CC-e to invoice', { error: (e as Error).message });
+      }
+
+      return resp;
+    } catch (error) {
+      logger.error('CC-e failed', { invoiceId, error: (error as Error).message });
+      throw new AppError(`CC-e failed: ${(error as Error).message}`, 500);
     }
   }
 
