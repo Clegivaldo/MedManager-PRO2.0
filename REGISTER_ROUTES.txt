@@ -1,0 +1,59 @@
+# ========================================
+# INSTRUÇÕES PARA REGISTRAR AS ROTAS
+# ========================================
+
+# Localize o arquivo principal da API (provavelmente api/src/app.ts ou api/src/index.ts)
+# e adicione as seguintes importações e registros de rotas:
+
+# 1. IMPORTAÇÕES (adicione no topo do arquivo, após outras importações)
+import tenantSettingsRoutes from './routes/tenant-settings.routes.js';
+import financialRoutes from './routes/financial.routes.js';
+import auditRoutes from './routes/audit.routes.js';
+
+# 2. REGISTRO DE ROTAS (adicione onde as outras rotas são registradas)
+app.use('/api/tenant/settings', tenantSettingsRoutes);
+app.use('/api/financial', financialRoutes);
+app.use('/api/audit', auditRoutes);
+
+# ========================================
+# EXEMPLO COMPLETO
+# ========================================
+
+# Se o seu arquivo app.ts se parece com isso:
+
+import express from 'express';
+import userRoutes from './routes/user.routes.js';
+import invoiceRoutes from './routes/invoice.routes.js';
+
+const app = express();
+
+app.use('/api/users', userRoutes);
+app.use('/api/invoices', invoiceRoutes);
+
+# Adicione as novas rotas assim:
+
+import express from 'express';
+import userRoutes from './routes/user.routes.js';
+import invoiceRoutes from './routes/invoice.routes.js';
+import tenantSettingsRoutes from './routes/tenant-settings.routes.js';  // NOVO
+import financialRoutes from './routes/financial.routes.js';              // NOVO
+import auditRoutes from './routes/audit.routes.js';                      // NOVO
+
+const app = express();
+
+app.use('/api/users', userRoutes);
+app.use('/api/invoices', invoiceRoutes);
+app.use('/api/tenant/settings', tenantSettingsRoutes);  // NOVO
+app.use('/api/financial', financialRoutes);              // NOVO
+app.use('/api/audit', auditRoutes);                      // NOVO
+
+# ========================================
+# APÓS ADICIONAR AS ROTAS
+# ========================================
+
+# 1. Salve o arquivo
+# 2. Reinicie o servidor backend
+# 3. Teste os endpoints:
+#    - GET  http://localhost:3000/api/tenant/settings
+#    - GET  http://localhost:3000/api/financial/summary
+#    - GET  http://localhost:3000/api/audit/logs

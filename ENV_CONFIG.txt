@@ -1,0 +1,19 @@
+# ========================================
+# INSTRUÇÕES PARA CONFIGURAR .env
+# ========================================
+
+# Adicione estas linhas ao seu arquivo .env existente:
+
+# Chave de criptografia gerada automaticamente
+ENCRYPTION_KEY=5cc9e92e2d224c1074cc52a1b8f12e534889408093046665239191fb02fe3b5569
+
+# Configurações de upload
+MAX_FILE_SIZE=5242880
+UPLOAD_DIR=./uploads
+CERTIFICATES_DIR=./certificates
+
+# ========================================
+# IMPORTANTE
+# ========================================
+# Copie a linha ENCRYPTION_KEY acima e cole no seu arquivo .env
+# Esta chave é necessária para criptografar dados sensíveis

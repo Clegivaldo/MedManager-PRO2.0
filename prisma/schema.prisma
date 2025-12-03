@@ -310,6 +310,52 @@ model ControlledPrescription {
   @@index([isUsed])
 }
 
+model TenantSettings {
+  id                      String    @id @default(uuid())
+  
+  // Dados cadastrais
+  cnpj                    String    @unique
+  companyName             String    @map("company_name")
+  tradingName             String?   @map("trading_name")
+  stateRegistration       String?   @map("state_registration")
+  municipalRegistration   String?   @map("municipal_registration")
+  taxRegime               TaxRegime @map("tax_regime")
+  
+  // Endereço
+  zipCode                 String    @map("zip_code")
+  street                  String
+  number                  String
+  complement              String?
+  neighborhood            String
+  city                    String
+  state                   String
+  
+  // Contatos
+  phone                   String
+  mobile                  String?
+  email                   String
+  nfeEmail                String?   @map("nfe_email")
+  
+  // Logo
+  logoUrl                 String?   @map("logo_url")
+  
+  // Certificado Digital
+  certificatePath         String?   @map("certificate_path")
+  certificatePassword     String?   @map("certificate_password") // Criptografado
+  certificateExpiresAt    DateTime? @map("certificate_expires_at")
+  
+  // Configurações SEFAZ
+  cscId                   String?   @map("csc_id")
+  cscToken                String?   @map("csc_token") // Criptografado
+  sefazEnvironment        SefazEnvironment @default(HOMOLOGACAO) @map("sefaz_environment")
+  
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+  
+  @@map("tenant_settings")
+  @@index([cnpj])
+}
+
 // Enums
 enum UserRole {
   MASTER
@@ -360,4 +406,16 @@ enum InvoiceStatus {
   CANCELLED
   DENIED
   IN_CONTINGENCY
+}
+
+enum TaxRegime {
+  SIMPLE_NATIONAL
+  REAL_PROFIT
+  PRESUMED_PROFIT
+  MEI
+}
+
+enum SefazEnvironment {
+  HOMOLOGACAO
+  PRODUCAO
 }

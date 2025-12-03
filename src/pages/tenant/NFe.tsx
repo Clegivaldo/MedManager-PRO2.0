@@ -1,216 +1,434 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
-  FileText,
-  Plus,
-  Search,
-  Download,
-  XCircle,
-  CheckCircle,
-  Clock,
-  FileCode
+  FileText, Download, X, Search, Filter, Calendar,
+  ChevronLeft, ChevronRight, RefreshCw, Loader2
 } from 'lucide-react';
-import CancelNFeModal from '@/components/tenant/modals/CancelNFeModal';
-import NewNFeModal from '@/components/tenant/modals/NewNFeModal';
-import invoiceService, { InvoiceListItem } from '@/services/invoice.service';
-import { getErrorMessage } from '@/services/api';
 import { useToast } from '@/hooks/use-toast';
+import invoiceService from '@/services/invoice.service';
+import { getErrorMessage } from '@/services/api';
+
+interface Invoice {
+  id: string;
+  number: number;
+  series: number;
+  accessKey: string;
+  issueDate: string;
+  totalValue: number;
+  status: string;
+  customer?: {
+    companyName: string;
+  };
+}
+
+const STATUS_LABELS: Record<string, { label: string; color: string }> = {
+  DRAFT: { label: 'Rascunho', color: 'bg-gray-100 text-gray-800' },
+  ISSUED: { label: 'Emitida', color: 'bg-blue-100 text-blue-800' },
+  AUTHORIZED: { label: 'Autorizada', color: 'bg-green-100 text-green-800' },
+  CANCELLED: { label: 'Cancelada', color: 'bg-red-100 text-red-800' },
+  DENIED: { label: 'Denegada', color: 'bg-orange-100 text-orange-800' },
+  IN_CONTINGENCY: { label: 'Contingência', color: 'bg-yellow-100 text-yellow-800' },
+};
 
 export default function NFe() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedNFe, setSelectedNFe] = useState<{ id: string; client: string } | null>(null);
-  const [isCancelOpen, setIsCancelOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [invoices, setInvoices] = useState<InvoiceListItem[]>([]);
   const { toast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadInvoices();
+  }, [page, statusFilter, searchTerm, startDate, endDate]);
 
   const loadInvoices = async () => {
     try {
       setLoading(true);
-      const res = await invoiceService.list({ page: 1, limit: 20 });
-      setInvoices(res.invoices || []);
-    } catch (e) {
-      toast({ title: 'Falha ao carregar notas', description: getErrorMessage(e), variant: 'destructive' });
+      const response = await invoiceService.listInvoices({
+        page,
+        limit: 15,
+        search: searchTerm || undefined,
+        status: statusFilter || undefined,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+      });
+
+      setInvoices(response.invoices);
+      setTotal(response.total);
+      setTotalPages(Math.ceil(response.total / 15));
+    } catch (error) {
+      toast({
+        title: 'Erro ao carregar notas fiscais',
+        description: getErrorMessage(error),
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    loadInvoices();
-  }, []);
+  const handleDownloadDANFE = async (invoiceId: string) => {
+    try {
+      setDownloadingId(invoiceId);
+      await invoiceService.downloadDANFE(invoiceId);
 
-  const handleCancel = (nfe: any) => {
-    setSelectedNFe({ id: nfe.id, client: nfe.customer?.companyName || '-' });
-    setIsCancelOpen(true);
+      toast({
+        title: 'Download iniciado',
+        description: 'O DANFE está sendo baixado',
+      });
+    } catch (error) {
+      toast({
+        title: 'Erro ao baixar DANFE',
+        description: getErrorMessage(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setDownloadingId(null);
+    }
   };
-  
+
+  const handleDownloadXML = async (invoiceId: string) => {
+    try {
+      setDownloadingId(invoiceId);
+      await invoiceService.downloadXML(invoiceId);
+
+      toast({
+        title: 'Download iniciado',
+        description: 'O XML está sendo baixado',
+      });
+    } catch (error) {
+      toast({
+        title: 'Erro ao baixar XML',
+        description: getErrorMessage(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  const handleCancelInvoice = async (invoiceId: string) => {
+    if (!confirm('Tem certeza que deseja cancelar esta nota fiscal?')) {
+      return;
+    }
+
+    try {
+      setCancellingId(invoiceId);
+      await invoiceService.cancelInvoice(invoiceId);
+
+      toast({
+        title: 'Nota fiscal cancelada',
+        description: 'A NFe foi cancelada com sucesso',
+      });
+
+      loadInvoices();
+    } catch (error) {
+      toast({
+        title: 'Erro ao cancelar nota',
+        description: getErrorMessage(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'DRAFT': return <Badge className="bg-yellow-100 text-yellow-800"><Clock className="h-3 w-3 mr-1"/>Rascunho</Badge>;
-      case 'AUTHORIZED': return <Badge className="bg-green-100 text-green-800"><CheckCircle className="h-3 w-3 mr-1"/>Autorizada</Badge>;
-      case 'CANCELLED': return <Badge className="bg-red-100 text-red-800"><XCircle className="h-3 w-3 mr-1"/>Cancelada</Badge>;
-      case 'DENIED': return <Badge variant="destructive">Negada</Badge>;
-      case 'ISSUED': return <Badge>Emitida</Badge>;
-      default: return <Badge variant="secondary">Desconhecido</Badge>;
-    }
+    const statusInfo = STATUS_LABELS[status] || { label: status, color: 'bg-gray-100 text-gray-800' };
+    return (
+      <Badge className={statusInfo.color}>
+        {statusInfo.label}
+      </Badge>
+    );
   };
 
-  const filteredNFe = useMemo(() =>
-    invoices.filter(nfe =>
-      nfe.number.toString().toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (nfe.customer?.companyName || '').toLowerCase().includes(searchTerm.toLowerCase())
-    ),
-    [invoices, searchTerm]
-  );
-
-  const handleDownloadDanfe = async (id: string, accessKey?: string | null) => {
-    try {
-      const blob = await invoiceService.downloadDanfe(id);
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `danfe-${accessKey || id}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-      toast({ title: 'DANFE baixado', description: 'PDF gerado com sucesso.' });
-    } catch (e) {
-      toast({ title: 'Falha ao baixar DANFE', description: getErrorMessage(e), variant: 'destructive' });
-    }
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(value);
   };
 
-  const handleDownloadXml = async (id: string, accessKey?: string | null) => {
-    try {
-      const blob = await invoiceService.downloadXml(id);
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `NFe-${accessKey || id}.xml`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-      toast({ title: 'XML baixado', description: 'Arquivo XML autorizado salvo com sucesso.' });
-    } catch (e) {
-      toast({ title: 'Falha ao baixar XML', description: getErrorMessage(e), variant: 'destructive' });
-    }
+  const formatDate = (date: string) => {
+    return new Date(date).toLocaleDateString('pt-BR');
+  };
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setStatusFilter('');
+    setStartDate('');
+    setEndDate('');
+    setPage(1);
   };
 
   return (
     <>
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Notas Fiscais (NFe)</h1>
-          <p className="text-gray-600 mt-1">Emita e gerencie suas notas fiscais eletrônicas</p>
-        </div>
-        <Dialog>
-            <DialogTrigger asChild>
-                <Button className="bg-blue-600 hover:bg-blue-700">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Emitir NFe Avulsa
-                </Button>
-            </DialogTrigger>
-            <NewNFeModal onCreated={loadInvoices} />
-        </Dialog>
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold">Notas Fiscais Eletrônicas</h1>
+        <p className="text-muted-foreground mt-1">Gerencie suas NFe emitidas e autorizadas</p>
       </div>
 
-      <Card className="border-0 shadow-sm">
+      <Card>
         <CardHeader>
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-                <CardTitle>Lista de Notas Fiscais</CardTitle>
-                <CardDescription>{filteredNFe.length} notas encontradas</CardDescription>
+              <CardTitle>NFe Emitidas</CardTitle>
+              <CardDescription>{total} notas fiscais encontradas</CardDescription>
             </div>
-            <div className="w-full max-w-sm">
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input placeholder="Buscar por nº da NFe ou cliente..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
-                </div>
-            </div>
+            <Button onClick={loadInvoices} variant="outline" size="sm">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Atualizar
+            </Button>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {/* Filtros */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="md:col-span-2 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por número ou cliente..."
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setPage(1);
+                }}
+                className="pl-10"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={(value) => {
+              setStatusFilter(value);
+              setPage(1);
+            }}>
+              <SelectTrigger>
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Todos os Status</SelectItem>
+                {Object.entries(STATUS_LABELS).map(([value, { label }]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setPage(1);
+                }}
+                className="pl-10"
+                placeholder="Data inicial"
+              />
+            </div>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setPage(1);
+                }}
+                className="pl-10"
+                placeholder="Data final"
+              />
+            </div>
+          </div>
+
+          {(searchTerm || statusFilter || startDate || endDate) && (
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Filtros ativos:</span>
+              <Button variant="ghost" size="sm" onClick={clearFilters}>
+                Limpar filtros
+              </Button>
+            </div>
+          )}
+
+          {/* Tabela */}
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Número</TableHead>
                 <TableHead>Cliente</TableHead>
-                <TableHead>Data de Emissão</TableHead>
+                <TableHead>Data Emissão</TableHead>
                 <TableHead>Valor</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Ações</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredNFe.map((nfe) => (
-                <TableRow key={nfe.id}>
-                  <TableCell className="font-mono">{nfe.number}</TableCell>
-                  <TableCell className="font-medium">{nfe.customer?.companyName || '-'}</TableCell>
-                  <TableCell>{new Date(nfe.issueDate).toLocaleDateString('pt-BR')}</TableCell>
-                  <TableCell className="font-medium">R$ {Number(nfe.totalValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
-                  <TableCell>{getStatusBadge(nfe.status)}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        disabled={nfe.status !== 'AUTHORIZED'} 
-                        onClick={() => handleDownloadDanfe(nfe.id, nfe.accessKey)}
-                        title="Baixar DANFE (PDF)"
-                      >
-                        <Download className="h-4 w-4" />
+              {loading ? (
+                // Loading skeleton
+                Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-40" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-6 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-8 w-32 ml-auto" /></TableCell>
+                  </TableRow>
+                ))
+              ) : invoices.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <FileText className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p>Nenhuma nota fiscal encontrada</p>
+                    {(searchTerm || statusFilter || startDate || endDate) && (
+                      <Button variant="link" onClick={clearFilters} className="mt-2">
+                        Limpar filtros
                       </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        disabled={nfe.status !== 'AUTHORIZED'} 
-                        onClick={() => handleDownloadXml(nfe.id, nfe.accessKey)}
-                        title="Baixar XML Autorizado"
-                      >
-                        <FileCode className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        disabled={nfe.status !== 'AUTHORIZED'} 
-                        onClick={() => handleCancel(nfe)}
-                        title="Cancelar NF-e"
-                      >
-                        <XCircle className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    )}
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                invoices.map((invoice) => (
+                  <TableRow key={invoice.id}>
+                    <TableCell className="font-mono">
+                      {invoice.number.toString().padStart(6, '0')}/{invoice.series}
+                    </TableCell>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{invoice.customer?.companyName || 'N/A'}</p>
+                        {invoice.accessKey && (
+                          <p className="text-xs text-muted-foreground font-mono">
+                            {invoice.accessKey.substring(0, 20)}...
+                          </p>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>{formatDate(invoice.issueDate)}</TableCell>
+                    <TableCell className="font-medium">{formatCurrency(invoice.totalValue)}</TableCell>
+                    <TableCell>{getStatusBadge(invoice.status)}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDownloadDANFE(invoice.id)}
+                          disabled={downloadingId === invoice.id}
+                        >
+                          {downloadingId === invoice.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <>
+                              <Download className="h-4 w-4 mr-1" />
+                              DANFE
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDownloadXML(invoice.id)}
+                          disabled={downloadingId === invoice.id}
+                        >
+                          {downloadingId === invoice.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <>
+                              <Download className="h-4 w-4 mr-1" />
+                              XML
+                            </>
+                          )}
+                        </Button>
+                        {invoice.status === 'AUTHORIZED' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleCancelInvoice(invoice.id)}
+                            disabled={cancellingId === invoice.id}
+                          >
+                            {cancellingId === invoice.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <X className="h-4 w-4 text-red-600" />
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
+
+          {/* Paginação */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4">
+              <p className="text-sm text-muted-foreground">
+                Mostrando {((page - 1) * 15) + 1} a {Math.min(page * 15, total)} de {total} notas
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1 || loading}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Anterior
+                </Button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (page <= 3) {
+                      pageNum = i + 1;
+                    } else if (page >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = page - 2 + i;
+                    }
+
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={page === pageNum ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setPage(pageNum)}
+                        disabled={loading}
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages || loading}
+                >
+                  Próxima
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
-      
-      <CancelNFeModal
-        nfe={selectedNFe}
-        open={isCancelOpen}
-        onOpenChange={setIsCancelOpen}
-        onConfirm={async (justification) => {
-          if (!selectedNFe) return;
-          try {
-            await invoiceService.cancel(selectedNFe.id, justification);
-            toast({ title: 'NF-e cancelada com sucesso' });
-            setIsCancelOpen(false);
-            setSelectedNFe(null);
-            await loadInvoices();
-          } catch (e) {
-            toast({ title: 'Falha ao cancelar NF-e', description: getErrorMessage(e), variant: 'destructive' });
-          }
-        }}
-      />
     </>
   );
 }

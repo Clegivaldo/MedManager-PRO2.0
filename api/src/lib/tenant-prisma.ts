@@ -6,12 +6,18 @@ import { prismaMaster } from './prisma.js';
  * Helper para obter instância Prisma dinâmica baseada em tenant context
  * Retorna master se não houver tenant, tenant-specific caso contrário
  */
-export function getTenantPrisma(tenantContext?: { databaseName: string }): PrismaClient {
+export function getTenantPrisma(tenantContext?: any | string): PrismaClient {
   if (!tenantContext) {
     return prismaMaster as any;
   }
 
-  const tenantDbUrl = config.DATABASE_URL.replace(/\/(\w+)$/, `/${tenantContext.databaseName}`);
+  // Allow either passing an object ({ databaseName }) or a plain string (databaseName)
+  const dbName = typeof tenantContext === 'string' ? tenantContext : (tenantContext.databaseName || tenantContext.id || undefined);
+  if (!dbName) {
+    return prismaMaster as any;
+  }
+
+  const tenantDbUrl = config.DATABASE_URL.replace(/\/(\w+)$/, `/${dbName}`);
   
   return new PrismaClient({
     datasources: {

@@ -1,0 +1,23 @@
+# Adicione estas linhas ao seu arquivo .env
+
+# ========================================
+# CHAVE DE CRIPTOGRAFIA (OBRIGATÓRIO)
+# ========================================
+# Use o comando abaixo para gerar uma chave segura:
+# node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+ENCRYPTION_KEY=your-32-character-encryption-key-here-replace-this
+
+# ========================================
+# CONFIGURAÇÕES DE UPLOAD
+# ========================================
+MAX_FILE_SIZE=5242880
+UPLOAD_DIR=./uploads
+CERTIFICATES_DIR=./certificates
+
+# ========================================
+# OUTRAS CONFIGURAÇÕES (se necessário)
+# ========================================
+# NODE_ENV=development
+# PORT=3000
+# DATABASE_URL=postgresql://user:password@localhost:5432/medmanager
