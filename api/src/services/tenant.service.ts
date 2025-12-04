@@ -1,11 +1,14 @@
 import { prismaMaster } from '../lib/prisma.js';
 import { logger } from '../utils/logger.js';
-import { execSync } from 'child_process';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import fs from 'fs/promises';
 import path from 'path';
 import { config } from '../config/environment.js';
 import { hashPassword } from '../services/auth.service.js';
 import { UserRole } from '@prisma/client';
+
+const execAsync = promisify(exec);
 
 export interface TenantCreationData {
   name: string;
@@ -175,20 +178,26 @@ export class TenantService {
    * Criar banco de dados para o tenant
    */
   async createTenantDatabase(
-    databaseName: string, 
-    databaseUser: string, 
+    databaseName: string,
+    databaseUser: string,
     databasePassword: string
   ) {
     try {
+      // Validação de segurança para evitar injection
+      this.validateIdentifier(databaseName);
+      this.validateIdentifier(databaseUser);
+      // Senha é gerada internamente, então é segura, mas vamos escapar aspas simples por precaução
+      const safePassword = databasePassword.replace(/'/g, "''");
+
       logger.info(`Creating database: ${databaseName}`);
 
       // Criar banco de dados
       const createDbSQL = `CREATE DATABASE "${databaseName}" WITH OWNER postgres ENCODING 'UTF8';`;
-      execSync(`psql "${config.DATABASE_URL}" -c "${createDbSQL}"`, { stdio: 'inherit' });
+      await execAsync(`psql "${config.DATABASE_URL}" -c "${createDbSQL}"`);
 
       // Criar usuário do tenant
-      const createUserSQL = `CREATE USER "${databaseUser}" WITH PASSWORD '${databasePassword}';`;
-      execSync(`psql "${config.DATABASE_URL}" -c "${createUserSQL}"`, { stdio: 'inherit' });
+      const createUserSQL = `CREATE USER "${databaseUser}" WITH PASSWORD '${safePassword}';`;
+      await execAsync(`psql "${config.DATABASE_URL}" -c "${createUserSQL}"`);
 
       // Conceder permissões
       const grantPermissionsSQL = `
@@ -198,7 +207,7 @@ export class TenantService {
         ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO "${databaseUser}";
         ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO "${databaseUser}";
       `;
-      execSync(`psql "${config.DATABASE_URL}" -c "${grantPermissionsSQL}"`, { stdio: 'inherit' });
+      await execAsync(`psql "${config.DATABASE_URL}" -c "${grantPermissionsSQL}"`);
 
       logger.info(`Database ${databaseName} created successfully`);
     } catch (error) {
@@ -212,7 +221,7 @@ export class TenantService {
    */
   private async createTenantFolderStructure(cnpj: string): Promise<TenantFolderStructure> {
     const basePath = path.join(config.UPLOAD_DIR, 'tenants', cnpj.replace(/[^\d]/g, ''));
-    
+
     const folders = {
       uploads: path.join(basePath, 'uploads'),
       backups: path.join(basePath, 'backups'),
@@ -228,7 +237,7 @@ export class TenantService {
       // Criar subdiretórios
       for (const folderPath of Object.values(folders)) {
         await fs.mkdir(folderPath, { recursive: true });
-        
+
         // Criar arquivo .gitkeep para manter diretório no git
         await fs.writeFile(path.join(folderPath, '.gitkeep'), '');
       }
@@ -252,14 +261,15 @@ export class TenantService {
    */
   async runTenantMigrations(databaseName: string) {
     try {
+      this.validateIdentifier(databaseName);
       logger.info(`Running migrations for database: ${databaseName}`);
 
       // URL de conexão com o banco do tenant
       const tenantDatabaseUrl = config.DATABASE_URL.replace(/\/(\w+)$/, `/${databaseName}`);
 
       // Executar migrations usando Prisma Migrate
-      execSync(`cd ${process.cwd()} && DATABASE_URL="${tenantDatabaseUrl}" npx prisma migrate deploy`, { 
-        stdio: 'inherit',
+      // Nota: Prisma CLI precisa de um shell, então mantemos o comando como string
+      await execAsync(`cd ${process.cwd()} && DATABASE_URL="${tenantDatabaseUrl}" npx prisma migrate deploy`, {
         env: { ...process.env, DATABASE_URL: tenantDatabaseUrl }
       });
 
@@ -294,14 +304,14 @@ export class TenantService {
       const existing = await prismaTenant.user.findUnique({ where: { email: emailToUse } });
       if (!existing) {
         await prismaTenant.user.create({
-        data: {
-          email: emailToUse,
-          name: 'Administrador',
-          password: await hashPassword('admin123'),
-          role: UserRole.ADMIN,
-          isActive: true,
-          permissions: '[]'
-        }
+          data: {
+            email: emailToUse,
+            name: 'Administrador',
+            password: await hashPassword('admin123'),
+            role: UserRole.ADMIN,
+            isActive: true,
+            permissions: '[]'
+          }
         });
         logger.info(`Default admin user created (${emailToUse}) for tenant: ${tenantName}`);
       } else {
@@ -335,6 +345,15 @@ export class TenantService {
       password += charset.charAt(Math.floor(Math.random() * charset.length));
     }
     return password;
+  }
+
+  /**
+   * Validar identificadores para evitar SQL Injection em comandos do sistema
+   */
+  private validateIdentifier(identifier: string) {
+    if (!/^[a-zA-Z0-9_]+$/.test(identifier)) {
+      throw new Error(`Invalid identifier: ${identifier}`);
+    }
   }
 }
 

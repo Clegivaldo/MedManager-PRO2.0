@@ -273,5 +273,124 @@ function calculateComplianceScore(params: {
   return Math.max(0, Math.min(100, score));
 }
 
+/**
+ * GET /api/v1/dashboard/predictive
+ * Retorna métricas preditivas (previsão de estoque e vendas)
+ */
+router.get('/predictive', requirePermissions([PERMISSIONS.DASHBOARD_VIEW]), async (req, res, next) => {
+  try {
+    const tenant = (req as any).tenant;
+    if (!tenant) {
+      throw new AppError('Tenant context required', 400);
+    }
+
+    const prisma = getTenantPrisma(tenant);
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    // 1. Previsão de Esgotamento de Estoque (Stock Depletion)
+    // Buscar produtos com vendas nos últimos 30 dias
+    const soldProducts = await prisma.invoiceItem.groupBy({
+      by: ['productId'],
+      where: {
+        invoice: {
+          issueDate: { gte: thirtyDaysAgo },
+          status: { in: ['AUTHORIZED', 'ISSUED'] },
+          invoiceType: 'EXIT'
+        }
+      },
+      _sum: {
+        quantity: true
+      }
+    });
+
+    const stockPredictions = [];
+
+    for (const item of soldProducts) {
+      const productId = item.productId;
+      const totalSold = item._sum.quantity || 0;
+      const avgDailyConsumption = totalSold / 30;
+
+      if (avgDailyConsumption > 0) {
+        // Buscar estoque atual
+        const product = await prisma.product.findUnique({
+          where: { id: productId },
+          include: {
+            stock: true
+          }
+        });
+
+        if (product) {
+          const currentStock = product.stock.reduce((acc, s) => acc + s.availableQuantity, 0);
+          const daysRemaining = currentStock / avgDailyConsumption;
+
+          if (daysRemaining < 30) { // Apenas mostrar se for acabar em menos de 30 dias
+            stockPredictions.push({
+              productId: product.id,
+              productName: product.name,
+              currentStock,
+              avgDailyConsumption,
+              daysRemaining: Math.floor(daysRemaining),
+              predictedRunoutDate: new Date(now.getTime() + daysRemaining * 24 * 60 * 60 * 1000)
+            });
+          }
+        }
+      }
+    }
+
+    // 2. Previsão de Vendas (Sales Forecast) - Simples média móvel
+    // Buscar vendas dos últimos 3 meses agrupadas por mês
+    const startOf3MonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+    const monthlySales = await prisma.invoice.groupBy({
+      by: ['issueDate'], // Prisma não suporta group by month nativamente facilmente sem raw query, vamos simplificar
+      where: {
+        issueDate: { gte: startOf3MonthsAgo },
+        status: { in: ['AUTHORIZED', 'ISSUED'] },
+        invoiceType: 'EXIT'
+      },
+      _sum: {
+        totalValue: true
+      }
+    });
+
+    // Agrupar manualmente por mês (YYYY-MM)
+    const salesByMonth: Record<string, number> = {};
+    monthlySales.forEach(sale => {
+      const monthKey = sale.issueDate.toISOString().substring(0, 7); // YYYY-MM
+      salesByMonth[monthKey] = (salesByMonth[monthKey] || 0) + (Number(sale._sum.totalValue) || 0);
+    });
+
+    const months = Object.keys(salesByMonth).sort();
+    let totalSales = 0;
+    months.forEach(m => totalSales += salesByMonth[m]);
+    const avgMonthlySales = months.length > 0 ? totalSales / months.length : 0;
+
+    // Previsão para o próximo mês (média simples + 5% de crescimento otimista)
+    const nextMonthForecast = avgMonthlySales * 1.05;
+
+    res.json({
+      success: true,
+      data: {
+        stockDepletion: stockPredictions.sort((a, b) => a.daysRemaining - b.daysRemaining).slice(0, 5),
+        salesForecast: {
+          nextMonth: nextMonthForecast,
+          trend: nextMonthForecast > avgMonthlySales ? 'up' : 'down',
+          percentage: months.length > 0 ? ((nextMonthForecast - avgMonthlySales) / avgMonthlySales) * 100 : 0
+        }
+      }
+    });
+
+  } catch (error) {
+    logger.error('Failed to retrieve predictive metrics', { error: (error as Error).message });
+    next(error);
+  } finally {
+    const tenant = (req as any).tenant;
+    const prisma = getTenantPrisma(tenant);
+    if (tenant) {
+      await prisma.$disconnect();
+    }
+  }
+});
+
 export default router;
 

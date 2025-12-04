@@ -60,7 +60,8 @@ export default function SystemJobsStatus() {
           <section style={{ border: '1px solid #ddd', borderRadius: 8, padding: 16 }}>
             <h3>Cron: Pagamentos</h3>
             {payment ? (
-              <ul>
+              <>
+                <ul>
                 <li>Agendado: {payment.isScheduled ? 'Sim' : 'Não'}</li>
                 <li>Executando: {payment.isRunning ? 'Sim' : 'Não'}</li>
                 <li>Cron: {payment.cronExpression}</li>
@@ -83,13 +84,14 @@ export default function SystemJobsStatus() {
                     Alerta: taxa de erro alta. Verifique credenciais/limites do gateway e logs recentes.
                   </li>
                 )}
-              </ul>
-              <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                </ul>
+                <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button onClick={() => openLogs()}>Logs (todos)</button>
                 <button onClick={() => openLogs('error')}>Erros</button>
                 <button onClick={() => openLogs('warn')}>Alertas</button>
                 <button onClick={() => openLogs('info')}>Info</button>
               </div>
+              </>
             ) : (
               <div>Sem dados</div>
             )}

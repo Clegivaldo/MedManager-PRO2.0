@@ -43,7 +43,9 @@ class UserManagementService {
         isActive?: boolean;
     }): Promise<UsersListResponse> {
         const response = await api.get('/users', { params });
-        return response.data;
+        // API padrão retorna { success, data }, então extrair .data quando presente
+        // Alguns endpoints retornam diretamente o payload; lidar com ambos os casos
+        return response.data?.data ? response.data.data : response.data;
     }
 
     /**

@@ -242,6 +242,49 @@ router.post('/2fa/disable', authenticateToken, async (req, res, next) => {
 });
 
 // Gerenciamento de usuários (admin)
+// Listar usuários do tenant (página de gerenciamento de usuários)
+router.get('/', authenticateToken, requirePermission(PERMISSIONS.USER_READ), async (req, res, next) => {
+  try {
+    const prisma = getTenantPrisma((req as any).tenant);
 
+    const { page = '1', perPage = '25', search, role, status } = req.query as any;
+    const pageNum = parseInt(page, 10) || 1;
+    const per = parseInt(perPage, 10) || 25;
+
+    const where: any = {};
+    if (search) {
+      where.OR = [
+        { name: { contains: String(search), mode: 'insensitive' } },
+        { email: { contains: String(search), mode: 'insensitive' } }
+      ];
+    }
+    if (role) {
+      where.role = String(role);
+    }
+    if (status === 'active') where.isActive = true;
+    if (status === 'inactive') where.isActive = false;
+
+    const users = await prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+        avatarUrl: true
+      },
+      skip: (pageNum - 1) * per,
+      take: per
+    });
+
+    const total = await prisma.user.count({ where });
+
+    res.json({ success: true, data: { users, pagination: { page: pageNum, perPage: per, total } } });
+  } catch (error) {
+    next(error);
+  }
+});
 
 export default router;

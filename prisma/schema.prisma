@@ -416,6 +416,5 @@ enum TaxRegime {
 }
 
 enum SefazEnvironment {
-  HOMOLOGACAO
   PRODUCAO
 }

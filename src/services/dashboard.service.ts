@@ -80,7 +80,7 @@ class DashboardService {
       planName: data.limits ? 'Plano Atual' : 'Plano',
       users: { current: 0, limit: null, percentage: 0, allowed: true },
       products: { current: 0, limit: null, percentage: 0, allowed: true },
-      transactions: { current: 0, limit: null, percentage: 0, allowed: true, period: new Date().toISOString().substring(0,10) },
+      transactions: { current: 0, limit: null, percentage: 0, allowed: true, period: new Date().toISOString().substring(0, 10) },
       storage: { current: 0, limit: null, percentage: 0, allowed: true, unit: 'GB' },
       subscription: { status: 'active', endDate: '', daysRemaining: 0 }
     };
@@ -103,7 +103,7 @@ class DashboardService {
             limit: typeof m.limit === 'number' ? m.limit : null,
             percentage: m.percentage,
             allowed: m.status !== 'critical',
-            period: new Date().toISOString().substring(0,10)
+            period: new Date().toISOString().substring(0, 10)
           };
         } else {
           (usage as any)[key] = {
@@ -117,6 +117,10 @@ class DashboardService {
     }
 
     return usage;
+  }
+  async getPredictiveMetrics() {
+    const response = await api.get<ApiResponse<any>>('/dashboard/predictive');
+    return response.data.data;
   }
 }
 

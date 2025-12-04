@@ -8,6 +8,7 @@ import { logger } from './utils/logger.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { initializeAdminUser } from './scripts/init-admin.js';
 import { tenantMiddleware, optionalTenantMiddleware } from './middleware/tenantMiddleware.js';
+import { tenantRateLimit } from './middleware/tenantRateLimit.js';
 import authRouter from './routes/auth.routes.js';
 import tenantRouter from './routes/tenant.routes.js';
 import superadminRouter from './routes/superadmin.routes.js';
@@ -34,6 +35,7 @@ import backupRouter from './routes/backup.routes.js';
 import tenantSettingsRoutes from './routes/tenant-settings.routes.js';
 import financialRoutes from './routes/financial.routes.js';
 import auditRoutes from './routes/audit.routes.js';
+import orderRouter from './routes/order.routes.js';
 import { authenticateToken } from './middleware/auth.js';
 import { validateSubscription } from './middleware/subscription.middleware.js';
 import { initPaymentSyncJob, paymentSyncJob } from './jobs/paymentSync.job.js';
@@ -147,6 +149,9 @@ app.use((req, res, next) => {
   return optionalTenantMiddleware(req, res, next);
 });
 
+// Rate limiting por Tenant (após identificar o tenant)
+app.use(tenantRateLimit);
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({
@@ -190,6 +195,7 @@ app.use(`/api/${config.API_VERSION}/invoices`, authenticateToken, tenantMiddlewa
 app.use(`/api/${config.API_VERSION}/fiscal`, authenticateToken, tenantMiddleware, validateSubscription, fiscalRouter);
 app.use(`/api/${config.API_VERSION}/dashboard`, authenticateToken, tenantMiddleware, validateSubscription, dashboardRouter);
 app.use(`/api/${config.API_VERSION}/batches`, authenticateToken, tenantMiddleware, validateSubscription, batchRouter);
+app.use(`/api/${config.API_VERSION}/orders`, authenticateToken, tenantMiddleware, validateSubscription, orderRouter);
 
 // Rota de teste
 app.get('/api/test', (req, res) => {
@@ -231,10 +237,19 @@ initializeAdminUser().catch(error => {
   // Continue even if initialization fails
 });
 
-app.listen(PORT, () => {
+import { createServer } from 'http';
+import { socketService } from './services/socket.service.js';
+
+const httpServer = createServer(app);
+
+httpServer.listen(PORT, () => {
   logger.info(`🚀 MedManager API running on port ${PORT}`);
   logger.info(`📝 Environment: ${config.NODE_ENV}`);
   logger.info(`🔐 Rate limiting: ${config.RATE_LIMIT_MAX_REQUESTS} requests per ${config.RATE_LIMIT_WINDOW_MS}ms`);
+
+  // Inicializa Socket.io
+  socketService.initialize(httpServer);
+
   // Inicializa cron de sincronização de cobranças (se habilitado via env)
   initPaymentSyncJob();
   // Inicializa job automático de limpeza de backups (se habilitado via env)

@@ -25,133 +25,88 @@ import OrderDetailsModal from '@/components/tenant/modals/OrderDetailsModal';
 import EditOrderModal from '@/components/tenant/modals/EditOrderModal';
 import EmptyState from '@/components/EmptyState';
 import TableSkeleton from '@/components/TableSkeleton';
+import orderService, { Order } from '@/services/order.service';
+import { useToast } from '@/hooks/use-toast';
 
 export default function Orders() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('all');
-  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const { toast } = useToast();
+
+  const loadOrders = async () => {
+    try {
+      setLoading(true);
+      const response = await orderService.list({
+        page,
+        limit: 10,
+        search: searchTerm || undefined,
+        status: selectedStatus !== 'all' ? selectedStatus.toUpperCase() : undefined,
+      });
+      setOrders(response.data || []);
+      setTotal(response.meta?.total || 0);
+    } catch (error) {
+      console.error('Error loading orders:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível carregar os pedidos.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 1000);
-    return () => clearTimeout(timer);
-  }, []);
+    loadOrders();
+  }, [page, searchTerm, selectedStatus]);
 
-  const orders = [
-    {
-      id: '#PED-2024-001',
-      client: 'Drogaria São Paulo',
-      clientCode: 'CLI-001',
-      date: '2024-11-07',
-      status: 'processando',
-      items: 15,
-      totalValue: 12450.00,
-      paymentMethod: 'Boleto',
-      deliveryDate: '2024-11-10',
-      prescription: true,
-      priority: 'normal'
-    },
-    {
-      id: '#PED-2024-002',
-      client: 'Farmácia Popular',
-      clientCode: 'CLI-002',
-      date: '2024-11-06',
-      status: 'enviado',
-      items: 8,
-      totalValue: 8750.00,
-      paymentMethod: 'PIX',
-      deliveryDate: '2024-11-08',
-      prescription: false,
-      priority: 'alta'
-    },
-    {
-      id: '#PED-2024-003',
-      client: 'Rede Bem Estar',
-      clientCode: 'CLI-003',
-      date: '2024-11-05',
-      status: 'entregue',
-      items: 32,
-      totalValue: 25300.00,
-      paymentMethod: 'Cartão',
-      deliveryDate: '2024-11-07',
-      prescription: true,
-      priority: 'normal'
-    },
-    {
-      id: '#PED-2024-004',
-      client: 'Farmácia Central',
-      clientCode: 'CLI-004',
-      date: '2024-11-07',
-      status: 'pendente',
-      items: 5,
-      totalValue: 3200.00,
-      paymentMethod: 'Boleto',
-      deliveryDate: '2024-11-12',
-      prescription: true,
-      priority: 'urgente'
-    }
-  ];
-
-  const handleViewDetails = (order: any) => {
+  const handleViewDetails = (order: Order) => {
     setSelectedOrder(order);
     setIsDetailsOpen(true);
   };
 
-  const handleEdit = (order: any) => {
+  const handleEdit = (order: Order) => {
     setSelectedOrder(order);
     setIsEditOpen(true);
   };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'pendente':
+      case 'PENDING':
         return <Badge variant="secondary" className="bg-gray-100 text-gray-800">Pendente</Badge>;
-      case 'processando':
+      case 'PROCESSING':
         return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Processando</Badge>;
-      case 'enviado':
+      case 'SHIPPED':
         return <Badge variant="secondary" className="bg-blue-100 text-blue-800">Enviado</Badge>;
-      case 'entregue':
+      case 'DELIVERED':
         return <Badge variant="secondary" className="bg-green-100 text-green-800">Entregue</Badge>;
-      case 'cancelado':
+      case 'CANCELLED':
         return <Badge variant="destructive">Cancelado</Badge>;
       default:
         return <Badge variant="secondary">Desconhecido</Badge>;
     }
   };
 
-  const getPriorityBadge = (priority: string) => {
-    switch (priority) {
-      case 'urgente':
-        return <Badge variant="destructive">Urgente</Badge>;
-      case 'alta':
-        return <Badge variant="secondary" className="bg-orange-100 text-orange-800">Alta</Badge>;
-      case 'normal':
-        return <Badge variant="secondary" className="bg-blue-100 text-blue-800">Normal</Badge>;
-      default:
-        return <Badge variant="secondary">Normal</Badge>;
-    }
-  };
-
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'pendente': return <Clock className="h-4 w-4 text-gray-600" />;
-      case 'processando': return <Package className="h-4 w-4 text-yellow-600" />;
-      case 'enviado': return <Truck className="h-4 w-4 text-blue-600" />;
-      case 'entregue': return <CheckCircle className="h-4 w-4 text-green-600" />;
-      case 'cancelado': return <AlertCircle className="h-4 w-4 text-red-600" />;
+      case 'PENDING': return <Clock className="h-4 w-4 text-gray-600" />;
+      case 'PROCESSING': return <Package className="h-4 w-4 text-yellow-600" />;
+      case 'SHIPPED': return <Truck className="h-4 w-4 text-blue-600" />;
+      case 'DELIVERED': return <CheckCircle className="h-4 w-4 text-green-600" />;
+      case 'CANCELLED': return <AlertCircle className="h-4 w-4 text-red-600" />;
       default: return <Clock className="h-4 w-4 text-gray-600" />;
     }
   };
 
-  const filteredOrders = orders.filter(order => {
-    const matchesSearch = order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         order.client.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = selectedStatus === 'all' || order.status === selectedStatus;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredOrders = orders;
 
   return (
     <>
@@ -160,7 +115,7 @@ export default function Orders() {
           <h1 className="text-3xl font-bold text-gray-900">Gestão de Pedidos</h1>
           <p className="text-gray-600 mt-1">Controle completo de vendas e entregas</p>
         </div>
-        
+
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>
             <Button className="bg-blue-600 hover:bg-blue-700">
@@ -190,10 +145,10 @@ export default function Orders() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os Status</SelectItem>
-                <SelectItem value="pendente">Pendente</SelectItem>
-                <SelectItem value="processando">Processando</SelectItem>
-                <SelectItem value="enviado">Enviado</SelectItem>
-                <SelectItem value="entregue">Entregue</SelectItem>
+                <SelectItem value="PENDING">Pendente</SelectItem>
+                <SelectItem value="PROCESSING">Processando</SelectItem>
+                <SelectItem value="SHIPPED">Enviado</SelectItem>
+                <SelectItem value="DELIVERED">Entregue</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -204,7 +159,7 @@ export default function Orders() {
         <CardHeader>
           <CardTitle>Lista de Pedidos</CardTitle>
           <CardDescription>
-            {filteredOrders.length} pedidos encontrados
+            {total} pedidos encontrados
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -218,7 +173,6 @@ export default function Orders() {
                   <TableHead>Cliente</TableHead>
                   <TableHead>Data</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Prioridade</TableHead>
                   <TableHead>Itens</TableHead>
                   <TableHead>Valor Total</TableHead>
                   <TableHead>Entrega</TableHead>
@@ -235,27 +189,23 @@ export default function Orders() {
                         </div>
                         <div>
                           <p className="font-medium">{order.id}</p>
-                          <p className="text-sm text-gray-500">{order.clientCode}</p>
+                          <p className="text-sm text-gray-500">{order.customer?.cnpjCpf || ''}</p>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center space-x-2">
                         <User className="h-4 w-4 text-gray-400" />
-                        <span>{order.client}</span>
-                        {order.prescription && (
-                          <FileText className="h-4 w-4 text-blue-600" title="Requer Prescrição" />
-                        )}
+                        <span>{order.customer?.companyName || 'N/A'}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm">{order.date}</TableCell>
+                    <TableCell className="text-sm">{new Date(order.createdAt).toLocaleDateString('pt-BR')}</TableCell>
                     <TableCell>{getStatusBadge(order.status)}</TableCell>
-                    <TableCell>{getPriorityBadge(order.priority)}</TableCell>
-                    <TableCell className="text-center">{order.items}</TableCell>
+                    <TableCell className="text-center">{order.items?.length || 0}</TableCell>
                     <TableCell className="font-medium">
-                      R$ {order.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      R$ {Number(order.totalValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </TableCell>
-                    <TableCell className="text-sm">{order.deliveryDate}</TableCell>
+                    <TableCell className="text-sm">{order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString('pt-BR') : '-'}</TableCell>
                     <TableCell>
                       <div className="flex items-center space-x-2">
                         <Button variant="ghost" size="sm" onClick={() => handleViewDetails(order)}>
@@ -285,7 +235,7 @@ export default function Orders() {
           )}
         </CardContent>
       </Card>
-      
+
       <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
         <OrderDetailsModal order={selectedOrder} />
       </Dialog>

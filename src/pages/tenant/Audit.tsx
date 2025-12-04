@@ -152,15 +152,15 @@ export default function Audit() {
                 className="pl-10"
               />
             </div>
-            <Select value={tableFilter} onValueChange={(value) => {
-              setTableFilter(value);
+            <Select value={tableFilter === '' ? 'ALL' : tableFilter} onValueChange={(value) => {
+              setTableFilter(value === 'ALL' ? '' : value);
               setPage(1);
             }}>
               <SelectTrigger>
                 <SelectValue placeholder="Tabela" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todas as Tabelas</SelectItem>
+                <SelectItem value="ALL">Todas as Tabelas</SelectItem>
                 {TABLES.map(table => (
                   <SelectItem key={table} value={table}>
                     {table}
@@ -169,14 +169,14 @@ export default function Audit() {
               </SelectContent>
             </Select>
             <Select value={operationFilter} onValueChange={(value) => {
-              setOperationFilter(value);
+              setOperationFilter(value === 'ALL' ? '' : value);
               setPage(1);
             }}>
               <SelectTrigger>
                 <SelectValue placeholder="Operação" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todas as Operações</SelectItem>
+                <SelectItem value="ALL">Todas as Operações</SelectItem>
                 {OPERATIONS.map(op => (
                   <SelectItem key={op.value} value={op.value}>
                     {op.label}

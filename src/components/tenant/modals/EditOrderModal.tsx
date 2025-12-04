@@ -1,4 +1,4 @@
-import { DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -48,7 +48,9 @@ export default function EditOrderModal({ order }: EditOrderModalProps) {
         </div>
       </div>
       <DialogFooter>
-        <Button variant="outline">Cancelar</Button>
+        <DialogClose asChild>
+          <Button variant="outline">Cancelar</Button>
+        </DialogClose>
         <Button>Salvar Alterações</Button>
       </DialogFooter>
     </DialogContent>

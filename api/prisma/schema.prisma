@@ -204,6 +204,7 @@ model Product {
   batches       Batch[]
   stock         Stock[]
   invoiceItems  InvoiceItem[]
+  orderItems    OrderItem[]
   controlledSubstances ControlledSubstance[]
   medicationTrackings MedicationTracking[]
   
@@ -295,6 +296,7 @@ model Customer {
   
   // Relacionamentos
   invoices      Invoice[]
+  orders        Order[]
   controlledPrescriptions ControlledPrescription[]
   controlledSubstanceMovements ControlledSubstanceMovement[]
   
@@ -812,6 +814,51 @@ model DeadLetterQueue {
   @@map("dead_letter_queue")
   @@index([tenantId, type, status])
   @@index([type, status, createdAt])
+}
+
+model Order {
+  id            String      @id @default(uuid())
+  customerId    String      @map("customer_id")
+  status        OrderStatus @default(PENDING)
+  totalValue    Decimal     @map("total_value")
+  paymentMethod String?     @map("payment_method")
+  deliveryDate  DateTime?   @map("delivery_date")
+  notes         String?
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  customer      Customer    @relation(fields: [customerId], references: [id])
+  items         OrderItem[]
+  
+  @@map("orders")
+  @@index([customerId])
+  @@index([status])
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  orderId   String  @map("order_id")
+  productId String  @map("product_id")
+  quantity  Int
+  unitPrice Decimal @map("unit_price")
+  total     Decimal
+  
+  // Relations
+  order     Order   @relation(fields: [orderId], references: [id])
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+  @@index([orderId])
+  @@index([productId])
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
 }
 
 // Configuração Global de Gateways de Pagamento (chaves da plataforma)

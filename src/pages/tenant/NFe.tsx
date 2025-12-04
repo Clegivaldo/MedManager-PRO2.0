@@ -210,14 +210,15 @@ export default function NFe() {
               />
             </div>
             <Select value={statusFilter} onValueChange={(value) => {
-              setStatusFilter(value);
+              // Use a non-empty value for the "Todos os Status" option
+              setStatusFilter(value === 'ALL' ? '' : value);
               setPage(1);
             }}>
               <SelectTrigger>
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos os Status</SelectItem>
+                <SelectItem value="ALL">Todos os Status</SelectItem>
                 {Object.entries(STATUS_LABELS).map(([value, { label }]) => (
                   <SelectItem key={value} value={value}>
                     {label}

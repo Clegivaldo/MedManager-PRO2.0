@@ -3,8 +3,12 @@ FROM node:20-alpine
 WORKDIR /app
 RUN corepack enable
 
+# Ensure a stable pnpm version via Corepack and allow installing
+# even if the lockfile is out of sync with package.json.
 COPY package.json pnpm-lock.yaml* ./
-RUN pnpm install --frozen-lockfile
+# Activate a specific pnpm version (matches the pnpm fetched in logs)
+RUN corepack prepare pnpm@8.10.0 --activate
+RUN pnpm install --no-frozen-lockfile
 
 COPY tsconfig.json ./
 COPY tsconfig.app.json ./

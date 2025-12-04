@@ -285,14 +285,15 @@ export default function UserManagement() {
                 />
               </div>
               <Select value={roleFilter} onValueChange={(value) => {
-                setRoleFilter(value);
+                // Use non-empty SelectItem value to avoid Radix validation error
+                setRoleFilter(value === 'ALL' ? '' : value);
                 setPage(1);
               }}>
                 <SelectTrigger className="w-full md:w-48">
                   <SelectValue placeholder="Filtrar por Cargo" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos os Cargos</SelectItem>
+                  <SelectItem value="ALL">Todos os Cargos</SelectItem>
                   {ROLES.map(role => (
                     <SelectItem key={role.value} value={role.value}>
                       {role.label}
@@ -301,14 +302,14 @@ export default function UserManagement() {
                 </SelectContent>
               </Select>
               <Select value={statusFilter} onValueChange={(value) => {
-                setStatusFilter(value);
+                setStatusFilter(value === 'ALL' ? '' : value);
                 setPage(1);
               }}>
                 <SelectTrigger className="w-full md:w-32">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos</SelectItem>
+                  <SelectItem value="ALL">Todos</SelectItem>
                   <SelectItem value="active">Ativos</SelectItem>
                   <SelectItem value="inactive">Inativos</SelectItem>
                 </SelectContent>

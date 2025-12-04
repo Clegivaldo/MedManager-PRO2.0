@@ -1,4 +1,4 @@
-import { DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -30,18 +30,18 @@ export default function NewTransactionModal() {
           <Input id="description" placeholder="Ex: Pagamento de fornecedor, Venda balcão" />
         </div>
         <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-                <Label htmlFor="value">Valor (R$)</Label>
-                <Input id="value" type="number" placeholder="0,00" />
-            </div>
-            <div className="space-y-2">
-                <Label htmlFor="due-date">Data de Vencimento/Pagamento</Label>
-                <Input id="due-date" type="date" />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="value">Valor (R$)</Label>
+            <Input id="value" type="number" placeholder="0,00" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="due-date">Data de Vencimento/Pagamento</Label>
+            <Input id="due-date" type="date" />
+          </div>
         </div>
         <div className="space-y-2">
           <Label htmlFor="category">Categoria</Label>
-           <Select>
+          <Select>
             <SelectTrigger id="category">
               <SelectValue placeholder="Selecione a categoria" />
             </SelectTrigger>
@@ -56,7 +56,9 @@ export default function NewTransactionModal() {
         </div>
       </div>
       <DialogFooter>
-        <Button variant="outline">Cancelar</Button>
+        <DialogClose asChild>
+          <Button variant="outline">Cancelar</Button>
+        </DialogClose>
         <Button>Adicionar Lançamento</Button>
       </DialogFooter>
     </DialogContent>
