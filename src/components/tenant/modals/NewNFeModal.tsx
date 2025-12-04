@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -64,7 +64,7 @@ export default function NewNFeModal({ onCreated }: NewNFeModalProps) {
       setBatchModalOpen(true);
       return;
     }
-    
+
     // Para produtos não controlados, adicionar diretamente
     setNfeItems(prev => [
       ...prev,
@@ -82,7 +82,7 @@ export default function NewNFeModal({ onCreated }: NewNFeModalProps) {
 
   const handleBatchSelected = (batch: any, quantity: number) => {
     if (!selectedProduct) return;
-    
+
     setNfeItems(prev => [
       ...prev,
       {
@@ -97,7 +97,7 @@ export default function NewNFeModal({ onCreated }: NewNFeModalProps) {
         batchNumber: batch.batchNumber,
       }
     ]);
-    
+
     setSelectedProduct(null);
   };
 
@@ -131,10 +131,10 @@ export default function NewNFeModal({ onCreated }: NewNFeModalProps) {
       setSubmitting(true);
       const payload: CreateInvoiceDTO = {
         customerId: selectedCustomer,
-        items: nfeItems.map(i => ({ 
-          productId: i.productId, 
-          quantity: i.quantity, 
-          unitPrice: i.price, 
+        items: nfeItems.map(i => ({
+          productId: i.productId,
+          quantity: i.quantity,
+          unitPrice: i.price,
           discount: 0,
           batchId: i.batchId, // Incluir lote para produtos controlados
         })),
@@ -183,11 +183,11 @@ export default function NewNFeModal({ onCreated }: NewNFeModalProps) {
               <CommandInput placeholder="Buscar produto..." onFocus={() => setOpenProductSearch(true)} />
               {openProductSearch && (
                 <CommandList><CommandEmpty>Nenhum produto encontrado.</CommandEmpty><CommandGroup>
-                    {products.map((product) => (
-                      <CommandItem key={product.id} onSelect={() => { addProductToNFe(product); setOpenProductSearch(false); }}>
-                        {product.name}
-                      </CommandItem>
-                    ))}
+                  {products.map((product) => (
+                    <CommandItem key={product.id} onSelect={() => { addProductToNFe(product); setOpenProductSearch(false); }}>
+                      {product.name}
+                    </CommandItem>
+                  ))}
                 </CommandGroup></CommandList>
               )}
             </Command>

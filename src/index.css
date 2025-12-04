@@ -3,6 +3,7 @@
 @tailwind utilities;
 
 @layer base {
+
   :root,
   .theme-zinc {
     --background: 0 0% 100%;
@@ -40,7 +41,8 @@
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
     --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 75.1%; /* Increased brightness for better contrast */
+    --muted-foreground: 215 20.2% 75.1%;
+    /* Increased brightness for better contrast */
     --accent: 217.2 32.6% 17.5%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
@@ -84,7 +86,8 @@
     --secondary: 215 28% 17%;
     --secondary-foreground: 210 40% 98%;
     --muted: 215 28% 17%;
-    --muted-foreground: 215 20.2% 75.1%; /* Increased brightness */
+    --muted-foreground: 215 20.2% 75.1%;
+    /* Increased brightness */
     --accent: 215 28% 17%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
@@ -93,7 +96,7 @@
     --input: 215 28% 17%;
     --ring: 217.2 91.2% 59.8%;
   }
-  
+
   .theme-green {
     --background: 210 40% 98%;
     --foreground: 144.9 80.4% 10%;
@@ -128,7 +131,8 @@
     --secondary: 145 45% 15%;
     --secondary-foreground: 140 40% 98%;
     --muted: 145 45% 15%;
-    --muted-foreground: 140 20.2% 75.1%; /* Increased brightness */
+    --muted-foreground: 140 20.2% 75.1%;
+    /* Increased brightness */
     --accent: 145 45% 15%;
     --accent-foreground: 140 40% 98%;
     --destructive: 0 62.8% 30.6%;
@@ -137,7 +141,7 @@
     --input: 145 45% 15%;
     --ring: 141.2 70.2% 45.3%;
   }
-  
+
   .theme-orange {
     --background: 30 100% 98%;
     --foreground: 20 14.3% 4.1%;
@@ -172,7 +176,8 @@
     --secondary: 15 25% 15%;
     --secondary-foreground: 60 9.1% 97.8%;
     --muted: 15 25% 15%;
-    --muted-foreground: 15 10% 70%; /* Increased brightness */
+    --muted-foreground: 15 10% 70%;
+    /* Increased brightness */
     --accent: 15 25% 15%;
     --accent-foreground: 60 9.1% 97.8%;
     --destructive: 0 62.8% 30.6%;
@@ -191,4 +196,25 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Dark mode text color overrides for better contrast */
+.dark .text-gray-900 {
+  color: hsl(var(--foreground)) !important;
+}
+
+.dark .text-gray-800 {
+  color: hsl(var(--foreground)) !important;
+}
+
+.dark .text-gray-700 {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+.dark .text-gray-600 {
+  color: hsl(var(--muted-foreground)) !important;
+}
+
+.dark .text-gray-500 {
+  color: hsl(var(--muted-foreground)) !important;
 }

@@ -1,4 +1,4 @@
-import { DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,8 +13,8 @@ export default function RegisterTemperatureModal({ warehouseName }: RegisterTemp
     <DialogContent className="max-w-md">
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2">
-            <Thermometer className="h-6 w-6 text-primary"/>
-            Registrar Temperatura
+          <Thermometer className="h-6 w-6 text-primary" />
+          Registrar Temperatura
         </DialogTitle>
         <DialogDescription>
           Medição manual para o <span className="font-bold">{warehouseName}</span>.

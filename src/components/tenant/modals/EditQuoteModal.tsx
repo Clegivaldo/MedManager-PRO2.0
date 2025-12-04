@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -60,11 +60,11 @@ export default function EditQuoteModal({ quote }: EditQuoteModalProps) {
               <TableHeader><TableRow><TableHead>Produto</TableHead><TableHead>Qtd.</TableHead><TableHead>Subtotal</TableHead></TableRow></TableHeader>
               <TableBody>
                 {quoteItems.map(item => (
-                    <TableRow key={item.id}>
-                      <TableCell>{item.name}</TableCell>
-                      <TableCell><Input type="number" value={item.quantity} className="h-8 w-16" min="1" /></TableCell>
-                      <TableCell>R$ {item.total.toFixed(2)}</TableCell>
-                    </TableRow>
+                  <TableRow key={item.id}>
+                    <TableCell>{item.name}</TableCell>
+                    <TableCell><Input type="number" value={item.quantity} className="h-8 w-16" min="1" /></TableCell>
+                    <TableCell>R$ {item.total.toFixed(2)}</TableCell>
+                  </TableRow>
                 ))}
               </TableBody>
             </Table>
@@ -76,7 +76,9 @@ export default function EditQuoteModal({ quote }: EditQuoteModalProps) {
         </div>
       </div>
       <DialogFooter>
-        <Button variant="outline">Cancelar</Button>
+        <DialogClose asChild>
+          <Button variant="outline">Cancelar</Button>
+        </DialogClose>
         <Button>Salvar Alterações</Button>
       </DialogFooter>
     </DialogContent>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,16 +8,16 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Route, ShoppingCart } from 'lucide-react';
 
 const pendingOrders = [
-    { id: '#PED-2024-005', client: 'Drogaria Pacheco', address: 'Rua das Flores, 123' },
-    { id: '#PED-2024-006', client: 'Farma & Cia', address: 'Av. Principal, 456' },
-    { id: '#PED-2024-007', client: 'Saúde Total', address: 'Praça Central, 789' },
+  { id: '#PED-2024-005', client: 'Drogaria Pacheco', address: 'Rua das Flores, 123' },
+  { id: '#PED-2024-006', client: 'Farma & Cia', address: 'Av. Principal, 456' },
+  { id: '#PED-2024-007', client: 'Saúde Total', address: 'Praça Central, 789' },
 ];
 
 export default function NewRouteModal() {
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
 
   const handleSelectOrder = (orderId: string) => {
-    setSelectedOrders(prev => 
+    setSelectedOrders(prev =>
       prev.includes(orderId) ? prev.filter(id => id !== orderId) : [...prev, orderId]
     );
   };
@@ -59,13 +59,13 @@ export default function NewRouteModal() {
           <h3 className="font-medium flex items-center gap-2"><ShoppingCart className="h-5 w-5" /> Pedidos Pendentes</h3>
           <div className="border rounded-lg max-h-64 overflow-y-auto p-4 space-y-3">
             {pendingOrders.map(order => (
-                <div key={order.id} className="flex items-center space-x-3">
-                    <Checkbox id={`order-${order.id}`} onCheckedChange={() => handleSelectOrder(order.id)} />
-                    <Label htmlFor={`order-${order.id}`} className="flex flex-col">
-                        <span className="font-semibold">{order.id} - {order.client}</span>
-                        <span className="text-xs text-muted-foreground">{order.address}</span>
-                    </Label>
-                </div>
+              <div key={order.id} className="flex items-center space-x-3">
+                <Checkbox id={`order-${order.id}`} onCheckedChange={() => handleSelectOrder(order.id)} />
+                <Label htmlFor={`order-${order.id}`} className="flex flex-col">
+                  <span className="font-semibold">{order.id} - {order.client}</span>
+                  <span className="text-xs text-muted-foreground">{order.address}</span>
+                </Label>
+              </div>
             ))}
           </div>
         </div>

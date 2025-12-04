@@ -69,7 +69,9 @@ export default function EditProductModal({ product, mode }: EditProductModalProp
         </div>
       </div>
       <DialogFooter>
-        <Button variant="outline">Cancelar</Button>
+        <DialogClose asChild>
+          <Button variant="outline">Cancelar</Button>
+        </DialogClose>
         <Button>Salvar Produto</Button>
       </DialogFooter>
     </DialogContent>
