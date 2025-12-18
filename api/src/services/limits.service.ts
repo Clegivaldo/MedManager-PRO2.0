@@ -1,4 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import pkg from '@prisma/client';
+import type { PrismaClient as PrismaClientType } from '@prisma/client';
+const PrismaClientRuntime = (pkg as any).PrismaClient as any;
 import { startOfMonth, endOfMonth } from 'date-fns';
 
 export interface UsageLimits {
@@ -27,7 +29,7 @@ export interface LimitCheckResult {
 }
 
 export class LimitsService {
-  constructor(private prisma: PrismaClient) {}
+  constructor(private prisma: PrismaClientType) {}
 
   /**
    * Obtém os limites do plano de um tenant

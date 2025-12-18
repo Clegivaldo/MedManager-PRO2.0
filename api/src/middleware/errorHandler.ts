@@ -100,7 +100,14 @@ process.on('uncaughtException', (err: Error) => {
     },
     timestamp: new Date().toISOString()
   });
-  
+
+  // Also print to stdout/stderr to ensure Docker captures full stack
+  try {
+    console.error('UNCAUGHT EXCEPTION:', err.stack || err);
+  } catch (e) {
+    // noop
+  }
+
   process.exit(1);
 });
 
@@ -113,7 +120,14 @@ process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
     promise,
     timestamp: new Date().toISOString()
   });
-  
+
+  // Also print to stdout/stderr to ensure Docker captures the reason
+  try {
+    console.error('UNHANDLED REJECTION:', reason);
+  } catch (e) {
+    // noop
+  }
+
   // Fechar servidor e sair graciosamente
   process.exit(1);
 });

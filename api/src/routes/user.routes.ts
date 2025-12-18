@@ -21,7 +21,7 @@ const avatarStorage = multer.diskStorage({
     const dest = path.join(process.cwd(), 'uploads', 'avatars', tenantId);
     try {
       fsSync.mkdirSync(dest, { recursive: true });
-    } catch {}
+    } catch { }
     cb(null, dest);
   },
   filename: (req, file, cb) => {
@@ -102,35 +102,39 @@ router.put('/profile', authenticateToken, async (req, res, next) => {
   }
 });
 
-// Upload de avatar
-router.post('/avatar', authenticateToken, avatarUpload.single('avatar'), async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const userId = (req as any).user?.userId || (req as any).user?.id;
-    const tenantId = (req as any).tenant?.id;
+// Upload de avatar - COM ENFORCEMENT DE STORAGE
+router.post('/avatar',
+  authenticateToken,
+  validatePlanLimit('storage'), // ✅ ENFORCE: Verifica limite de storage
+  avatarUpload.single('avatar'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userId = (req as any).user?.userId || (req as any).user?.id;
+      const tenantId = (req as any).tenant?.id;
 
-    if (!userId) throw new AppError('Usuário não identificado', 400);
-    if (!req.file) throw new AppError('Avatar não foi enviado', 400);
+      if (!userId) throw new AppError('Usuário não identificado', 400);
+      if (!req.file) throw new AppError('Avatar não foi enviado', 400);
 
-    const publicUrl = `/static/avatars/${tenantId}/${req.file.filename}`;
+      const publicUrl = `/static/avatars/${tenantId}/${req.file.filename}`;
 
-    const prisma = getTenantPrisma((req as any).tenant);
-    const user = await prisma.user.update({
-      where: { id: userId },
-      data: { avatarUrl: publicUrl },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        avatarUrl: true,
-      }
-    });
+      const prisma = getTenantPrisma((req as any).tenant);
+      const user = await prisma.user.update({
+        where: { id: userId },
+        data: { avatarUrl: publicUrl },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          avatarUrl: true,
+        }
+      });
 
-    logger.info('Avatar do usuário atualizado', { userId, filename: req.file.filename });
-    res.json({ success: true, avatarUrl: publicUrl, user });
-  } catch (error) {
-    next(error);
-  }
-});
+      logger.info('Avatar do usuário atualizado', { userId, filename: req.file.filename });
+      res.json({ success: true, avatarUrl: publicUrl, user });
+    } catch (error) {
+      next(error);
+    }
+  });
 
 // Alterar senha
 router.post('/change-password', authenticateToken, async (req, res, next) => {
@@ -286,5 +290,69 @@ router.get('/', authenticateToken, requirePermission(PERMISSIONS.USER_READ), asy
     next(error);
   }
 });
+
+// Criar novo usuário (admin) - COM ENFORCEMENT DE LIMITES
+import { validatePlanLimit } from '../middleware/subscription.middleware.js';
+
+router.post('/',
+  authenticateToken,
+  requirePermission(PERMISSIONS.USER_CREATE),
+  validatePlanLimit('user'), // ✅ ENFORCE: Verifica limite de usuários do plano
+  async (req, res, next) => {
+    try {
+      const { name, email, password, role = 'USER' } = req.body;
+
+      if (!name || !email || !password) {
+        throw new AppError('Nome, email e senha são obrigatórios', 400);
+      }
+
+      if (password.length < 8) {
+        throw new AppError('Senha deve ter no mínimo 8 caracteres', 400);
+      }
+
+      const prisma = getTenantPrisma((req as any).tenant);
+
+      // Verificar se email já existe
+      const existingUser = await prisma.user.findUnique({
+        where: { email }
+      });
+
+      if (existingUser) {
+        throw new AppError('Email já cadastrado', 400);
+      }
+
+      // Hash da senha
+      const hashedPassword = await bcryptjs.hash(password, 10);
+
+      // Criar usuário
+      const user = await prisma.user.create({
+        data: {
+          name,
+          email,
+          password: hashedPassword,
+          role,
+          isActive: true
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          isActive: true,
+          createdAt: true
+        }
+      });
+
+      logger.info('Novo usuário criado', {
+        userId: user.id,
+        email: user.email,
+        createdBy: (req as any).user?.userId
+      });
+
+      res.status(201).json({ success: true, data: { user } });
+    } catch (error) {
+      next(error);
+    }
+  });
 
 export default router;

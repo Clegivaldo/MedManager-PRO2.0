@@ -15,7 +15,7 @@ const api: AxiosInstance = axios.create({
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem('access_token');
-    
+
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -47,7 +47,7 @@ api.interceptors.response.use(
 
       try {
         const refreshToken = localStorage.getItem('refresh_token');
-        
+
         if (!refreshToken) {
           // Sem refresh token, redirecionar para login
           localStorage.clear();
@@ -97,16 +97,32 @@ api.interceptors.response.use(
         return Promise.reject(error);
       }
 
-      // Verificar se é erro de módulo não habilitado
-      if (status === 403 && code === 'MODULE_NOT_ENABLED') {
-        console.error('Módulo não habilitado:', message);
-        // Poderia mostrar modal de upgrade aqui
+      // ✅ NOVO: Verificar se é erro de limite de plano (402 Payment Required)
+      if (status === 402 && code === 'PLAN_LIMIT_REACHED') {
+        // Disparar evento para abrir modal de upgrade
+        window.dispatchEvent(new CustomEvent('plan-limit-reached', {
+          detail: {
+            limitType: data?.limitType || data?.resource,
+            current: data?.current,
+            limit: data?.limit,
+            message: message
+          }
+        }));
+
+        console.error('Limite do plano atingido:', message);
+        // Não rejeitar ainda - modal será exibido
       }
 
-      // Verificar se é erro de limite de plano
-      if (status === 402 && code === 'PLAN_LIMIT_REACHED') {
-        console.error('Limite do plano atingido:', message);
-        // Poderia mostrar modal de upgrade aqui
+      // Verificar se é erro de módulo não habilitado
+      if (status === 403 && code === 'MODULE_NOT_ENABLED') {
+        // Disparar evento para modal de upgrade de módulo
+        window.dispatchEvent(new CustomEvent('module-not-enabled', {
+          detail: {
+            module: data?.module,
+            message: message
+          }
+        }));
+        console.error('Módulo não habilitado:', message);
       }
 
       switch (status) {

@@ -1,12 +1,13 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import pkg from '@prisma/client';
+const PrismaClientRuntime = (pkg as any).PrismaClient as any;
 import bcrypt from 'bcryptjs';
 import { AppError } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
 import { getRolePermissions } from '../middleware/permissions.js';
 import { auditLog } from '../utils/audit.js';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClientRuntime();
 
 export class UserController {
   listUsers = async (req: Request, res: Response) => {

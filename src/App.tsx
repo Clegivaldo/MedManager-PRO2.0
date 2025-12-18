@@ -1,5 +1,5 @@
 import { Toaster } from '@/components/ui/sonner';
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
@@ -7,6 +7,7 @@ import { ThemeProvider as NextThemesProvider } from 'next-themes';
 import { ColorThemeProvider } from './providers/ColorThemeProvider';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import { UpgradeModal } from './components/modals/UpgradeModal';
 
 // Layouts
 import TenantLayout from './components/Layout/TenantLayout';
@@ -55,71 +56,164 @@ const SystemJobsStatus = lazy(() => import('./pages/admin/SystemJobsStatus'));
 
 const queryClient = new QueryClient();
 
+// ✅ NOVO: Componente interno para gerenciar modal de upgrade
+function AppContent() {
+  const [upgradeModalState, setUpgradeModalState] = useState({
+    open: false,
+    limitType: undefined as string | undefined,
+    current: undefined as number | undefined,
+    limit: undefined as number | undefined,
+    message: undefined as string | undefined,
+  });
+
+  useEffect(() => {
+    // ✅ Listener para erro 402 - Limite de plano atingido
+    const handlePlanLimitReached = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const { limitType, current, limit, message } = customEvent.detail;
+
+      setUpgradeModalState({
+        open: true,
+        limitType,
+        current,
+        limit,
+        message,
+      });
+    };
+
+    // ✅ Listener para erro 403 - Módulo não habilitado
+    const handleModuleNotEnabled = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const { message } = customEvent.detail;
+
+      setUpgradeModalState({
+        open: true,
+        limitType: 'module',
+        current: undefined,
+        limit: undefined,
+        message,
+      });
+    };
+
+    window.addEventListener('plan-limit-reached', handlePlanLimitReached);
+    window.addEventListener('module-not-enabled', handleModuleNotEnabled);
+
+    return () => {
+      window.removeEventListener('plan-limit-reached', handlePlanLimitReached);
+      window.removeEventListener('module-not-enabled', handleModuleNotEnabled);
+    };
+  }, []);
+
+  return (
+    <>
+      <Toaster />
+      <BrowserRouter>
+        <AuthProvider>
+          <Suspense fallback={<div className="flex h-screen items-center justify-center text-sm text-muted-foreground">Carregando...</div>}>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/license-expired" element={<LicenseExpired />} />
+
+              {/* Tenant Routes - Protected */}
+              <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'MANAGER', 'OPERATOR', 'VIEWER']} />}>
+                <Route path="/" element={<TenantLayout />}>
+                  <Route index element={<Navigate to="/dashboard" replace />} />
+                  <Route path="dashboard" element={<ProtectedRoute requiredModule="DASHBOARD" />}>
+                    <Route index element={<Dashboard />} />
+                  </Route>
+                  <Route path="products" element={<ProtectedRoute requiredModule="PRODUCTS" />}>
+                    <Route index element={<Products />} />
+                  </Route>
+                  <Route path="inventory" element={<ProtectedRoute requiredModule="INVENTORY" />}>
+                    <Route index element={<Inventory />} />
+                  </Route>
+                  <Route path="orders" element={<ProtectedRoute requiredModule="SALES" />}>
+                    <Route index element={<Orders />} />
+                  </Route>
+                  <Route path="quotes" element={<ProtectedRoute requiredModule="SALES" />}>
+                    <Route index element={<Quotes />} />
+                  </Route>
+                  <Route path="sales" element={<ProtectedRoute requiredModule="SALES" />}>
+                    <Route index element={<Sales />} />
+                  </Route>
+                  <Route path="financials" element={<ProtectedRoute requiredModule="FINANCIAL" />}>
+                    <Route index element={<Financials />} />
+                  </Route>
+                  <Route path="routes" element={<ProtectedRoute requiredModule="ROUTES" />}>
+                    <Route index element={<RoutesPage />} />
+                  </Route>
+                  <Route path="compliance" element={<ProtectedRoute requiredModule="COMPLIANCE" />}>
+                    <Route index element={<Compliance />} />
+                  </Route>
+                  <Route path="nfe" element={<ProtectedRoute requiredModule="NFE" />}>
+                    <Route index element={<NFe />} />
+                  </Route>
+                  <Route path="clients" element={<ProtectedRoute requiredModule="SALES" />}>
+                    <Route index element={<Clients />} />
+                  </Route>
+                  <Route path="fiscal-profile" element={<ProtectedRoute requiredModule="NFE" />}>
+                    <Route index element={<FiscalProfile />} />
+                  </Route>
+                  <Route path="audit" element={<ProtectedRoute requiredModule="AUDIT" />}>
+                    <Route index element={<Audit />} />
+                  </Route>
+
+                  <Route path="user-profile" element={<UserProfile />} />
+                  <Route path="users" element={<UserManagement />} />
+                  <Route path="payment-gateway-config" element={<PaymentGatewayConfig />} />
+                  <Route path="my-invoices" element={<MyInvoices />} />
+                  <Route path="usage" element={<Usage />} />
+                  {/* Admin util: status de jobs do sistema */}
+                  <Route path="system-jobs" element={<SystemJobsStatus />} />
+                </Route>
+              </Route>
+
+              {/* Superadmin Routes - Protected */}
+              <Route element={<ProtectedRoute allowedRoles={['SUPERADMIN']} />}>
+                <Route path="/superadmin" element={<SuperadminLayout />}>
+                  <Route index element={<Navigate to="/superadmin/tenants" replace />} />
+                  <Route path="tenants" element={<TenantManagement />} />
+                  <Route path="subscriptions" element={<SubscriptionsPage />} />
+                  <Route path="billing" element={<BillingPage />} /> {/* ✅ NOVO */}
+                  <Route path="tenants/:tenantId" element={<TenantDetails />} />
+                  <Route path="plans" element={<PlanManagement />} />
+                  <Route path="modules" element={<ModuleManagement />} />
+                  <Route path="payments" element={<SuperadminPaymentProviders />} />
+                  <Route path="charges" element={<ChargesManagement />} />
+                  <Route path="billing-accounts" element={<BillingAccounts />} />
+                  <Route path="health" element={<SystemHealth />} />
+                  <Route path="settings" element={<SystemSettings />} />
+                  <Route path="backups" element={<BackupManagement />} />
+                </Route>
+              </Route>
+
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Suspense>
+        </AuthProvider>
+      </BrowserRouter>
+
+      {/* ✅ NOVO: Modal de Upgrade Global */}
+      <UpgradeModal
+        open={upgradeModalState.open}
+        onOpenChange={(open) => setUpgradeModalState(prev => ({ ...prev, open }))}
+        limitType={upgradeModalState.limitType}
+        current={upgradeModalState.current}
+        limit={upgradeModalState.limit}
+        message={upgradeModalState.message}
+      />
+    </>
+  );
+}
+
 const App = () => (
   <NextThemesProvider attribute="class" defaultTheme="system" enableSystem>
     <ColorThemeProvider defaultTheme="zinc" storageKey="medmanager-color-theme">
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <Toaster />
-          <BrowserRouter>
-            <AuthProvider>
-              <Suspense fallback={<div className="flex h-screen items-center justify-center text-sm text-muted-foreground">Carregando...</div>}>
-                <Routes>
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/forgot-password" element={<ForgotPassword />} />
-                  <Route path="/reset-password" element={<ResetPassword />} />
-                  <Route path="/license-expired" element={<LicenseExpired />} />
-
-                  {/* Tenant Routes - Protected */}
-                  <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'MANAGER', 'OPERATOR', 'VIEWER']} />}>
-                    <Route path="/" element={<TenantLayout />}>
-                      <Route index element={<Navigate to="/dashboard" replace />} />
-                      <Route path="dashboard" element={<Dashboard />} />
-                      <Route path="products" element={<Products />} />
-                      <Route path="inventory" element={<Inventory />} />
-                      <Route path="orders" element={<Orders />} />
-                      <Route path="quotes" element={<Quotes />} />
-                      <Route path="sales" element={<Sales />} />
-                      <Route path="financials" element={<Financials />} />
-                      <Route path="routes" element={<RoutesPage />} />
-                      <Route path="compliance" element={<Compliance />} />
-                      <Route path="nfe" element={<NFe />} />
-                      <Route path="clients" element={<Clients />} />
-                      <Route path="fiscal-profile" element={<FiscalProfile />} />
-                      <Route path="user-profile" element={<UserProfile />} />
-                      <Route path="users" element={<UserManagement />} />
-                      <Route path="audit" element={<Audit />} />
-                      <Route path="payment-gateway-config" element={<PaymentGatewayConfig />} />
-                      <Route path="my-invoices" element={<MyInvoices />} />
-                      <Route path="usage" element={<Usage />} />
-                      {/* Admin util: status de jobs do sistema */}
-                      <Route path="system-jobs" element={<SystemJobsStatus />} />
-                    </Route>
-                  </Route>
-
-                  {/* Superadmin Routes - Protected */}
-                  <Route element={<ProtectedRoute allowedRoles={['SUPERADMIN']} />}>
-                    <Route path="/superadmin" element={<SuperadminLayout />}>
-                      <Route index element={<Navigate to="/superadmin/tenants" replace />} />
-                      <Route path="tenants" element={<TenantManagement />} />
-                      <Route path="subscriptions" element={<SubscriptionsPage />} />
-                      <Route path="tenants/:tenantId" element={<TenantDetails />} />
-                      <Route path="plans" element={<PlanManagement />} />
-                      <Route path="modules" element={<ModuleManagement />} />
-                      <Route path="payments" element={<SuperadminPaymentProviders />} />
-                      <Route path="charges" element={<ChargesManagement />} />
-                      <Route path="billing-accounts" element={<BillingAccounts />} />
-                      <Route path="health" element={<SystemHealth />} />
-                      <Route path="settings" element={<SystemSettings />} />
-                      <Route path="backups" element={<BackupManagement />} />
-                    </Route>
-                  </Route>
-
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </Suspense>
-            </AuthProvider>
-          </BrowserRouter>
+          <AppContent />
         </TooltipProvider>
       </QueryClientProvider>
     </ColorThemeProvider>

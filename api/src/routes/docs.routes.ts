@@ -5,6 +5,7 @@ import fs from 'fs/promises';
 import fsSync from 'fs';
 import { AppError } from '../middleware/errorHandler.js';
 import { PERMISSIONS, requirePermissions } from '../middleware/permissions.js';
+import { validatePlanLimit } from '../middleware/subscription.middleware.js';
 import { logger } from '../utils/logger.js';
 
 const router: Router = Router();
@@ -16,7 +17,7 @@ const storage = multer.diskStorage({
     const dest = path.join(process.cwd(), 'uploads', 'docs', tenantId);
     try {
       fsSync.mkdirSync(dest, { recursive: true });
-    } catch {}
+    } catch { }
     cb(null, dest);
   },
   filename: (req, file, cb) => {
@@ -32,7 +33,7 @@ const upload = multer({
 });
 
 // Upload de documento regulatório
-router.post('/upload', requirePermissions([PERMISSIONS.FILE_UPLOAD]), upload.single('file'), async (req, res, next) => {
+router.post('/upload', requirePermissions([PERMISSIONS.FILE_UPLOAD]), validatePlanLimit('storage'), upload.single('file'), async (req, res, next) => {
   try {
     const tenantId = (req as any).tenant?.id;
     if (!tenantId) throw new AppError('Tenant not identified', 400);

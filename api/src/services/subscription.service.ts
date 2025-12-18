@@ -1,4 +1,6 @@
-import { PrismaClient, Subscription, Plan } from '@prisma/client';
+import pkg from '@prisma/client';
+import type { PrismaClient as PrismaClientType } from '@prisma/client';
+const PrismaClientRuntime = (pkg as any).PrismaClient as any;
 import { addMonths, addYears, isBefore } from 'date-fns';
 
 export interface CreateSubscriptionDto {
@@ -15,12 +17,12 @@ export interface RenewSubscriptionDto {
 }
 
 export class SubscriptionService {
-  constructor(private prisma: PrismaClient) {}
+  constructor(private prisma: PrismaClientType) {}
 
   /**
    * Cria uma nova assinatura para um tenant
    */
-  async createSubscription(data: CreateSubscriptionDto): Promise<Subscription> {
+  async createSubscription(data: CreateSubscriptionDto): Promise<any> {
     const { tenantId, planId, billingCycle, autoRenew = true, startDate = new Date() } = data;
 
     // Buscar plano
@@ -87,7 +89,7 @@ export class SubscriptionService {
   async renewSubscription(
     tenantId: string,
     data: RenewSubscriptionDto = {}
-  ): Promise<Subscription> {
+  ): Promise<any> {
     const { months = 1, billingCycle } = data;
 
     const subscription = await this.prisma.subscription.findUnique({
@@ -140,7 +142,7 @@ export class SubscriptionService {
    */
   async checkValidity(tenantId: string): Promise<{
     isValid: boolean;
-    subscription: Subscription | null;
+    subscription: any | null;
     reason?: string;
   }> {
     const subscription = await this.prisma.subscription.findUnique({
@@ -197,7 +199,7 @@ export class SubscriptionService {
   /**
    * Suspende uma assinatura
    */
-  async suspendSubscription(tenantId: string, reason?: string): Promise<Subscription> {
+  async suspendSubscription(tenantId: string, reason?: string): Promise<any> {
     const subscription = await this.prisma.subscription.update({
       where: { tenantId },
       data: {
@@ -219,7 +221,7 @@ export class SubscriptionService {
   /**
    * Reativa uma assinatura suspensa
    */
-  async reactivateSubscription(tenantId: string): Promise<Subscription> {
+  async reactivateSubscription(tenantId: string): Promise<any> {
     const subscription = await this.prisma.subscription.findUnique({
       where: { tenantId },
     });
@@ -259,7 +261,7 @@ export class SubscriptionService {
   async cancelSubscription(
     tenantId: string,
     reason?: string
-  ): Promise<Subscription> {
+  ): Promise<any> {
     const subscription = await this.prisma.subscription.update({
       where: { tenantId },
       data: {
@@ -288,7 +290,7 @@ export class SubscriptionService {
     tenantId: string,
     newPlanId: string,
     immediate: boolean = true
-  ): Promise<Subscription> {
+  ): Promise<any> {
     const subscription = await this.prisma.subscription.findUnique({
       where: { tenantId },
       include: { plan: true },
@@ -336,7 +338,7 @@ export class SubscriptionService {
   /**
    * Lista assinaturas próximas do vencimento
    */
-  async getExpiringSubscriptions(daysAhead: number = 7): Promise<Subscription[]> {
+  async getExpiringSubscriptions(daysAhead: number = 7): Promise<any[]> {
     const now = new Date();
     const futureDate = addMonths(now, 0);
     futureDate.setDate(futureDate.getDate() + daysAhead);

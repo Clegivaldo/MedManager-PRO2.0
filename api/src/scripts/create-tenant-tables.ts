@@ -1,6 +1,7 @@
 import { prismaMaster } from '../lib/prisma.js';
 import { logger } from '../utils/logger.js';
-import { PrismaClient } from '@prisma/client';
+import pkg from '@prisma/client';
+const PrismaClientRuntime = (pkg as any).PrismaClient as any;
 
 /**
  * Script para criar tabelas nos bancos de dados dos tenants usando SQL direto
@@ -19,7 +20,7 @@ async function createTenantTables() {
         logger.info(`Creating tables for tenant: ${tenant.name} (${tenant.cnpj})`);
         
         // Criar cliente Prisma para o banco do tenant
-        const tenantPrisma = new PrismaClient({
+        const tenantPrisma = new PrismaClientRuntime({
           datasources: {
             db: {
               url: `postgresql://${tenant.databaseUser}:${tenant.databasePassword}@localhost:5432/${tenant.databaseName}`

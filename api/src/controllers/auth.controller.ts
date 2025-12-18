@@ -6,7 +6,9 @@ import { logger } from '../utils/logger.js';
 import { config } from '../config/environment.js';
 import { validateRequest } from '../middleware/validation.js';
 import { z } from 'zod';
-import { PrismaClient, UserRole } from '@prisma/client';
+import pkg from '@prisma/client';
+const PrismaClientRuntime = (pkg as any).PrismaClient as any;
+const UserRole = (pkg as any).UserRole as any;
 import { ROLES } from '../middleware/permissions.js';
 
 // Schemas de validação
@@ -79,7 +81,7 @@ export class AuthController {
         if (tenant) {
           const derivedUrl = config.DATABASE_URL.replace(/\/(\w+)$/, `/${tenant.databaseName}`);
           logger.info('Instantiating tenant PrismaClient', { derivedUrl });
-          const tenantPrisma = new PrismaClient({
+          const tenantPrisma = new PrismaClientRuntime({
             datasources: {
               db: { url: derivedUrl }
             }
@@ -140,7 +142,7 @@ export class AuthController {
             if (roleKey) {
               const defaultPerms = ROLES[roleKey].permissions;
               if (tenant) {
-                const tenantPrisma = new PrismaClient({
+                const tenantPrisma = new PrismaClientRuntime({
                   datasources: { db: { url: config.DATABASE_URL.replace(/\/(\w+)$/, `/${tenant.databaseName}`) } }
                 });
                 await tenantPrisma.user.update({
@@ -249,7 +251,7 @@ export class AuthController {
 
         if (tenant) {
           // Criar no banco do tenant
-          const tenantPrisma = new PrismaClient({
+          const tenantPrisma = new PrismaClientRuntime({
             datasources: {
               db: {
                 url: config.DATABASE_URL.replace(/\/(\w+)$/, `/${tenant.databaseName}`)
@@ -367,7 +369,7 @@ export class AuthController {
             });
 
             if (tenantData) {
-              const tenantPrisma = new PrismaClient({
+              const tenantPrisma = new PrismaClientRuntime({
                 datasources: {
                   db: {
                     url: config.DATABASE_URL.replace(/\/(\w+)$/, `/${tenantData.databaseName}`)
@@ -438,7 +440,7 @@ export class AuthController {
         });
 
         if (tenantData) {
-          const tenantPrisma = new PrismaClient({
+          const tenantPrisma = new PrismaClientRuntime({
             datasources: {
               db: {
                 url: config.DATABASE_URL.replace(/\/(\w+)$/, `/${tenantData.databaseName}`)

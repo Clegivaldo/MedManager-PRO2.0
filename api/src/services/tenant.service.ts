@@ -6,7 +6,8 @@ import fs from 'fs/promises';
 import path from 'path';
 import { config } from '../config/environment.js';
 import { hashPassword } from '../services/auth.service.js';
-import { UserRole } from '@prisma/client';
+import pkg from '@prisma/client';
+const UserRole = (pkg as any).UserRole as any;
 
 const execAsync = promisify(exec);
 
@@ -287,9 +288,10 @@ export class TenantService {
     try {
       logger.info(`Creating default admin user for tenant: ${tenantName}`);
 
-      // Importar Prisma Client para o tenant específico
-      const { PrismaClient } = await import('@prisma/client');
-      const prismaTenant = new PrismaClient({
+      // Importar Prisma Client para o tenant específico (runtime)
+      const pkg = await import('@prisma/client');
+      const PrismaClientRuntime = (pkg as any).PrismaClient as any;
+      const prismaTenant = new PrismaClientRuntime({
         datasources: {
           db: {
             url: config.DATABASE_URL.replace(/\/(\w+)$/, `/${databaseName}`)

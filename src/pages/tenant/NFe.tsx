@@ -8,8 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   FileText, Download, X, Search, Filter, Calendar,
-  ChevronLeft, ChevronRight, RefreshCw, Loader2
+  ChevronLeft, ChevronRight, RefreshCw, Loader2, Edit2
 } from 'lucide-react';
+import { CorrectionModal } from './CorrectionModal';
 import { useToast } from '@/hooks/use-toast';
 import invoiceService from '@/services/invoice.service';
 import { getErrorMessage } from '@/services/api';
@@ -18,13 +19,14 @@ interface Invoice {
   id: string;
   number: number;
   series: number;
-  accessKey: string;
+  accessKey?: string | null;
+  protocol?: string | null; // Used for auth protocol or rejection reason
   issueDate: string;
-  totalValue: number;
+  totalValue: string | number; // Updated to handle backend string response
   status: string;
   customer?: {
     companyName: string;
-  };
+  } | null;
 }
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -49,6 +51,8 @@ export default function NFe() {
   const [total, setTotal] = useState(0);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
+  const [isCorrectionModalOpen, setIsCorrectionModalOpen] = useState(false);
 
   useEffect(() => {
     loadInvoices();
@@ -57,18 +61,18 @@ export default function NFe() {
   const loadInvoices = async () => {
     try {
       setLoading(true);
-      const response = await invoiceService.listInvoices({
+      const response = await invoiceService.list({
         page,
         limit: 15,
         search: searchTerm || undefined,
-        status: statusFilter || undefined,
+        status: statusFilter as any || undefined,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
       });
 
       setInvoices(response.invoices);
-      setTotal(response.total);
-      setTotalPages(Math.ceil(response.total / 15));
+      setTotal(response.pagination.total);
+      setTotalPages(response.pagination.pages);
     } catch (error) {
       toast({
         title: 'Erro ao carregar notas fiscais',
@@ -83,7 +87,7 @@ export default function NFe() {
   const handleDownloadDANFE = async (invoiceId: string) => {
     try {
       setDownloadingId(invoiceId);
-      await invoiceService.downloadDANFE(invoiceId);
+      await invoiceService.downloadDanfe(invoiceId);
 
       toast({
         title: 'Download iniciado',
@@ -103,7 +107,7 @@ export default function NFe() {
   const handleDownloadXML = async (invoiceId: string) => {
     try {
       setDownloadingId(invoiceId);
-      await invoiceService.downloadXML(invoiceId);
+      await invoiceService.downloadXml(invoiceId);
 
       toast({
         title: 'Download iniciado',
@@ -127,7 +131,7 @@ export default function NFe() {
 
     try {
       setCancellingId(invoiceId);
-      await invoiceService.cancelInvoice(invoiceId);
+      await invoiceService.cancel(invoiceId, 'Solicitado pelo usuário'); // Using generic justification for now as modal assumes simple cancel
 
       toast({
         title: 'Nota fiscal cancelada',
@@ -315,10 +319,15 @@ export default function NFe() {
                             {invoice.accessKey.substring(0, 20)}...
                           </p>
                         )}
+                        {invoice.status === 'DENIED' && invoice.protocol && (
+                          <p className="text-xs text-red-600 font-medium mt-1">
+                            Erro: {invoice.protocol}
+                          </p>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>{formatDate(invoice.issueDate)}</TableCell>
-                    <TableCell className="font-medium">{formatCurrency(invoice.totalValue)}</TableCell>
+                    <TableCell className="font-medium">{formatCurrency(Number(invoice.totalValue))}</TableCell>
                     <TableCell>{getStatusBadge(invoice.status)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
@@ -364,6 +373,19 @@ export default function NFe() {
                             ) : (
                               <X className="h-4 w-4 text-red-600" />
                             )}
+                          </Button>
+                        )}
+                        {invoice.status === 'AUTHORIZED' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title="Carta de Correção"
+                            onClick={() => {
+                              setSelectedInvoiceId(invoice.id);
+                              setIsCorrectionModalOpen(true);
+                            }}
+                          >
+                            <Edit2 className="h-4 w-4 text-blue-600" />
                           </Button>
                         )}
                       </div>
@@ -430,6 +452,18 @@ export default function NFe() {
           )}
         </CardContent>
       </Card>
+
+      {selectedInvoiceId && (
+        <CorrectionModal
+          isOpen={isCorrectionModalOpen}
+          onClose={() => {
+            setIsCorrectionModalOpen(false);
+            setSelectedInvoiceId(null);
+          }}
+          invoiceId={selectedInvoiceId}
+          onSuccess={loadInvoices}
+        />
+      )}
     </>
   );
 }

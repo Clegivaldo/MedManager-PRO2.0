@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
-import { UserRole } from '@prisma/client';
+import pkg from '@prisma/client';
+const UserRole = (pkg as any).UserRole as any;
 
 // Define all available permissions in the system
 export const PERMISSIONS = {

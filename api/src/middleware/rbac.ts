@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger.js';
-import { UserRole } from '@prisma/client';
+import pkg from '@prisma/client';
+const UserRole = (pkg as any).UserRole as any;
 
 /**
  * Middleware de controle de acesso baseado em roles (RBAC)

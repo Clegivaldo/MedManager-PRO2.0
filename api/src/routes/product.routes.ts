@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticateToken } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/permissions.js';
+import { validatePlanLimit } from '../middleware/subscription.middleware.js'; // ✅ ADDED
 import { withTenantPrisma } from '../lib/tenant-prisma.js';
 import { logger } from '../utils/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
@@ -64,10 +65,10 @@ router.get('/', authenticateToken, requirePermission('PRODUCT_READ'), async (req
         hasStock: product.stock.length > 0 && product.stock[0].availableQuantity > 0,
         requiresControlledSubstanceLicense: product.isControlled,
         temperatureControlled: !!product.storage,
-        rdc430Compliant: product.anvisaCode && 
-                        product.batches.length > 0 && 
-                        product.batches[0].expirationDate > new Date() &&
-                        product.isActive
+        rdc430Compliant: product.anvisaCode &&
+          product.batches.length > 0 &&
+          product.batches[0].expirationDate > new Date() &&
+          product.isActive
       }
     }));
 
@@ -88,132 +89,136 @@ router.get('/', authenticateToken, requirePermission('PRODUCT_READ'), async (req
   }
 });
 
-router.post('/', authenticateToken, requirePermission('PRODUCT_CREATE'), async (req, res, next) => {
-  try {
-    const tenantId = req.user?.tenantId;
-    const {
-      name,
-      internalCode,
-      gtin,
-      anvisaCode,
-      activeIngredient,
-      laboratory,
-      therapeuticClass,
-      productType = 'COMMON',
-      storage,
-      isControlled = false,
-      controlledSubstance,
-      stripe = 'NONE',
-      shelfLifeDays,
-      isActive = true
-    } = req.body;
+router.post('/',
+  authenticateToken,
+  requirePermission('PRODUCT_CREATE'),
+  validatePlanLimit('product'), // ✅ ENFORCE: Verifica limite de produtos do plano
+  async (req, res, next) => {
+    try {
+      const tenantId = req.user?.tenantId;
+      const {
+        name,
+        internalCode,
+        gtin,
+        anvisaCode,
+        activeIngredient,
+        laboratory,
+        therapeuticClass,
+        productType = 'COMMON',
+        storage,
+        isControlled = false,
+        controlledSubstance,
+        stripe = 'NONE',
+        shelfLifeDays,
+        isActive = true
+      } = req.body;
 
-    // Validações obrigatórias RDC 430
-    if (!name || !internalCode) {
-      throw new AppError('Name and internalCode are required', 400, 'MISSING_FIELDS');
+      // Validações obrigatórias RDC 430
+      if (!name || !internalCode) {
+        throw new AppError('Name and internalCode are required', 400, 'MISSING_FIELDS');
+      }
+
+      // Verificar se já existe produto com mesmo código ou código de barras
+      const product = await withTenantPrisma((req as any).tenant, async (prisma) => {
+        const existingProduct = await prisma.product.findFirst({
+          where: {
+            OR: [
+              { internalCode },
+              { gtin: gtin || undefined }
+            ]
+          }
+        });
+
+        if (existingProduct) {
+          throw new AppError('Product with this code or barcode already exists', 400, 'DUPLICATE_PRODUCT');
+        }
+
+        // Validações específicas para substâncias controladas (Guia 33)
+        if (isControlled && !anvisaCode) {
+          throw new AppError('Controlled substances require ANVISA code', 400, 'MISSING_REGISTRATION');
+        }
+
+        // Validações de temperatura
+        if (storage && !storage.includes('temperature')) {
+          throw new AppError('Temperature controlled products require proper storage information', 400, 'MISSING_TEMPERATURE_RANGE');
+        }
+
+        // Criar produto
+        if ((req as any).tenant) {
+          const planLimits: Record<string, number> = { starter: 100, professional: 1000, enterprise: 10000 };
+          const maxProducts = planLimits[(req as any).tenant.plan] ?? 100;
+          const currentProducts = await prisma.product.count();
+          if (currentProducts >= maxProducts) {
+            throw new AppError('Plan product limit reached', 403, 'PLAN_LIMIT');
+          }
+        }
+
+        const createdProduct = await prisma.product.create({
+          data: {
+            name,
+            internalCode,
+            gtin,
+            anvisaCode,
+            activeIngredient,
+            laboratory,
+            therapeuticClass,
+            productType,
+            storage,
+            isControlled,
+            controlledSubstance,
+            stripe,
+            shelfLifeDays,
+            isActive
+          }
+        });
+
+        if (isControlled) {
+          await prisma.notification.create({
+            data: {
+              tenantId: (req as any).tenant?.id || undefined,
+              userId: req.user!.userId,
+              type: 'PRODUCT_CONTROLLED_CREATE',
+              severity: 'warning',
+              message: `Produto controlado criado: ${createdProduct.name}`
+            }
+          });
+        }
+        if (storage && storage.includes('temperature')) {
+          await prisma.notification.create({
+            data: {
+              tenantId: (req as any).tenant?.id || undefined,
+              userId: req.user!.userId,
+              type: 'PRODUCT_TEMPERATURE_CONTROL',
+              severity: 'info',
+              message: `Produto com controle de temperatura: ${createdProduct.name}`
+            }
+          });
+        }
+
+        return createdProduct;
+      });
+
+      // Registrar log de auditoria
+      logger.info(`Product created: ${product.name} (${product.internalCode})`, {
+        userId: req.user?.userId,
+        productId: product.id,
+        action: 'PRODUCT_CREATE',
+        metadata: {
+          name: product.name,
+          internalCode: product.internalCode,
+          isControlled: product.isControlled,
+          storage: product.storage
+        }
+      });
+
+      res.status(201).json({
+        success: true,
+        data: product
+      });
+    } catch (error) {
+      next(error);
     }
-
-    // Verificar se já existe produto com mesmo código ou código de barras
-    const product = await withTenantPrisma((req as any).tenant, async (prisma) => {
-      const existingProduct = await prisma.product.findFirst({
-        where: {
-          OR: [
-            { internalCode },
-            { gtin: gtin || undefined }
-          ]
-        }
-      });
-
-      if (existingProduct) {
-        throw new AppError('Product with this code or barcode already exists', 400, 'DUPLICATE_PRODUCT');
-      }
-
-      // Validações específicas para substâncias controladas (Guia 33)
-      if (isControlled && !anvisaCode) {
-        throw new AppError('Controlled substances require ANVISA code', 400, 'MISSING_REGISTRATION');
-      }
-
-      // Validações de temperatura
-      if (storage && !storage.includes('temperature')) {
-        throw new AppError('Temperature controlled products require proper storage information', 400, 'MISSING_TEMPERATURE_RANGE');
-      }
-
-      // Criar produto
-      if ((req as any).tenant) {
-        const planLimits: Record<string, number> = { starter: 100, professional: 1000, enterprise: 10000 };
-        const maxProducts = planLimits[(req as any).tenant.plan] ?? 100;
-        const currentProducts = await prisma.product.count();
-        if (currentProducts >= maxProducts) {
-          throw new AppError('Plan product limit reached', 403, 'PLAN_LIMIT');
-        }
-      }
-
-      const createdProduct = await prisma.product.create({
-        data: {
-          name,
-          internalCode,
-          gtin,
-          anvisaCode,
-          activeIngredient,
-          laboratory,
-          therapeuticClass,
-          productType,
-          storage,
-          isControlled,
-          controlledSubstance,
-          stripe,
-          shelfLifeDays,
-          isActive
-        }
-      });
-
-      if (isControlled) {
-        await prisma.notification.create({
-          data: {
-            tenantId: (req as any).tenant?.id || undefined,
-            userId: req.user!.userId,
-            type: 'PRODUCT_CONTROLLED_CREATE',
-            severity: 'warning',
-            message: `Produto controlado criado: ${createdProduct.name}`
-          }
-        });
-      }
-      if (storage && storage.includes('temperature')) {
-        await prisma.notification.create({
-          data: {
-            tenantId: (req as any).tenant?.id || undefined,
-            userId: req.user!.userId,
-            type: 'PRODUCT_TEMPERATURE_CONTROL',
-            severity: 'info',
-            message: `Produto com controle de temperatura: ${createdProduct.name}`
-          }
-        });
-      }
-
-      return createdProduct;
-    });
-
-    // Registrar log de auditoria
-    logger.info(`Product created: ${product.name} (${product.internalCode})`, {
-      userId: req.user?.userId,
-      productId: product.id,
-      action: 'PRODUCT_CREATE',
-      metadata: {
-        name: product.name,
-        internalCode: product.internalCode,
-        isControlled: product.isControlled,
-        storage: product.storage
-      }
-    });
-
-    res.status(201).json({
-      success: true,
-      data: product
-    });
-  } catch (error) {
-    next(error);
-  }
-});
+  });
 
 router.get('/:id', authenticateToken, requirePermission('PRODUCT_READ'), async (req, res, next) => {
   try {
@@ -246,10 +251,10 @@ router.get('/:id', authenticateToken, requirePermission('PRODUCT_READ'), async (
         hasStock: product.stock.length > 0 && product.stock[0].availableQuantity > 0,
         requiresControlledSubstanceLicense: product.isControlled,
         temperatureControlled: !!product.storage,
-        rdc430Compliant: product.anvisaCode && 
-                        product.batches.length > 0 && 
-                        product.batches[0].expirationDate > new Date() &&
-                        product.isActive
+        rdc430Compliant: product.anvisaCode &&
+          product.batches.length > 0 &&
+          product.batches[0].expirationDate > new Date() &&
+          product.isActive
       }
     };
 
@@ -335,12 +340,12 @@ router.get('/:id/batches', authenticateToken, requirePermission('BATCH_READ'), a
 
       // Filtros para lotes
       const where: any = { productId: id };
-      
+
       // Por padrão, excluir lotes vencidos
       if (includeExpired !== 'true') {
         where.expirationDate = { gte: new Date() };
       }
-      
+
       // Por padrão, excluir lotes sem estoque
       if (includeEmpty !== 'true') {
         where.quantityCurrent = { gt: 0 };

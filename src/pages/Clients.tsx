@@ -20,33 +20,54 @@ import ClientDetailsModal from '@/components/tenant/modals/ClientDetailsModal';
 import EditClientModal from '@/components/tenant/modals/EditClientModal';
 import EmptyState from '@/components/EmptyState';
 import TableSkeleton from '@/components/TableSkeleton';
+import customerService, { Customer } from '@/services/customer.service';
+import { useToast } from '@/hooks/use-toast';
 
 export default function Clients() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedClient, setSelectedClient] = useState<any>(null);
+  const [clients, setClients] = useState<Customer[]>([]);
+  const [selectedClient, setSelectedClient] = useState<Customer | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editMode, setEditMode] = useState<'create' | 'edit'>('create');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const { toast } = useToast();
+
+  const loadClients = async () => {
+    try {
+      setLoading(true);
+      const response = await customerService.list({
+        page,
+        limit: 50,
+        search: searchTerm || undefined,
+        status: 'active',
+      });
+      setClients(response.customers || []);
+      setTotal(response.pagination?.total || 0);
+    } catch (error) {
+      console.error('Error loading clients:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível carregar os clientes.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 1000);
-    return () => clearTimeout(timer);
-  }, []);
+    loadClients();
+  }, [page, searchTerm]);
 
-  const clients: any[] = [
-    { id: 'CLI-001', name: 'Drogaria São Paulo', cnpj: '61.412.110/0001-55', contact: 'compras@dpsp.com.br', phone: '(11) 98765-4321', city: 'São Paulo', state: 'SP', status: 'active', lastOrder: '2024-11-07' },
-    { id: 'CLI-002', name: 'Farmácia Popular', cnpj: '05.438.642/0001-20', contact: 'gerencia@farmaciapopular.com', phone: '(21) 91234-5678', city: 'Rio de Janeiro', state: 'RJ', status: 'active', lastOrder: '2024-11-06' },
-    { id: 'CLI-003', name: 'Rede Bem Estar', cnpj: '12.345.678/0001-99', contact: 'contato@redebemestar.com', phone: '(31) 95555-8888', city: 'Belo Horizonte', state: 'MG', status: 'inactive', lastOrder: '2024-08-15' },
-    { id: 'CLI-004', name: 'Farmácia Central', cnpj: '98.765.432/0001-11', contact: 'financeiro@centralfarma.com', phone: '(41) 94444-7777', city: 'Curitiba', state: 'PR', status: 'active', lastOrder: '2024-11-07' },
-  ];
-
-  const handleViewDetails = (client: any) => {
+  const handleViewDetails = (client: Customer) => {
     setSelectedClient(client);
     setIsDetailsOpen(true);
   };
 
-  const handleEdit = (client: any) => {
+  const handleEdit = (client: Customer) => {
     setSelectedClient(client);
     setEditMode('edit');
     setIsEditOpen(true);
@@ -58,11 +79,12 @@ export default function Clients() {
     setIsEditOpen(true);
   };
 
-  const filteredClients = clients.filter(client =>
-    client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    client.cnpj.includes(searchTerm) ||
-    client.city.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const getStatusBadge = (customer: Customer) => {
+    if (customer.isActive) {
+      return <Badge variant="secondary" className="bg-green-100 text-green-800">Ativo</Badge>;
+    }
+    return <Badge variant="secondary" className="bg-gray-100 text-gray-800">Inativo</Badge>;
+  };
 
   return (
     <>
@@ -77,30 +99,36 @@ export default function Clients() {
         </Button>
       </div>
 
-      <Card className="border-0 shadow-sm">
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
-                <CardTitle>Lista de Clientes</CardTitle>
-                <CardDescription>{filteredClients.length} clientes encontrados</CardDescription>
-            </div>
-            <div className="w-full max-w-sm">
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input placeholder="Buscar por nome, CNPJ ou cidade..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
-                </div>
+      <Card className="border-0 shadow-sm mb-6">
+        <CardContent className="p-6">
+          <div className="flex items-center space-x-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Buscar por nome, CNPJ, cidade..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-0 shadow-sm">
+        <CardHeader>
+          <CardTitle>Carteira de Clientes</CardTitle>
+          <CardDescription>{total} clientes cadastrados</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
             <TableSkeleton columns={6} />
-          ) : filteredClients.length > 0 ? (
+          ) : clients.length > 0 ? (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Cliente</TableHead>
-                  <TableHead>CNPJ</TableHead>
+                  <TableHead>CNPJ/CPF</TableHead>
                   <TableHead>Contato</TableHead>
                   <TableHead>Localização</TableHead>
                   <TableHead>Status</TableHead>
@@ -108,36 +136,51 @@ export default function Clients() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredClients.map((client) => (
+                {clients.map((client) => (
                   <TableRow key={client.id}>
                     <TableCell>
                       <div className="flex items-center space-x-3">
-                        <div className="bg-gray-100 p-2 rounded-lg"><Building2 className="h-5 w-5 text-gray-600" /></div>
+                        <div className="bg-purple-100 p-2 rounded-lg">
+                          <Building2 className="h-4 w-4 text-purple-600" />
+                        </div>
                         <div>
-                          <p className="font-medium">{client.name}</p>
-                          <p className="text-sm text-gray-500">{client.id}</p>
+                          <p className="font-medium">{client.companyName}</p>
+                          <p className="text-sm text-gray-500">{client.tradeName || client.companyName}</p>
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="font-mono text-sm">{client.cnpj}</TableCell>
+                    <TableCell className="font-mono text-sm">{client.cnpjCpf}</TableCell>
                     <TableCell>
-                       <div className="flex flex-col space-y-1">
-                          <div className="flex items-center space-x-2"><Mail className="h-3 w-3 text-gray-400"/><span className="text-xs">{client.contact}</span></div>
-                          <div className="flex items-center space-x-2"><Phone className="h-3 w-3 text-gray-400"/><span className="text-xs">{client.phone}</span></div>
-                       </div>
+                      <div className="space-y-1">
+                        {client.email && (
+                          <div className="flex items-center space-x-1 text-sm">
+                            <Mail className="h-3 w-3 text-gray-400" />
+                            <span>{client.email}</span>
+                          </div>
+                        )}
+                        {client.phone && (
+                          <div className="flex items-center space-x-1 text-sm">
+                            <Phone className="h-3 w-3 text-gray-400" />
+                            <span>{client.phone}</span>
+                          </div>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center space-x-2"><MapPin className="h-4 w-4 text-gray-400"/><span>{client.city}, {client.state}</span></div>
+                      <div className="flex items-center space-x-1 text-sm">
+                        <MapPin className="h-3 w-3 text-gray-400" />
+                        <span>{client.city}/{client.state}</span>
+                      </div>
                     </TableCell>
-                     <TableCell>
-                      <Badge variant={client.status === 'active' ? 'secondary' : 'outline'} className={client.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
-                        {client.status === 'active' ? 'Ativo' : 'Inativo'}
-                      </Badge>
-                    </TableCell>
+                    <TableCell>{getStatusBadge(client)}</TableCell>
                     <TableCell>
                       <div className="flex items-center space-x-2">
-                        <Button variant="ghost" size="sm" onClick={() => handleViewDetails(client)}><Eye className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleEdit(client)}><Edit className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleViewDetails(client)}>
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleEdit(client)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -146,15 +189,10 @@ export default function Clients() {
             </Table>
           ) : (
             <EmptyState
-              icon={<Users className="h-16 w-16" />}
+              icon={Users}
               title="Nenhum cliente encontrado"
-              description="Comece a construir sua carteira de clientes cadastrando o primeiro."
-              action={
-                <Button onClick={handleCreate}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Novo Cliente
-                </Button>
-              }
+              description="Não há clientes cadastrados no sistema."
+              action={<Button onClick={handleCreate}>Adicionar Primeiro Cliente</Button>}
             />
           )}
         </CardContent>
@@ -163,6 +201,7 @@ export default function Clients() {
       <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
         <ClientDetailsModal client={selectedClient} />
       </Dialog>
+
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <EditClientModal client={selectedClient} mode={editMode} />
       </Dialog>

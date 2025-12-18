@@ -85,4 +85,52 @@ export class SuperadminSubscriptionController {
       next(err);
     }
   }
+
+  // ✅ NOVO: Estatísticas para KPIs do dashboard
+  static async getStats(req: Request, res: Response, next: NextFunction) {
+    try {
+      const subscriptions = await prismaMaster.subscription.findMany({
+        include: {
+          plan: true,
+          tenant: { select: { name: true } }
+        }
+      });
+
+      const total = subscriptions.length;
+      const active = subscriptions.filter(s => s.status === 'active').length;
+      const expired = subscriptions.filter(s => s.status === 'expired').length;
+      const suspended = subscriptions.filter(s => s.status === 'suspended').length;
+      const trial = subscriptions.filter(s => s.status === 'trial').length;
+
+      // Calcular MRR (Monthly Recurring Revenue)
+      const mrr = subscriptions
+        .filter(s => s.status === 'active')
+        .reduce((sum, sub) => {
+          const price = sub.plan?.priceMonthly || 0;
+          return sum + Number(price);
+        }, 0);
+
+      // Contar por plano
+      const byPlan: Record<string, number> = {};
+      subscriptions.forEach(sub => {
+        const planName = sub.plan?.name || 'Unknown';
+        byPlan[planName] = (byPlan[planName] || 0) + 1;
+      });
+
+      res.json({
+        success: true,
+        data: {
+          total,
+          active,
+          expired,
+          suspended,
+          trial,
+          mrr: mrr.toFixed(2),
+          byPlan
+        }
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
 }

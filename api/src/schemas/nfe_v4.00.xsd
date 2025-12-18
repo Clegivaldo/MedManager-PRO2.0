@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" 
+           targetNamespace="http://www.portalfiscal.inf.br/nfe" 
+           elementFormDefault="qualified" 
+           attributeFormDefault="unqualified">
+    <!-- 
+        PLACEHOLDER SCHEMA 
+        Please replace this file with the official PL_009i_NT2019_001 \ nfe_v4.00.xsd 
+        from the SEFAZ portal to enable full validation.
+    -->
+    <xs:element name="NFe">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:any minOccurs="0" maxOccurs="unbounded" processContents="skip"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>

@@ -15,9 +15,10 @@
  */
 
 import { webhookRetryService } from '../services/webhook-retry.service.js';
-import { PrismaClient } from '@prisma/client';
+import pkg from '@prisma/client';
+const PrismaClientRuntime = (pkg as any).PrismaClient as any;
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClientRuntime();
 
 interface ReprocessResult {
   total: number;

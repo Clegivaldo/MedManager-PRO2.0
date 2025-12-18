@@ -1,9 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
+import pkg from '@prisma/client';
+const PrismaClientRuntime = (pkg as any).PrismaClient as any;
 import { PaymentService } from '../services/payment/payment.service.js';
 import { AppError } from '../utils/errors.js';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClientRuntime();
 const paymentService = new PaymentService(prisma);
 
 export class PaymentController {

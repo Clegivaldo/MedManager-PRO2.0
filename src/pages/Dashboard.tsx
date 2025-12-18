@@ -21,6 +21,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { socketService } from '@/services/socket.service';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect } from 'react';
+import WarehouseKPIs from '@/components/dashboard/WarehouseKPIs';
+import StockHealthCards from '@/components/dashboard/StockHealthCards';
 
 export default function Dashboard() {
   const { toast } = useToast();
@@ -110,6 +112,10 @@ export default function Dashboard() {
           </Button>
         </div>
       </div>
+
+      {/* Warehouse & Stock Health KPIs */}
+      <WarehouseKPIs />
+      <StockHealthCards />
 
       {/* Cards de Métricas Principais */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

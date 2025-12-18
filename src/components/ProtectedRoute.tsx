@@ -1,34 +1,34 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
-// Garantir consistência caso backend retorne role em minúsculas ou mistas
 function normalizeRole(role?: string) {
   return (role || '').toUpperCase();
 }
 
 interface ProtectedRouteProps {
   allowedRoles?: Array<'SUPERADMIN' | 'MASTER' | 'ADMIN' | 'MANAGER' | 'OPERATOR' | 'VIEWER'>;
+  requiredModule?: string; // ✅ NOVO
   redirectTo?: string;
-  // Se true, MASTER será tratado como ADMIN para fins de acesso
   treatMasterAsAdmin?: boolean;
 }
 
-export default function ProtectedRoute({ 
-  allowedRoles, 
+export default function ProtectedRoute({
+  allowedRoles,
+  requiredModule,
   redirectTo = '/login',
   treatMasterAsAdmin = true
 }: ProtectedRouteProps) {
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { isAuthenticated, isLoading, user, tenant } = useAuth();
   const userRole = normalizeRole(user?.role);
   const location = useLocation();
+  const isSuperOrMaster = userRole === 'SUPERADMIN' || userRole === 'MASTER';
 
-  // Se já está na página de licença expirada, permitir renderização sem validação extra
   if (location.pathname === '/license-expired') {
     return <Outlet />;
   }
 
-  // Mostrar loading enquanto verifica autenticação
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -37,24 +37,45 @@ export default function ProtectedRoute({
     );
   }
 
-  // Redirecionar para login se não autenticado
   if (!isAuthenticated) {
     return <Navigate to={redirectTo} replace />;
   }
 
-  // Verificar permissões de role se especificado
+  // ✅ Verificação de Módulo
+  if (requiredModule && !isSuperOrMaster) {
+    const modules = tenant?.modulesEnabled || [];
+    if (!modules.includes(requiredModule)) {
+      return (
+        <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-muted/30 p-4">
+          <div className="text-center space-y-2 max-w-md">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Módulo Não Habilitado</h1>
+            <p className="text-muted-foreground">
+              O módulo <span className="font-semibold text-primary">"{requiredModule}"</span> não está incluído no seu plano atual.
+            </p>
+          </div>
+          <div className="flex gap-4">
+            <Button variant="outline" onClick={() => window.history.back()}>
+              Voltar
+            </Button>
+            <Button onClick={() => window.dispatchEvent(new CustomEvent('module-not-enabled', { detail: { message: `Acesso ao módulo ${requiredModule}` } }))}>
+              Fazer Upgrade
+            </Button>
+          </div>
+        </div>
+      );
+    }
+  }
+
   if (allowedRoles && user) {
     const normalizedAllowed = allowedRoles.map(r => r.toUpperCase());
     let effectiveRole = userRole;
 
-    // Permitir que MASTER atue como ADMIN nas rotas que esperam ADMIN
     if (treatMasterAsAdmin && userRole === 'MASTER' && normalizedAllowed.includes('ADMIN') && !normalizedAllowed.includes('MASTER')) {
       effectiveRole = 'ADMIN';
     }
 
     const isAllowed = normalizedAllowed.includes(effectiveRole);
 
-    // Caso SUPERADMIN tente acessar rota que não inclui SUPERADMIN, redirecionar para painel superadmin
     if (userRole === 'SUPERADMIN' && !isAllowed) {
       return <Navigate to="/superadmin" replace />;
     }
@@ -79,6 +100,5 @@ export default function ProtectedRoute({
     }
   }
 
-  // Renderizar rota protegida
   return <Outlet />;
 }

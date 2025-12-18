@@ -1,10 +1,11 @@
-import { PrismaClient } from '@prisma/client';
+import pkg from '@prisma/client';
+const PrismaClientRuntime = (pkg as any).PrismaClient as any;
 import bcrypt from 'bcryptjs';
 
 async function createTenantUser() {
   const tenantDbUrl = 'postgresql://postgres:postgres123@db:5432/medmanager_tenant_demo';
   
-  const prisma = new PrismaClient({
+  const prisma = new PrismaClientRuntime({
     datasources: {
       db: {
         url: tenantDbUrl

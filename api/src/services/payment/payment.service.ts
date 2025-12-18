@@ -1,4 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import pkg from '@prisma/client';
+import type { PrismaClient as PrismaClientType } from '@prisma/client';
+const PrismaClientRuntime = (pkg as any).PrismaClient as any;
 import { AppError } from '../../utils/errors.js';
 import { GlobalPaymentConfigService } from './globalPaymentConfig.service.js';
 import { PaymentGateway, CreateChargeParams, ChargeResponse } from './PaymentGateway.interface.js';
@@ -8,7 +10,7 @@ import { InfinityPayGateway } from './InfinityPayGateway.js';
 export class PaymentService {
     private globalCfg: GlobalPaymentConfigService;
 
-    constructor(private prisma: PrismaClient) {
+    constructor(private prisma: PrismaClientType) {
         this.globalCfg = new GlobalPaymentConfigService(prisma);
     }
 

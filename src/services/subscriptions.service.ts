@@ -35,6 +35,20 @@ class SubscriptionsService {
     const res = await api.patch<ApiResponse<SubscriptionRecord>>(`/superadmin/subscriptions/${tenantId}/change-plan`, { newPlanId });
     return res.data.data;
   }
+
+  // ✅ NOVO: Buscar estatísticas
+  async getStats() {
+    const res = await api.get<ApiResponse<{
+      total: number;
+      active: number;
+      expired: number;
+      suspended: number;
+      trial: number;
+      mrr: string;
+      byPlan: Record<string, number>;
+    }>>('/superadmin/subscriptions/stats');
+    return res.data.data;
+  }
 }
 
 export const subscriptionsService = new SubscriptionsService();

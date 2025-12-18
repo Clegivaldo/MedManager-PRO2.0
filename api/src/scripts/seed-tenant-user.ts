@@ -1,5 +1,8 @@
 import { prismaMaster } from '../lib/prisma.js';
-import { PrismaClient, UserRole } from '@prisma/client';
+import pkg from '@prisma/client';
+import type { UserRole } from '@prisma/client';
+const PrismaClientRuntime = (pkg as any).PrismaClient as any;
+const { UserRole } = pkg as any;
 import { hashPassword } from '../services/auth.service.js';
 import { config } from '../config/environment.js';
 import { logger } from '../utils/logger.js';
@@ -22,7 +25,7 @@ async function seedTenantUser() {
       throw new Error('Tenant not found or inactive');
     }
 
-    const tenantPrisma = new PrismaClient({
+    const tenantPrisma = new PrismaClientRuntime({
       datasources: { db: { url: config.DATABASE_URL.replace(/\/(\w+)$/, `/${tenant.databaseName}`) } }
     });
 

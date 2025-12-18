@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import pkg from '@prisma/client';
+const PrismaClientRuntime = (pkg as any).PrismaClient as any;
 import { authenticateToken } from '../middleware/auth.js';
 import { tenantMiddleware } from '../middleware/tenantMiddleware.js';
 import { SubscriptionService } from '../services/subscription.service.js';
@@ -7,7 +8,7 @@ import { AppError } from '../utils/errors.js';
 import { LimitsService } from '../services/limits.service.js';
 
 const router: Router = Router();
-const prisma = new PrismaClient();
+const prisma = new PrismaClientRuntime();
 const subscriptionService = new SubscriptionService(prisma);
 const limitsService = new LimitsService(prisma);
 

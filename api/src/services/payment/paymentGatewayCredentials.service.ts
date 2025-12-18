@@ -1,4 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import pkg from '@prisma/client';
+import type { PrismaClient as PrismaClientType } from '@prisma/client';
+const PrismaClientRuntime = (pkg as any).PrismaClient as any;
 import { encrypt, decrypt, maskSecret } from '../../utils/encryption.js';
 
 interface UpdateCredentialsDTO {
@@ -9,7 +11,7 @@ interface UpdateCredentialsDTO {
 }
 
 export class PaymentGatewayCredentialsService {
-  constructor(private prisma: PrismaClient) {}
+  constructor(private prisma: PrismaClientType) {}
 
   async getMasked(tenantId: string) {
     const creds = await this.prisma.paymentGatewayCredentials.findUnique({

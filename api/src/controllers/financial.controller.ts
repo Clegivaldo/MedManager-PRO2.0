@@ -146,7 +146,7 @@ class FinancialController {
 
             const transaction = await financialService.createTransaction(
                 tenantId,
-                validationResult.data
+                validationResult.data as any
             );
 
             logger.info(`Transaction created for tenant ${tenantId}`);

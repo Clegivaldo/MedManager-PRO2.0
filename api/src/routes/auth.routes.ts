@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import pkg from '@prisma/client';
+const PrismaClientRuntime = (pkg as any).PrismaClient as any;
 import { authenticateToken } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/permissions.js';
 import { logger } from '../utils/logger.js';
@@ -126,10 +127,10 @@ router.post('/login-tenant', async (req, res, next) => {
       throw new AppError('Tenant not found or inactive', 404, 'TENANT_NOT_FOUND');
     }
 
-    const tenantDbUrl = config.DATABASE_URL.replace(/\/(\w+)$/, `/${tenant.databaseName}`);
+      const tenantDbUrl = config.DATABASE_URL.replace(/\/(\w+)$/, `/${tenant.databaseName}`);
     logger.info('Resolved tenant DB URL', { tenantDbUrl });
 
-    const tenantPrisma = new PrismaClient({ datasources: { db: { url: tenantDbUrl } } });
+      const tenantPrisma = new PrismaClientRuntime({ datasources: { db: { url: tenantDbUrl } } });
 
     let user;
     try {
@@ -333,8 +334,8 @@ router.post('/forgot-password', async (req, res, next) => {
       });
       if (tenant) {
         try {
-          const tenantDbUrl = config.DATABASE_URL.replace(/\/(\w+)$/, `/${tenant.databaseName}`);
-          const tenantPrisma = new PrismaClient({ datasources: { db: { url: tenantDbUrl } } });
+            const tenantDbUrl = config.DATABASE_URL.replace(/\/\/(\w+)$/, `/${tenant.databaseName}`);
+            const tenantPrisma = new PrismaClientRuntime({ datasources: { db: { url: tenantDbUrl } } });
           user = await tenantPrisma.user.findUnique({ where: { email: normalizedEmail } });
           await tenantPrisma.$disconnect();
         } catch (tenantErr) {

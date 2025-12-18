@@ -1,9 +1,10 @@
-import { PrismaClient } from '@prisma/client';
+import pkg from '@prisma/client';
+const PrismaClientRuntime = (pkg as any).PrismaClient as any;
 import { ROLES } from '../middleware/permissions.js';
 import { config } from '../config/environment.js';
 import { logger } from '../utils/logger.js';
 
-const prismaMaster = new PrismaClient({
+const prismaMaster = new PrismaClientRuntime({
   datasources: { db: { url: config.DATABASE_URL } }
 });
 
@@ -25,7 +26,7 @@ async function fixUserPermissions() {
       console.log(`\n🏢 Processando tenant: ${tenant.name} (${tenant.cnpj})`);
       
       const tenantDbUrl = config.DATABASE_URL.replace(/\/(\w+)$/, `/${tenant.databaseName}`);
-      const tenantPrisma = new PrismaClient({
+      const tenantPrisma = new PrismaClientRuntime({
         datasources: { db: { url: tenantDbUrl } }
       });
 

@@ -1,6 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import pkg from '@prisma/client';
+const PrismaClientRuntime = (pkg as any).PrismaClient as any;
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClientRuntime();
 
 export async function seedPlans() {
   console.log('🌱 Seeding plans...');

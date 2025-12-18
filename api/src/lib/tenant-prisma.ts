@@ -1,4 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import pkg from '@prisma/client';
+import type { PrismaClient as PrismaClientType } from '@prisma/client';
+const PrismaClientRuntime = (pkg as any).PrismaClient as any;
 import { config } from '../config/environment.js';
 import { prismaMaster } from './prisma.js';
 
@@ -6,7 +8,7 @@ import { prismaMaster } from './prisma.js';
  * Helper para obter instância Prisma dinâmica baseada em tenant context
  * Retorna master se não houver tenant, tenant-specific caso contrário
  */
-export function getTenantPrisma(tenantContext?: any | string): PrismaClient {
+export function getTenantPrisma(tenantContext?: any | string): PrismaClientType {
   if (!tenantContext) {
     return prismaMaster as any;
   }
@@ -19,7 +21,7 @@ export function getTenantPrisma(tenantContext?: any | string): PrismaClient {
 
   const tenantDbUrl = config.DATABASE_URL.replace(/\/(\w+)$/, `/${dbName}`);
   
-  return new PrismaClient({
+  return new PrismaClientRuntime({
     datasources: {
       db: { url: tenantDbUrl }
     }
@@ -31,7 +33,7 @@ export function getTenantPrisma(tenantContext?: any | string): PrismaClient {
  */
 export async function withTenantPrisma<T>(
   tenantContext: any | undefined,
-  operation: (prisma: PrismaClient) => Promise<T>
+  operation: (prisma: PrismaClientType) => Promise<T>
 ): Promise<T> {
   const prisma = getTenantPrisma(tenantContext);
   const shouldDisconnect = !!tenantContext; // Só desconecta se for tenant-specific

@@ -1,10 +1,12 @@
-import { PrismaClient } from '@prisma/client';
+import pkg from '@prisma/client';
+import type { PrismaClient as PrismaClientType } from '@prisma/client';
+const PrismaClientRuntime = (pkg as any).PrismaClient as any;
 import { config } from '../config/environment.js';
 import { logger } from '../utils/logger.js';
 import { join } from 'path';
 
 // Cliente Prisma para o banco master (controle de tenants)
-export const prismaMaster = new PrismaClient({
+export const prismaMaster = new PrismaClientRuntime({
   datasources: {
     db: {
       url: config.DATABASE_URL
@@ -16,7 +18,7 @@ export const prismaMaster = new PrismaClient({
 });
 
 // Pool de clientes Prisma para tenants (database-per-tenant)
-const tenantPrismaPool = new Map<string, PrismaClient>();
+const tenantPrismaPool = new Map<string, PrismaClientType>();
 
 /**
  * Interface para configuração de conexão de tenant
@@ -30,7 +32,7 @@ interface TenantConnectionConfig {
 /**
  * Cria ou obtém cliente Prisma para um tenant específico
  */
-export function getTenantPrisma(conn: TenantConnectionConfig): PrismaClient {
+export function getTenantPrisma(conn: TenantConnectionConfig): PrismaClientType {
   const { databaseName, databaseUser, databasePassword } = conn;
   const poolKey = `${databaseName}:${databaseUser}`;
   
@@ -50,7 +52,7 @@ export function getTenantPrisma(conn: TenantConnectionConfig): PrismaClient {
     connectionUrl = `postgresql://${databaseUser}:${databasePassword}@${config.DATABASE_URL.split('@')[1].split('/')[0]}/${databaseName}`;
   }
   
-  const tenantPrisma = new PrismaClient({
+  const tenantPrisma = new PrismaClientRuntime({
     datasources: {
       db: {
         url: connectionUrl
@@ -117,7 +119,7 @@ export async function validateTenantDatabase(conn: TenantConnectionConfig & { DA
       connectionUrl = `postgresql://${conn.databaseUser}:${conn.databasePassword}@${conn.DATABASE_URL!.split('@')[1].split('/')[0]}/${conn.databaseName}`;
     }
     
-    const testClient = new PrismaClient({
+    const testClient = new PrismaClientRuntime({
       datasources: {
         db: {
           url: connectionUrl
@@ -173,7 +175,7 @@ export async function createTenantDatabase(databaseName: string, databaseUser: s
     const masterCred = config.DATABASE_URL.split('://')[1].split('@')[0];
     const hostPart = config.DATABASE_URL.split('@')[1].split('/')[0];
     const adminUrl = `postgresql://${masterCred}@${hostPart}/${databaseName}`;
-    const tempClient = new PrismaClient({ datasources: { db: { url: adminUrl } } });
+    const tempClient = new PrismaClientRuntime({ datasources: { db: { url: adminUrl } } });
     await tempClient.$executeRawUnsafe(`GRANT ALL ON SCHEMA public TO "${databaseUser}"`);
     await tempClient.$executeRawUnsafe(`ALTER SCHEMA public OWNER TO "${databaseUser}"`);
     await tempClient.$disconnect();

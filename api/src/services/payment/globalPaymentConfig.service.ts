@@ -1,4 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import pkg from '@prisma/client';
+import type { PrismaClient as PrismaClientType } from '@prisma/client';
+const PrismaClientRuntime = (pkg as any).PrismaClient as any;
 import { decrypt, encrypt, maskSecret } from '../../utils/encryption.js';
 
 export interface GlobalPaymentConfigMasked {
@@ -24,7 +26,7 @@ export interface UpdateGlobalPaymentConfigDTO {
 }
 
 export class GlobalPaymentConfigService {
-  constructor(private prisma: PrismaClient) { }
+  constructor(private prisma: PrismaClientType) { }
 
   private async ensureSingleton(): Promise<any> {
     // Usamos any aqui para evitar erros de tipagem antes do prisma generate

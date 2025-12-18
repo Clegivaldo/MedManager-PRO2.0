@@ -14,6 +14,7 @@ import tenantRouter from './routes/tenant.routes.js';
 import superadminRouter from './routes/superadmin.routes.js';
 import superadminSubscriptionRouter from './routes/superadmin/subscription.routes.js';
 import superadminBillingRouter from './routes/superadmin/billing.routes.js';
+import superadminModuleRouter from './routes/superadmin/module.routes.js'; // ✅ NOVO
 import regulatoryRouter from './routes/regulatory.routes.js';
 import userRouter from './routes/user.routes.js';
 import productRouter from './routes/product.routes.js';
@@ -22,6 +23,10 @@ import customerRouter from './routes/customer.routes.js';
 import supplierRouter from './routes/supplier.routes.js';
 import invoiceRouter from './routes/invoice.routes.js';
 import fiscalRouter from './routes/fiscal.routes.js';
+// import limitsRouter from './routes/limits.routes.js';
+// import globalPaymentConfigRouter from './routes/globalPaymentConfig.routes.js';
+// import paymentGatewayCredentialsRouter from './routes/paymentGatewayCredentials.routes.js';
+// import paymentGatewayEventsRouter from './routes/paymentGatewayEvents.routes.js';
 import subscriptionRouter from './routes/subscription.routes.js';
 import usageRouter from './routes/usage.routes.js';
 import paymentRouter from './routes/payment.routes.js';
@@ -36,6 +41,10 @@ import tenantSettingsRoutes from './routes/tenant-settings.routes.js';
 import financialRoutes from './routes/financial.routes.js';
 import auditRoutes from './routes/audit.routes.js';
 import orderRouter from './routes/order.routes.js';
+import warehouseRouter from './routes/warehouse.routes.js';
+import temperatureRouter from './routes/temperature.routes.js';
+import quoteRouter from './routes/quote.routes.js';
+import deliveryRouteRouter from './routes/delivery-route.routes.js';
 import { authenticateToken } from './middleware/auth.js';
 import { validateSubscription } from './middleware/subscription.middleware.js';
 import { initPaymentSyncJob, paymentSyncJob } from './jobs/paymentSync.job.js';
@@ -184,7 +193,10 @@ app.use(`/api/${config.API_VERSION}/backup`, authenticateToken, backupRouter);
 // Rotas protegidas que exigem assinatura ativa
 app.use(`/api/${config.API_VERSION}/superadmin`, authenticateToken, superadminRouter);
 app.use(`/api/${config.API_VERSION}/superadmin/subscriptions`, authenticateToken, superadminSubscriptionRouter);
+app.use(`/api/${config.API_VERSION}/superadmin/subscriptions`, authenticateToken, superadminSubscriptionRouter);
 app.use(`/api/${config.API_VERSION}/superadmin/billing`, authenticateToken, superadminBillingRouter);
+app.use(`/api/${config.API_VERSION}/superadmin/modules`, authenticateToken, superadminModuleRouter); // ✅ NOVO
+// app.use(`/api/${config.API_VERSION}/limits`, limitsRouter);
 app.use(`/api/${config.API_VERSION}/regulatory`, authenticateToken, tenantMiddleware, validateSubscription, regulatoryRouter);
 app.use(`/api/${config.API_VERSION}/users`, authenticateToken, validateSubscription, userRouter);
 app.use(`/api/${config.API_VERSION}/products`, authenticateToken, tenantMiddleware, validateSubscription, productRouter);
@@ -196,6 +208,10 @@ app.use(`/api/${config.API_VERSION}/fiscal`, authenticateToken, tenantMiddleware
 app.use(`/api/${config.API_VERSION}/dashboard`, authenticateToken, tenantMiddleware, validateSubscription, dashboardRouter);
 app.use(`/api/${config.API_VERSION}/batches`, authenticateToken, tenantMiddleware, validateSubscription, batchRouter);
 app.use(`/api/${config.API_VERSION}/orders`, authenticateToken, tenantMiddleware, validateSubscription, orderRouter);
+app.use(`/api/${config.API_VERSION}/warehouses`, authenticateToken, tenantMiddleware, validateSubscription, warehouseRouter);
+app.use(`/api/${config.API_VERSION}/temperature`, authenticateToken, tenantMiddleware, validateSubscription, temperatureRouter);
+app.use(`/api/${config.API_VERSION}/quotes`, authenticateToken, tenantMiddleware, validateSubscription, quoteRouter);
+app.use(`/api/${config.API_VERSION}/delivery-routes`, authenticateToken, tenantMiddleware, validateSubscription, deliveryRouteRouter);
 
 // Rota de teste
 app.get('/api/test', (req, res) => {

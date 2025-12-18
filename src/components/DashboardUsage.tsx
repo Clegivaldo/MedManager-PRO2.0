@@ -217,23 +217,36 @@ export default function DashboardUsage() {
         </Card>
       </div>
 
-      {/* Info Box com Dicas */}
+      {/* Info Box com Dicas e Botão de Upgrade */}
       <Card className="bg-blue-50 border-blue-200">
         <CardHeader>
-          <CardTitle className="text-sm flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4" />
-            Dicas para Otimizar
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              Dicas para Otimizar
+            </CardTitle>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => {
+                // Disparar evento para abrir modal de upgrade
+                window.dispatchEvent(new CustomEvent('plan-limit-reached', {
+                  detail: {
+                    limitType: 'general',
+                    message: 'Faça upgrade do seu plano para aumentar seus limites'
+                  }
+                }));
+              }}
+              className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
+            >
+              Fazer Upgrade
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="text-sm space-y-2 text-gray-700">
           <p>• Se atingir 80% de utilização, um alerta será exibido</p>
           <p>• Ao atingir 100%, novas criações serão bloqueadas</p>
           <p>• Atualize para um plano superior para aumentar os limites</p>
-          <div className="mt-3">
-            <Link to="/subscription" className="text-blue-600 hover:text-blue-700 font-semibold">
-              → Visualizar Planos Disponíveis
-            </Link>
-          </div>
         </CardContent>
       </Card>
 

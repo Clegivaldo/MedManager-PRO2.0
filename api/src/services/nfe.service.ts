@@ -9,9 +9,11 @@ import { buildNFeXml, generateAccessKey, type NFeXmlData } from '../utils/nfeXml
 import { decryptCertificate } from '../utils/certificate.js';
 import { SefazService, type SefazConfig } from './sefaz.service.js';
 import { normalizeNFeStatus } from '../utils/nfeStatusCodes.js';
-import { InvoiceStatus } from '@prisma/client';
+import pkg from '@prisma/client';
+const InvoiceStatus = (pkg as any).InvoiceStatus as any;
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { nfeValidator } from '../utils/xsd.validator.js';
 
 /**
  * Interface para dados da NF-e conforme usado nas rotas
@@ -161,9 +163,9 @@ export class NFeService {
   }
 
   // Map normalized NFe status strings to InvoiceStatus enum values
-  private mapInvoiceStatus(norm?: string | null): InvoiceStatus | undefined {
+  private mapInvoiceStatus(norm?: string | null): any | undefined {
     if (!norm) return undefined;
-    const map: Record<string, InvoiceStatus> = {
+    const map: Record<string, any> = {
       'authorized': InvoiceStatus.AUTHORIZED,
       'denied': InvoiceStatus.DENIED,
       'cancelled': InvoiceStatus.CANCELLED,
@@ -219,8 +221,20 @@ export class NFeService {
       // Gerar XML da NF-e usando o perfil fiscal
       const nfeXml = await this.generateNFeXml(nfeData, fiscalProfile, activeSeries.seriesNumber, nextNumber);
 
+      // Validate XML against XSD
+      const validation = nfeValidator.validate(nfeXml);
+      if (!validation.valid) {
+        logger.warn('XML XSD Validation Failed', { errors: validation.errors });
+        // We might want to throw here, but for now just log
+        // throw new AppError(`XML Validation Failed: ${validation.errors.join('; ')}`, 400);
+      }
+
       // Verificar se vamos operar em modo simulado (sem certificado)
-      const useSimulation = (!fiscalProfile.certificatePath || !fiscalProfile.certificatePassword) && config.ALLOW_NFE_SIMULATION && fiscalProfile.sefazEnvironment === 'homologacao' && config.isDevelopment;
+      // SOMENTE se ALLOW_NFE_SIMULATION for 'true' E certificatePath estiver ausente
+      const useSimulation = (!fiscalProfile.certificatePath || !fiscalProfile.certificatePassword)
+        && !!config.ALLOW_NFE_SIMULATION
+        && fiscalProfile.sefazEnvironment === 'homologacao'
+        && config.isDevelopment;
 
       let sefazResponse: SefazResponse;
       if (useSimulation) {
@@ -235,7 +249,7 @@ export class NFeService {
         sefazResponse = {
           success: true,
           accessKey,
-            protocolNumber: 'SIM-' + Date.now(),
+          protocolNumber: 'SIM-' + Date.now(),
           authorizationDate: new Date(),
           status: 'authorized',
           statusCode: '100',
@@ -362,9 +376,9 @@ export class NFeService {
     // Gerar código numérico aleatório (cNF) e chave de acesso
     const cNF = Math.floor(Math.random() * 100000000).toString().padStart(8, '0');
     const now = new Date();
-    const aamm = (now.getFullYear() % 100).toString().padStart(2, '0') + 
-                 (now.getMonth() + 1).toString().padStart(2, '0');
-    
+    const aamm = (now.getFullYear() % 100).toString().padStart(2, '0') +
+      (now.getMonth() + 1).toString().padStart(2, '0');
+
     const accessKey = generateAccessKey({
       cUF: '35', // SP - usar código do estado do emitente
       aamm,
@@ -378,13 +392,13 @@ export class NFeService {
 
     // Determinar ambiente e regime tributário
     const tpAmb = fiscalProfile.sefazEnvironment === 'producao' ? '1' : '2' as '1' | '2';
-    const crt = fiscalProfile.taxRegime === 'simple_national' ? '1' 
-              : fiscalProfile.taxRegime === 'real_profit' ? '3' 
-              : '2' as '1' | '2' | '3';
+    const crt = fiscalProfile.taxRegime === 'simple_national' ? '1'
+      : fiscalProfile.taxRegime === 'real_profit' ? '3'
+        : '2' as '1' | '2' | '3';
 
     // Parse address if stored as JSON
-    const address = typeof fiscalProfile.address === 'string' 
-      ? JSON.parse(fiscalProfile.address) 
+    const address = typeof fiscalProfile.address === 'string'
+      ? JSON.parse(fiscalProfile.address)
       : fiscalProfile.address || {};
 
     const customerAddr = typeof nfeData.customer.address === 'string'
@@ -542,10 +556,10 @@ export class NFeService {
    * Assina digitalmente o XML usando certificado A1
    */
   private async signXml(xml: string, fiscalProfile: any): Promise<string> {
-    logger.info('Signing NFe XML', { 
+    logger.info('Signing NFe XML', {
       xmlLength: xml.length,
       certificateType: fiscalProfile.certificateType,
-      hasCertificatePath: !!fiscalProfile.certificatePath 
+      hasCertificatePath: !!fiscalProfile.certificatePath
     });
 
     // Verificar se certificado A1 está configurado
@@ -613,7 +627,7 @@ export class NFeService {
    */
   private async sendToSefaz(xml: string, nfeData: NFeInvoiceData, fiscalProfile: any): Promise<SefazResponse> {
     const environment = fiscalProfile.sefazEnvironment === 'producao' ? 'production' : 'homologation';
-    
+
     logger.info('Sending NFe to Sefaz', {
       endpoint: this.sefazEndpoint,
       environment,
@@ -656,7 +670,7 @@ export class NFeService {
       if (authResponse.status === 'processing' && authResponse.recibo) {
         // Aguardar processamento assíncrono
         logger.info('NFe in processing, waiting for result', { recibo: authResponse.recibo });
-        
+
         let attempts = 0;
         const maxAttempts = 10;
         let receiptResponse = authResponse;
@@ -746,9 +760,9 @@ export class NFeService {
    */
   async cancelNFe(cancelData: CancelNFeData, tenantId: string): Promise<SefazResponse> {
     try {
-      logger.info(`Canceling NFe`, { 
-        accessKey: cancelData.accessKey, 
-        protocolNumber: cancelData.protocolNumber 
+      logger.info(`Canceling NFe`, {
+        accessKey: cancelData.accessKey,
+        protocolNumber: cancelData.protocolNumber
       });
 
       // Buscar perfil fiscal do tenant
@@ -764,9 +778,9 @@ export class NFeService {
 
       if (useSimulation) {
         logger.warn('NF-e cancellation simulated (no certificate).');
-        logger.info(`NFe canceled successfully`, { 
+        logger.info(`NFe canceled successfully`, {
           accessKey: cancelData.accessKey,
-          cancellationProtocol: 'SIM-CANCEL-' + Date.now() 
+          cancellationProtocol: 'SIM-CANCEL-' + Date.now()
         });
 
         return {
@@ -801,9 +815,9 @@ export class NFeService {
           cancelData.cnpj
         );
         if (cancelResponse.status === 'success') {
-          logger.info(`NFe canceled successfully`, { 
+          logger.info(`NFe canceled successfully`, {
             accessKey: cancelData.accessKey,
-            cancellationProtocol: cancelResponse.protocol 
+            cancellationProtocol: cancelResponse.protocol
           });
           const resp = {
             success: true,
@@ -846,11 +860,11 @@ export class NFeService {
       }
 
     } catch (error) {
-      logger.error(`NFe cancellation failed`, { 
-        accessKey: cancelData.accessKey, 
-        error: (error as Error).message 
+      logger.error(`NFe cancellation failed`, {
+        accessKey: cancelData.accessKey,
+        error: (error as Error).message
       });
-      
+
       throw new AppError(`NFe cancellation failed: ${(error as Error).message}`, 500);
     }
   }
@@ -902,9 +916,9 @@ export class NFeService {
       }
       const consultaResponse = await sefazService.consultarProtocolo(accessKey);
 
-      logger.info(`NFe status consultation completed`, { 
+      logger.info(`NFe status consultation completed`, {
         accessKey,
-        status: consultaResponse.status 
+        status: consultaResponse.status
       });
 
       const result = {
@@ -943,11 +957,11 @@ export class NFeService {
       return result;
 
     } catch (error) {
-      logger.error(`NFe status consultation failed`, { 
-        accessKey, 
-        error: (error as Error).message 
+      logger.error(`NFe status consultation failed`, {
+        accessKey,
+        error: (error as Error).message
       });
-      
+
       throw new AppError(`NFe status consultation failed: ${(error as Error).message}`, 500);
     }
   }
@@ -1051,9 +1065,9 @@ export class NFeService {
    */
   async generateDANFE(invoiceData: DANFEData): Promise<Buffer> {
     try {
-      logger.info(`Generating DANFE`, { 
+      logger.info(`Generating DANFE`, {
         invoiceId: invoiceData.id,
-        accessKey: invoiceData.nfe?.accessKey 
+        accessKey: invoiceData.nfe?.accessKey
       });
 
       if (!invoiceData.nfe || invoiceData.nfe.status !== 'authorized') {
@@ -1062,7 +1076,12 @@ export class NFeService {
 
       // Usar serviço dedicado de DANFE
       const { danfeService } = await import('./danfe.service.js');
-      const pdfBuffer = await danfeService.generate(invoiceData);
+      // Passar o XML autorizado para o gerador
+      const xmlContent = invoiceData.nfe.xmlContent || invoiceData.nfe.xml;
+      if (!xmlContent) {
+        throw new AppError('XML content not found in authorized NFe', 400);
+      }
+      const pdfBuffer = await danfeService.generatePDF(xmlContent);
 
       logger.info(`DANFE PDF generated successfully`, {
         invoiceId: invoiceData.id,
@@ -1073,11 +1092,11 @@ export class NFeService {
       return pdfBuffer;
 
     } catch (error) {
-      logger.error(`DANFE generation failed`, { 
-        invoiceId: invoiceData.id, 
-        error: (error as Error).message 
+      logger.error(`DANFE generation failed`, {
+        invoiceId: invoiceData.id,
+        error: (error as Error).message
       });
-      
+
       throw new AppError(`DANFE generation failed: ${(error as Error).message}`, 500);
     }
   }

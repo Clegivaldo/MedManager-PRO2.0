@@ -3,6 +3,7 @@ import multer from 'multer';
 import { prismaMaster } from '../lib/prisma.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { requirePermissions, PERMISSIONS } from '../middleware/permissions.js';
+import { validatePlanLimit } from '../middleware/subscription.middleware.js'; // ✅ ADDED
 import { AppError } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
 import { extractCertificateInfo, validateCertificate, encryptCertificate } from '../utils/certificate.js';
@@ -11,6 +12,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import { NFeService } from '../services/nfe.service.js';
+import { danfeController } from '../controllers/danfe.controller.js';
 import { withTenantPrisma } from '../lib/tenant-prisma.js';
 import { tenantMiddleware } from '../middleware/tenantMiddleware.js';
 
@@ -141,7 +143,7 @@ const logoStorage = multer.diskStorage({
     const dest = path.join(process.cwd(), 'uploads', 'logos', tenantId);
     try {
       fsSync.mkdirSync(dest, { recursive: true });
-    } catch {}
+    } catch { }
     cb(null, dest);
   },
   filename: (req, file, cb) => {
@@ -160,34 +162,39 @@ const logoUpload = multer({
   }
 });
 
-// Upload de logo
-router.post('/logo', authenticateToken, requirePermissions([PERMISSIONS.SYSTEM_CONFIG]), logoUpload.single('logo'), async (req, res, next) => {
-  try {
-    const tenantId = req.tenant?.id;
-    if (!tenantId) throw new AppError('Tenant not identified', 400);
-    if (!req.file) throw new AppError('Logo file is required', 400);
+// Upload de logo - COM ENFORCEMENT DE STORAGE
+router.post('/logo',
+  authenticateToken,
+  requirePermissions([PERMISSIONS.SYSTEM_CONFIG]),
+  validatePlanLimit('storage'), // ✅ ENFORCE: Verifica limite de storage
+  logoUpload.single('logo'),
+  async (req, res, next) => {
+    try {
+      const tenantId = req.tenant?.id;
+      if (!tenantId) throw new AppError('Tenant not identified', 400);
+      if (!req.file) throw new AppError('Logo file is required', 400);
 
-    const profile = await prismaMaster.tenantFiscalProfile.findUnique({ where: { tenantId } });
-    if (!profile) throw new AppError('Fiscal profile not found. Create profile first.', 404);
+      const profile = await prismaMaster.tenantFiscalProfile.findUnique({ where: { tenantId } });
+      if (!profile) throw new AppError('Fiscal profile not found. Create profile first.', 404);
 
-    // Remover logo anterior se existir
-    if (profile.logoUrl) {
-      const oldPath = path.join(process.cwd(), profile.logoUrl.replace('/static/', '')); // tentando mapear caso path antigo
-      try { fsSync.unlinkSync(oldPath); } catch {}
+      // Remover logo anterior se existir
+      if (profile.logoUrl) {
+        const oldPath = path.join(process.cwd(), profile.logoUrl.replace('/static/', '')); // tentando mapear caso path antigo
+        try { fsSync.unlinkSync(oldPath); } catch { }
+      }
+
+      const publicUrl = `/static/logos/${tenantId}/${req.file.filename}`;
+      await prismaMaster.tenantFiscalProfile.update({
+        where: { tenantId },
+        data: { logoUrl: publicUrl }
+      });
+
+      logger.info('Logo uploaded successfully', { tenantId, file: req.file.filename });
+      res.json({ success: true, logoUrl: publicUrl });
+    } catch (error) {
+      next(error);
     }
-
-    const publicUrl = `/static/logos/${tenantId}/${req.file.filename}`;
-    await prismaMaster.tenantFiscalProfile.update({
-      where: { tenantId },
-      data: { logoUrl: publicUrl }
-    });
-
-    logger.info('Logo uploaded successfully', { tenantId, file: req.file.filename });
-    res.json({ success: true, logoUrl: publicUrl });
-  } catch (error) {
-    next(error);
-  }
-});
+  });
 
 // Criar série fiscal
 router.post('/series', authenticateToken, requirePermissions([PERMISSIONS.SYSTEM_CONFIG]), async (req, res, next) => {
@@ -252,11 +259,12 @@ router.put('/series/:id', authenticateToken, requirePermissions([PERMISSIONS.SYS
   }
 });
 
-// Upload de certificado digital A1
+// Upload de certificado digital A1 - COM ENFORCEMENT DE STORAGE
 router.post(
   '/certificate',
   authenticateToken,
   requirePermissions([PERMISSIONS.SYSTEM_CONFIG]),
+  validatePlanLimit('storage'), // ✅ ENFORCE: Verifica limite de storage
   upload.single('certificate'),
   handleMulterError,
   async (req: Request, res: Response, next: NextFunction) => {
@@ -287,12 +295,12 @@ router.post(
       validateCertificate(certInfo);
 
       // Criptografar certificado para armazenamento
-        const encryptedCert = encryptCertificate(req.file.buffer);
+      const encryptedCert = encryptCertificate(req.file.buffer);
 
       // Salvar em diretório seguro
       const certDir = path.join(process.cwd(), 'certificates', tenantId);
       await fs.mkdir(certDir, { recursive: true });
-      
+
       const certFileName = `cert_${Date.now()}.pfx.enc`;
       const certPath = path.join(certDir, certFileName);
       await fs.writeFile(certPath, encryptedCert, 'utf-8');
@@ -354,7 +362,7 @@ router.post(
         const certPath = path.join(process.cwd(), 'certificates', req.tenant?.id || '', `cert_${Date.now()}.pfx.enc`);
         try {
           await fs.unlink(certPath);
-        } catch {}
+        } catch { }
       }
       next(error);
     }
@@ -384,7 +392,7 @@ router.get('/certificate', authenticateToken, requirePermissions([PERMISSIONS.SY
 
     const now = new Date();
     const expiresAt = profile.certificateExpiresAt;
-    const daysUntilExpiry = expiresAt 
+    const daysUntilExpiry = expiresAt
       ? Math.floor((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
       : null;
 
@@ -438,7 +446,7 @@ router.post('/nfe/emit/:invoiceId', authenticateToken, requirePermissions([PERMI
     const nfeData: any = {
       invoice: {
         id: invoice.id,
-        invoiceNumber: String(invoice.number || invoice.id.substring(0,8)),
+        invoiceNumber: String(invoice.number || invoice.id.substring(0, 8)),
         operationType: 'SAIDA',
         cfop: invoice.items[0]?.cfop || '5405',
         naturezaOperacao: 'VENDA DE MERCADORIA PARA TERCEIROS',
@@ -515,6 +523,9 @@ router.get('/nfe/status/:accessKey', authenticateToken, requirePermissions([PERM
     next(error);
   }
 });
+
+// Download DANFE PDF
+router.get('/nfe/:invoiceId/danfe', authenticateToken, requirePermissions([PERMISSIONS.INVOICE_READ]), tenantMiddleware, danfeController.generate.bind(danfeController));
 
 // Cancelar NF-e autorizada
 router.post('/nfe/cancel/:invoiceId', authenticateToken, requirePermissions([PERMISSIONS.NFE_CANCEL]), tenantMiddleware, async (req, res, next) => {

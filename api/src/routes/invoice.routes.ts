@@ -5,15 +5,19 @@ import { AppError } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
 import { NFeService } from '../services/nfe.service.js';
 import { requirePermissions, PERMISSIONS } from '../middleware/permissions.js';
+import { validatePlanLimit } from '../middleware/subscription.middleware.js'; // ✅ ADDED
 import { auditLog } from '../utils/audit.js';
-import { InvoiceType, InvoiceStatus, MovementType } from '@prisma/client';
+import pkg from '@prisma/client';
+const InvoiceType = (pkg as any).InvoiceType as any;
+const InvoiceStatus = (pkg as any).InvoiceStatus as any;
+const MovementType = (pkg as any).MovementType as any;
 
 
 const router: Router = Router();
 const nfeService = new NFeService();
 
 // Mapeamento de tipos de operação
-const operationTypeMap: Record<string, InvoiceType> = {
+const operationTypeMap: Record<string, any> = {
   'sale': InvoiceType.EXIT,
   'return': InvoiceType.DEVOLUTION,
   'transfer': InvoiceType.EXIT,
@@ -49,14 +53,14 @@ const cancelInvoiceSchema = z.object({
 // Listar notas fiscais
 router.get('/', requirePermissions([PERMISSIONS.INVOICE_READ]), async (req, res, next) => {
   try {
-    const { 
-      page = 1, 
-      limit = 10, 
-      status, 
-      customerId, 
-      startDate, 
+    const {
+      page = 1,
+      limit = 10,
+      status,
+      customerId,
+      startDate,
       endDate,
-      operationType 
+      operationType
     } = req.query;
 
     const skip = (Number(page) - 1) * Number(limit);
@@ -67,7 +71,7 @@ router.get('/', requirePermissions([PERMISSIONS.INVOICE_READ]), async (req, res,
     if (status) where.status = status;
     if (customerId) where.customerId = customerId;
     if (operationType) where.invoiceType = operationType;
-    
+
     if (startDate || endDate) {
       where.createdAt = {};
       if (startDate) where.createdAt.gte = new Date(startDate as string);
@@ -106,7 +110,7 @@ router.get('/', requirePermissions([PERMISSIONS.INVOICE_READ]), async (req, res,
                 }
               }
             },
-            
+
           },
           orderBy: { createdAt: 'desc' }
         }),
@@ -166,7 +170,7 @@ router.get('/:id', requirePermissions([PERMISSIONS.INVOICE_READ]), async (req, r
       if (!invoice) {
         throw new AppError('Invoice not found', 404);
       }
-      
+
       return invoice;
     });
 
@@ -177,234 +181,237 @@ router.get('/:id', requirePermissions([PERMISSIONS.INVOICE_READ]), async (req, r
   }
 });
 
-// Criar nota fiscal (rascunho)
-router.post('/', requirePermissions([PERMISSIONS.INVOICE_CREATE]), async (req, res, next) => {
-  try {
-    const validatedData = createInvoiceSchema.parse(req.body);
-    const tenantId = req.tenant!.id;
-    const userId = req.user!.userId;
+// Criar nota fiscal (rascunho) - COM ENFORCEMENT DE LIMITES
+router.post('/',
+  requirePermissions([PERMISSIONS.INVOICE_CREATE]),
+  validatePlanLimit('transaction'), // ✅ ENFORCE: Verifica limite de transações do plano
+  async (req, res, next) => {
+    try {
+      const validatedData = createInvoiceSchema.parse(req.body);
+      const tenantId = req.tenant!.id;
+      const userId = req.user!.userId;
 
-    // Verificar se o cliente existe e produtos
-    const productIds = validatedData.items.map(item => item.productId);
-    const { customer, products } = await withTenantPrisma((req as any).tenant, async (prisma) => {
-      const customer = await prisma.customer.findFirst({
-        where: { id: validatedData.customerId }
-      });
+      // Verificar se o cliente existe e produtos
+      const productIds = validatedData.items.map(item => item.productId);
+      const { customer, products } = await withTenantPrisma((req as any).tenant, async (prisma) => {
+        const customer = await prisma.customer.findFirst({
+          where: { id: validatedData.customerId }
+        });
 
-      if (!customer) {
-        throw new AppError('Customer not found', 404, 'CUSTOMER_NOT_FOUND');
-      }
-
-      // Verificar produtos e estoque
-      const products = await prisma.product.findMany({
-        where: { 
-          id: { in: productIds },
-          isActive: true
-        },
-        include: {
-          stock: {
-            where: { availableQuantity: { gt: 0 } }
-          }
+        if (!customer) {
+          throw new AppError('Customer not found', 404, 'CUSTOMER_NOT_FOUND');
         }
-      });
-      
-      return { customer, products };
-    });
 
-    if (products.length !== productIds.length) {
-      throw new AppError('Some products not found or inactive', 404, 'PRODUCTS_NOT_FOUND');
-    }
-
-    // Verificar estoque suficiente e validações RDC 430
-    for (const item of validatedData.items) {
-      const product = products.find(p => p.id === item.productId);
-      if (!product) continue;
-
-      // Verificar estoque
-      const totalStock = product.stock.reduce((sum, stock) => sum + stock.availableQuantity, 0);
-      if (totalStock < item.quantity) {
-        throw new AppError(`Insufficient stock for product ${product.name}`, 400);
-      }
-
-      // Validações específicas para medicamentos (RDC 430)
-      if (product.isControlled && !item.batchId) {
-        throw new AppError(`Controlled substance ${product.name} requires batch information`, 400);
-      }
-
-      const storage = product.storage as string || '';
-      if (storage && storage.includes('temperature') && !storage.includes('range')) {
-        throw new AppError(`Temperature controlled product ${product.name} requires temperature range`, 400);
-      }
-
-      // Verificar lote se fornecido
-      if (item.batchId) {
-        await withTenantPrisma((req as any).tenant, async (prisma) => {
-          const batch = await prisma.batch.findFirst({
-            where: { 
-              id: item.batchId, 
-              productId: item.productId
+        // Verificar produtos e estoque
+        const products = await prisma.product.findMany({
+          where: {
+            id: { in: productIds },
+            isActive: true
+          },
+          include: {
+            stock: {
+              where: { availableQuantity: { gt: 0 } }
             }
-          });
-
-          if (!batch) {
-            throw new AppError(`Batch not found for product ${product.name}`, 404, 'BATCH_NOT_FOUND');
-          }
-
-          if (batch.expirationDate < new Date()) {
-            throw new AppError(`Batch ${batch.batchNumber} for product ${product.name} is expired`, 400);
-          }
-
-          // Verificar estoque do lote específico
-          const batchStock = await prisma.stock.findFirst({
-            where: { 
-              productId: item.productId,
-              batchId: item.batchId
-            }
-          });
-
-          if (!batchStock || batchStock.availableQuantity < item.quantity) {
-            throw new AppError(`Insufficient stock in batch ${batch.batchNumber} for product ${product.name}`, 400);
           }
         });
+
+        return { customer, products };
+      });
+
+      if (products.length !== productIds.length) {
+        throw new AppError('Some products not found or inactive', 404, 'PRODUCTS_NOT_FOUND');
       }
-    }
 
-    // Calcular totais
-    let subtotal = 0;
-    let totalDiscount = 0;
-    let totalTax = 0;
+      // Verificar estoque suficiente e validações RDC 430
+      for (const item of validatedData.items) {
+        const product = products.find(p => p.id === item.productId);
+        if (!product) continue;
 
-    const invoiceItems = validatedData.items.map(item => {
-      const product = products.find(p => p.id === item.productId)!;
-      const itemSubtotal = item.quantity * item.unitPrice;
-      const itemDiscount = (itemSubtotal * item.discount) / 100;
-      const itemTotal = itemSubtotal - itemDiscount;
-
-      // Calcular impostos (simplificado - ICMS 18% como exemplo)
-      const icms = itemTotal * 0.18;
-      totalTax += icms;
-
-      subtotal += itemSubtotal;
-      totalDiscount += itemDiscount;
-
-      return {
-        productId: item.productId,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        discount: item.discount,
-        subtotal: itemSubtotal,
-        total: itemTotal,
-        batchId: item.batchId,
-        icms,
-        cfop: validatedData.cfop || '5405',
-      };
-    });
-
-    const total = subtotal - totalDiscount + totalTax;
-
-    // Criar nota fiscal em transação
-    const invoice = await withTenantPrisma((req as any).tenant, async (prisma) => {
-      return await prisma.$transaction(async (tx) => {
-      // Criar a nota fiscal
-      const createdInvoice = await tx.invoice.create({
-        data: {
-          number: Math.floor(Date.now() % 1000000000),
-          series: 1,
-          customerId: validatedData.customerId,
-          userId,
-          invoiceType: operationTypeMap[validatedData.operationType] || InvoiceType.EXIT,
-          issueDate: new Date(),
-          totalValue: total.toString(),
-          status: InvoiceStatus.DRAFT, // Rascunho inicial
-          xmlContent: JSON.stringify({
-            cfop: validatedData.cfop || '5405',
-            naturezaOperacao: validatedData.naturezaOperacao || 'VENDA DE MERCADORIA PARA TERCEIROS',
-            paymentMethod: validatedData.paymentMethod,
-            installments: validatedData.installments,
-            observations: validatedData.observations,
-            subtotal,
-            discount: totalDiscount,
-            tax: totalTax,
-          })
+        // Verificar estoque
+        const totalStock = product.stock.reduce((sum, stock) => sum + stock.availableQuantity, 0);
+        if (totalStock < item.quantity) {
+          throw new AppError(`Insufficient stock for product ${product.name}`, 400);
         }
-      });
 
-      // Criar os itens da nota fiscal
-      const invoiceItemsData = validatedData.items.map(item => ({
-        invoiceId: createdInvoice.id,
-        productId: item.productId,
-        batchId: item.batchId!,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice.toString(),
-        totalPrice: (item.quantity * item.unitPrice * (1 - item.discount / 100)).toString(),
-        discount: item.discount.toString(),
-        cfop: validatedData.cfop || '5405',
-        ncm: '3003.90.00', // Default NCM for pharmaceuticals
-        icmsCst: '00',
-        icmsRate: '18.00'
-      }));
+        // Validações específicas para medicamentos (RDC 430)
+        if (product.isControlled && !item.batchId) {
+          throw new AppError(`Controlled substance ${product.name} requires batch information`, 400);
+        }
 
-      await tx.invoiceItem.createMany({
-        data: invoiceItemsData
-      });
+        const storage = product.storage as string || '';
+        if (storage && storage.includes('temperature') && !storage.includes('range')) {
+          throw new AppError(`Temperature controlled product ${product.name} requires temperature range`, 400);
+        }
 
-      // Buscar a nota fiscal com os itens criados
-      const completeInvoice = await tx.invoice.findUnique({
-        where: { id: createdInvoice.id },
-        include: {
-          customer: {
-            select: {
-              id: true,
-              companyName: true,
-              cnpjCpf: true,
-              email: true,
+        // Verificar lote se fornecido
+        if (item.batchId) {
+          await withTenantPrisma((req as any).tenant, async (prisma) => {
+            const batch = await prisma.batch.findFirst({
+              where: {
+                id: item.batchId,
+                productId: item.productId
+              }
+            });
+
+            if (!batch) {
+              throw new AppError(`Batch not found for product ${product.name}`, 404, 'BATCH_NOT_FOUND');
             }
-          },
-          items: {
+
+            if (batch.expirationDate < new Date()) {
+              throw new AppError(`Batch ${batch.batchNumber} for product ${product.name} is expired`, 400);
+            }
+
+            // Verificar estoque do lote específico
+            const batchStock = await prisma.stock.findFirst({
+              where: {
+                productId: item.productId,
+                batchId: item.batchId
+              }
+            });
+
+            if (!batchStock || batchStock.availableQuantity < item.quantity) {
+              throw new AppError(`Insufficient stock in batch ${batch.batchNumber} for product ${product.name}`, 400);
+            }
+          });
+        }
+      }
+
+      // Calcular totais
+      let subtotal = 0;
+      let totalDiscount = 0;
+      let totalTax = 0;
+
+      const invoiceItems = validatedData.items.map(item => {
+        const product = products.find(p => p.id === item.productId)!;
+        const itemSubtotal = item.quantity * item.unitPrice;
+        const itemDiscount = (itemSubtotal * item.discount) / 100;
+        const itemTotal = itemSubtotal - itemDiscount;
+
+        // Calcular impostos (simplificado - ICMS 18% como exemplo)
+        const icms = itemTotal * 0.18;
+        totalTax += icms;
+
+        subtotal += itemSubtotal;
+        totalDiscount += itemDiscount;
+
+        return {
+          productId: item.productId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          discount: item.discount,
+          subtotal: itemSubtotal,
+          total: itemTotal,
+          batchId: item.batchId,
+          icms,
+          cfop: validatedData.cfop || '5405',
+        };
+      });
+
+      const total = subtotal - totalDiscount + totalTax;
+
+      // Criar nota fiscal em transação
+      const invoice = await withTenantPrisma((req as any).tenant, async (prisma) => {
+        return await prisma.$transaction(async (tx) => {
+          // Criar a nota fiscal
+          const createdInvoice = await tx.invoice.create({
+            data: {
+              number: Math.floor(Date.now() % 1000000000),
+              series: 1,
+              customerId: validatedData.customerId,
+              userId,
+              invoiceType: operationTypeMap[validatedData.operationType] || InvoiceType.EXIT,
+              issueDate: new Date(),
+              totalValue: total.toString(),
+              status: InvoiceStatus.DRAFT, // Rascunho inicial
+              xmlContent: JSON.stringify({
+                cfop: validatedData.cfop || '5405',
+                naturezaOperacao: validatedData.naturezaOperacao || 'VENDA DE MERCADORIA PARA TERCEIROS',
+                paymentMethod: validatedData.paymentMethod,
+                installments: validatedData.installments,
+                observations: validatedData.observations,
+                subtotal,
+                discount: totalDiscount,
+                tax: totalTax,
+              })
+            }
+          });
+
+          // Criar os itens da nota fiscal
+          const invoiceItemsData = validatedData.items.map(item => ({
+            invoiceId: createdInvoice.id,
+            productId: item.productId,
+            batchId: item.batchId!,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice.toString(),
+            totalPrice: (item.quantity * item.unitPrice * (1 - item.discount / 100)).toString(),
+            discount: item.discount.toString(),
+            cfop: validatedData.cfop || '5405',
+            ncm: '3003.90.00', // Default NCM for pharmaceuticals
+            icmsCst: '00',
+            icmsRate: '18.00'
+          }));
+
+          await tx.invoiceItem.createMany({
+            data: invoiceItemsData
+          });
+
+          // Buscar a nota fiscal com os itens criados
+          const completeInvoice = await tx.invoice.findUnique({
+            where: { id: createdInvoice.id },
             include: {
-              product: {
+              customer: {
                 select: {
                   id: true,
-                  name: true,
+                  companyName: true,
+                  cnpjCpf: true,
+                  email: true,
+                }
+              },
+              items: {
+                include: {
+                  product: {
+                    select: {
+                      id: true,
+                      name: true,
+                    }
+                  }
                 }
               }
             }
-          }
-        }
+          });
+
+          // Registrar log de auditoria
+          await auditLog({
+            tenantId,
+            userId,
+            tableName: 'Invoice',
+            recordId: createdInvoice.id,
+            operation: 'CREATE',
+            newData: {
+              invoiceNumber: createdInvoice.number,
+              customer: completeInvoice?.customer?.companyName,
+              total: createdInvoice.totalValue,
+              items: invoiceItemsData.length
+            }
+          });
+
+          return completeInvoice;
+        });
       });
 
-      // Registrar log de auditoria
-      await auditLog({
+      logger.info(`Invoice ${invoice!.number} created as draft`, {
         tenantId,
         userId,
-        tableName: 'Invoice',
-        recordId: createdInvoice.id,
-        operation: 'CREATE',
-        newData: {
-          invoiceNumber: createdInvoice.number,
-          customer: completeInvoice?.customer?.companyName,
-          total: createdInvoice.totalValue,
-          items: invoiceItemsData.length
-        }
+        invoiceId: invoice!.id,
+        total: invoice!.totalValue
       });
 
-        return completeInvoice;
-      });
-    });
+      res.status(201).json(invoice);
 
-    logger.info(`Invoice ${invoice!.number} created as draft`, {
-      tenantId,
-      userId,
-      invoiceId: invoice!.id,
-      total: invoice!.totalValue
-    });
-
-    res.status(201).json(invoice);
-
-  } catch (error) {
-    next(error);
-  }
-});
+    } catch (error) {
+      next(error);
+    }
+  });
 
 // Emitir nota fiscal (NF-e)
 router.post('/:id/emit', requirePermissions([PERMISSIONS.NFE_ISSUE]), async (req, res, next) => {
@@ -509,129 +516,129 @@ router.post('/:id/emit', requirePermissions([PERMISSIONS.NFE_ISSUE]), async (req
     // Atualizar nota fiscal com dados da NF-e
     const updatedInvoice = await withTenantPrisma((req as any).tenant, async (prisma) => {
       return await prisma.$transaction(async (tx) => {
-      // Atualizar invoice com dados da NF-e
-      const updated = await tx.invoice.update({
-        where: { id: invoice.id },
-        data: {
-          status: nfeResult.status === 'authorized' ? 'AUTHORIZED' : 'DENIED',
-          accessKey: nfeResult.accessKey,
-          protocol: nfeResult.protocolNumber,
-          authorizationDate: nfeResult.authorizationDate,
-          xmlContent: nfeResult.xmlContent
-        }
-      });
-
-      // Buscar a nota fiscal atualizada
-      const fullInvoice = await tx.invoice.findUnique({
-        where: { id: invoice.id },
-        include: {
-          customer: {
-            select: {
-              id: true,
-              companyName: true,
-              cnpjCpf: true,
-              email: true,
-            }
-          },
-          items: {
-            include: {
-              product: {
-                select: {
-                  id: true,
-                  name: true,
-                }
-              }
-            }
-          }
-        }
-      });
-
-      // Atualizar estoque (reduzir quantidades)
-      const invoiceItems = await tx.invoiceItem.findMany({
-        where: { invoiceId: invoice.id },
-        include: { batch: true }
-      });
-      
-      for (const item of invoiceItems) {
-        if (item.batchId) {
-          // Reduzir estoque do lote específico
-          await tx.stock.updateMany({
-            where: {
-              productId: item.productId,
-              batchId: item.batchId
-            },
-            data: {
-              availableQuantity: {
-                decrement: item.quantity
-              }
-            }
-          });
-        } else {
-          // Reduzir estoque geral (FIFO - First In, First Out)
-          const stocks = await tx.stock.findMany({
-            where: {
-              productId: item.productId,
-              availableQuantity: { gt: 0 }
-            },
-            orderBy: { createdAt: 'asc' }
-          });
-
-          let remainingQuantity = item.quantity;
-          for (const stock of stocks) {
-            if (remainingQuantity <= 0) break;
-            
-            const quantityToReduce = Math.min(remainingQuantity, stock.availableQuantity);
-            await tx.stock.update({
-              where: { id: stock.id },
-              data: {
-                availableQuantity: {
-                  decrement: quantityToReduce
-                }
-              }
-            });
-            remainingQuantity -= quantityToReduce;
-          }
-        }
-
-        // Registrar movimentação de estoque
-        const stock = await tx.stock.findFirst({
-          where: {
-            productId: item.productId,
-            batchId: item.batchId
+        // Atualizar invoice com dados da NF-e
+        const updated = await tx.invoice.update({
+          where: { id: invoice.id },
+          data: {
+            status: nfeResult.status === 'authorized' ? 'AUTHORIZED' : 'DENIED',
+            accessKey: nfeResult.accessKey,
+            protocol: nfeResult.protocolNumber,
+            authorizationDate: nfeResult.authorizationDate,
+            xmlContent: nfeResult.xmlContent
           }
         });
 
-        if (stock) {
-          await tx.stockMovement.create({
-            data: {
-              stockId: stock.id,
-              userId,
-              movementType: MovementType.EXIT,
-              quantity: item.quantity,
-              previousBalance: stock.availableQuantity,
-              newBalance: stock.availableQuantity - item.quantity,
-              reason: 'Invoice emission',
-              referenceDocument: invoice.id
+        // Buscar a nota fiscal atualizada
+        const fullInvoice = await tx.invoice.findUnique({
+          where: { id: invoice.id },
+          include: {
+            customer: {
+              select: {
+                id: true,
+                companyName: true,
+                cnpjCpf: true,
+                email: true,
+              }
+            },
+            items: {
+              include: {
+                product: {
+                  select: {
+                    id: true,
+                    name: true,
+                  }
+                }
+              }
+            }
+          }
+        });
+
+        // Atualizar estoque (reduzir quantidades)
+        const invoiceItems = await tx.invoiceItem.findMany({
+          where: { invoiceId: invoice.id },
+          include: { batch: true }
+        });
+
+        for (const item of invoiceItems) {
+          if (item.batchId) {
+            // Reduzir estoque do lote específico
+            await tx.stock.updateMany({
+              where: {
+                productId: item.productId,
+                batchId: item.batchId
+              },
+              data: {
+                availableQuantity: {
+                  decrement: item.quantity
+                }
+              }
+            });
+          } else {
+            // Reduzir estoque geral (FIFO - First In, First Out)
+            const stocks = await tx.stock.findMany({
+              where: {
+                productId: item.productId,
+                availableQuantity: { gt: 0 }
+              },
+              orderBy: { createdAt: 'asc' }
+            });
+
+            let remainingQuantity = item.quantity;
+            for (const stock of stocks) {
+              if (remainingQuantity <= 0) break;
+
+              const quantityToReduce = Math.min(remainingQuantity, stock.availableQuantity);
+              await tx.stock.update({
+                where: { id: stock.id },
+                data: {
+                  availableQuantity: {
+                    decrement: quantityToReduce
+                  }
+                }
+              });
+              remainingQuantity -= quantityToReduce;
+            }
+          }
+
+          // Registrar movimentação de estoque
+          const stock = await tx.stock.findFirst({
+            where: {
+              productId: item.productId,
+              batchId: item.batchId
             }
           });
-        }
-      }
 
-      // Registrar log de auditoria
-      await auditLog({
-        tenantId,
-        userId,
-        tableName: 'Invoice',
-        recordId: fullInvoice!.id,
-        operation: 'EMIT',
-        newData: {
-          invoiceNumber: fullInvoice!.number,
-          customer: fullInvoice!.customer?.companyName,
-          total: fullInvoice!.totalValue,
-          accessKey: nfeResult.accessKey,
-          protocol: nfeResult.protocolNumber,
+          if (stock) {
+            await tx.stockMovement.create({
+              data: {
+                stockId: stock.id,
+                userId,
+                movementType: MovementType.EXIT,
+                quantity: item.quantity,
+                previousBalance: stock.availableQuantity,
+                newBalance: stock.availableQuantity - item.quantity,
+                reason: 'Invoice emission',
+                referenceDocument: invoice.id
+              }
+            });
+          }
         }
-      });
+
+        // Registrar log de auditoria
+        await auditLog({
+          tenantId,
+          userId,
+          tableName: 'Invoice',
+          recordId: fullInvoice!.id,
+          operation: 'EMIT',
+          newData: {
+            invoiceNumber: fullInvoice!.number,
+            customer: fullInvoice!.customer?.companyName,
+            total: fullInvoice!.totalValue,
+            accessKey: nfeResult.accessKey,
+            protocol: nfeResult.protocolNumber,
+          }
+        });
 
         return fullInvoice!;
       });
@@ -681,7 +688,7 @@ router.post('/:id/cancel', requirePermissions([PERMISSIONS.NFE_CANCEL]), async (
     if (!req.user?.tenantId) {
       throw new AppError('Tenant ID not found', 401);
     }
-    
+
     const cancelResult = await nfeService.cancelNFe({
       accessKey: invoice.accessKey,
       protocolNumber: invoice.protocol || '',
@@ -692,100 +699,100 @@ router.post('/:id/cancel', requirePermissions([PERMISSIONS.NFE_CANCEL]), async (
     // Atualizar nota fiscal e estoque em transação
     const updatedInvoice = await withTenantPrisma((req as any).tenant, async (prisma) => {
       return await prisma.$transaction(async (tx) => {
-      // Atualizar dados da nota fiscal com cancelamento
-      await tx.invoice.update({
-        where: { id },
-        data: {
-          status: 'CANCELLED',
-          protocol: cancelResult.protocolNumber,
-          xmlContent: JSON.stringify({ cancellationJustification: validatedData.justification })
-        }
-      });
+        // Atualizar dados da nota fiscal com cancelamento
+        await tx.invoice.update({
+          where: { id },
+          data: {
+            status: 'CANCELLED',
+            protocol: cancelResult.protocolNumber,
+            xmlContent: JSON.stringify({ cancellationJustification: validatedData.justification })
+          }
+        });
 
-      // Atualizar status da nota fiscal
-      const updated = await tx.invoice.findUnique({
-        where: { id },
-        include: {
-          customer: {
-            select: {
-              id: true,
-              companyName: true,
-              cnpjCpf: true
-            }
-          },
-          items: {
-            include: {
-              product: { select: { id: true, name: true } },
-              batch: true
+        // Atualizar status da nota fiscal
+        const updated = await tx.invoice.findUnique({
+          where: { id },
+          include: {
+            customer: {
+              select: {
+                id: true,
+                companyName: true,
+                cnpjCpf: true
+              }
+            },
+            items: {
+              include: {
+                product: { select: { id: true, name: true } },
+                batch: true
+              }
             }
           }
-        }
-      });
-
-      // Devolver estoque (aumentar quantidades)
-      const cancelItems = await tx.invoiceItem.findMany({ where: { invoiceId: id } });
-      for (const item of cancelItems) {
-        if (item.batchId) {
-          // Aumentar estoque do lote específico
-          await tx.stock.updateMany({
-            where: {
-              productId: item.productId,
-              batchId: item.batchId
-            },
-            data: {
-              availableQuantity: {
-                increment: item.quantity
-              }
-            }
-          });
-        } else {
-          // Aumentar estoque geral
-          await tx.stock.updateMany({
-            where: { productId: item.productId },
-            data: {
-              availableQuantity: {
-                increment: item.quantity
-              }
-            }
-          });
-        }
-
-        // Registrar movimentação de estorno
-        const stock = await tx.stock.findFirst({
-          where: { productId: item.productId, batchId: item.batchId }
         });
-        if (stock) {
-          await tx.stockMovement.create({
-            data: {
-              stockId: stock.id,
-              userId,
-              movementType: 'ENTRY',
-              quantity: item.quantity,
-              previousBalance: stock.availableQuantity,
-              newBalance: stock.availableQuantity + item.quantity,
-              reason: 'Invoice cancellation',
-              referenceDocument: id
-            }
-          });
-        }
-      }
 
-      // Registrar log de auditoria
-      await auditLog({
-        tenantId,
-        userId,
-        tableName: 'Invoice',
-        recordId: updated!.id,
-        operation: 'CANCEL',
-        newData: {
-          invoiceNumber: updated!.number,
-          customer: updated!.customer?.companyName,
-          total: updated!.totalValue,
-          accessKey: updated!.accessKey,
-          cancellationProtocol: cancelResult.protocolNumber,
-          justification: validatedData.justification
+        // Devolver estoque (aumentar quantidades)
+        const cancelItems = await tx.invoiceItem.findMany({ where: { invoiceId: id } });
+        for (const item of cancelItems) {
+          if (item.batchId) {
+            // Aumentar estoque do lote específico
+            await tx.stock.updateMany({
+              where: {
+                productId: item.productId,
+                batchId: item.batchId
+              },
+              data: {
+                availableQuantity: {
+                  increment: item.quantity
+                }
+              }
+            });
+          } else {
+            // Aumentar estoque geral
+            await tx.stock.updateMany({
+              where: { productId: item.productId },
+              data: {
+                availableQuantity: {
+                  increment: item.quantity
+                }
+              }
+            });
+          }
+
+          // Registrar movimentação de estorno
+          const stock = await tx.stock.findFirst({
+            where: { productId: item.productId, batchId: item.batchId }
+          });
+          if (stock) {
+            await tx.stockMovement.create({
+              data: {
+                stockId: stock.id,
+                userId,
+                movementType: 'ENTRY',
+                quantity: item.quantity,
+                previousBalance: stock.availableQuantity,
+                newBalance: stock.availableQuantity + item.quantity,
+                reason: 'Invoice cancellation',
+                referenceDocument: id
+              }
+            });
+          }
         }
-      });
+
+        // Registrar log de auditoria
+        await auditLog({
+          tenantId,
+          userId,
+          tableName: 'Invoice',
+          recordId: updated!.id,
+          operation: 'CANCEL',
+          newData: {
+            invoiceNumber: updated!.number,
+            customer: updated!.customer?.companyName,
+            total: updated!.totalValue,
+            accessKey: updated!.accessKey,
+            cancellationProtocol: cancelResult.protocolNumber,
+            justification: validatedData.justification
+          }
+        });
 
         return updated;
       });
@@ -822,7 +829,7 @@ router.get('/:id/nfe-status', requirePermissions([PERMISSIONS.INVOICE_READ]), as
       if (!invoice.accessKey) {
         throw new AppError('No NF-e found for this invoice', 400);
       }
-      
+
       return invoice;
     });
 
@@ -830,11 +837,11 @@ router.get('/:id/nfe-status', requirePermissions([PERMISSIONS.INVOICE_READ]), as
     if (!req.user?.tenantId) {
       throw new AppError('Tenant ID not found', 401);
     }
-    
+
     if (!invoice.accessKey) {
       throw new AppError('Invoice does not have an access key', 400);
     }
-    
+
     const statusResult = await nfeService.consultarStatusNFe(invoice.accessKey, req.user.tenantId);
 
     // Atualizar status se necessário
@@ -842,7 +849,7 @@ router.get('/:id/nfe-status', requirePermissions([PERMISSIONS.INVOICE_READ]), as
       await withTenantPrisma((req as any).tenant, async (prisma) => {
         await prisma.invoice.update({
           where: { id: invoice.id },
-          data: { status: statusResult.status as InvoiceStatus }
+          data: { status: statusResult.status as any }
         });
       });
     }

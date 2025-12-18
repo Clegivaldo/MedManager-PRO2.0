@@ -16,6 +16,7 @@ export interface Tenant {
   name: string;
   cnpj: string;
   isActive: boolean;
+  modulesEnabled?: string[]; // ✅ NOVO
 }
 
 export interface LoginCredentials {

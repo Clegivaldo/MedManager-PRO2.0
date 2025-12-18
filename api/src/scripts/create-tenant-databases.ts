@@ -21,7 +21,9 @@ async function createTenantDatabases() {
         logger.info(`Processing tenant: ${tenant.name} (${tenant.cnpj})`);
 
         // Verificar se já existe banco de dados para este tenant
-        const tenantPrisma = new (await import('@prisma/client')).PrismaClient({
+        const pkg = await import('@prisma/client');
+        const PrismaClientRuntime = (pkg as any).PrismaClient as any;
+        const tenantPrisma = new PrismaClientRuntime({
           datasources: {
             db: {
               url: process.env.DATABASE_URL?.replace(/\/(\w+)$/, `/${tenant.databaseName}`)

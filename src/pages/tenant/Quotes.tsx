@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,44 +18,67 @@ import {
 import NewQuoteModal from '@/components/tenant/modals/NewQuoteModal';
 import QuoteDetailsModal from '@/components/tenant/modals/QuoteDetailsModal';
 import EditQuoteModal from '@/components/tenant/modals/EditQuoteModal';
+import quoteService, { Quote } from '@/services/quote.service';
+import { useToast } from '@/hooks/use-toast';
+import TableSkeleton from '@/components/TableSkeleton';
+import EmptyState from '@/components/EmptyState';
 
 export default function Quotes() {
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedQuote, setSelectedQuote] = useState<any>(null);
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const { toast } = useToast();
 
-  const quotes = [
-    { id: '#ORC-2024-051', client: 'Drogaria Pacheco', date: '2024-11-08', validity: '2024-11-15', total: 5230.00, status: 'sent' },
-    { id: '#ORC-2024-050', client: 'Drogaria São Paulo', date: '2024-11-07', validity: '2024-11-14', total: 12450.00, status: 'approved' },
-    { id: '#ORC-2024-049', client: 'Farmácia Popular', date: '2024-11-06', validity: '2024-11-13', total: 8750.00, status: 'pending' },
-    { id: '#ORC-2024-048', client: 'Rede Bem Estar', date: '2024-11-05', validity: '2024-11-12', total: 25300.00, status: 'rejected' },
-  ];
-  
-  const handleViewDetails = (quote: any) => {
+  const loadQuotes = async () => {
+    try {
+      setLoading(true);
+      const response = await quoteService.list({
+        page,
+        limit: 50,
+        search: searchTerm || undefined,
+      });
+      setQuotes(response.quotes || []);
+      setTotal(response.pagination?.total || 0);
+    } catch (error) {
+      console.error('Error loading quotes:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível carregar os orçamentos.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadQuotes();
+  }, [page, searchTerm]);
+
+  const handleViewDetails = (quote: Quote) => {
     setSelectedQuote(quote);
     setIsDetailsOpen(true);
   };
 
-  const handleEdit = (quote: any) => {
+  const handleEdit = (quote: Quote) => {
     setSelectedQuote(quote);
     setIsEditOpen(true);
   };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'pending': return <Badge className="bg-yellow-100 text-yellow-800"><Clock className="h-3 w-3 mr-1"/>Pendente</Badge>;
-      case 'sent': return <Badge className="bg-blue-100 text-blue-800"><Eye className="h-3 w-3 mr-1"/>Enviado</Badge>;
-      case 'approved': return <Badge className="bg-green-100 text-green-800"><Check className="h-3 w-3 mr-1"/>Aprovado</Badge>;
-      case 'rejected': return <Badge className="bg-red-100 text-red-800"><X className="h-3 w-3 mr-1"/>Rejeitado</Badge>;
+      case 'pending': return <Badge className="bg-yellow-100 text-yellow-800"><Clock className="h-3 w-3 mr-1" />Pendente</Badge>;
+      case 'sent': return <Badge className="bg-blue-100 text-blue-800"><Eye className="h-3 w-3 mr-1" />Enviado</Badge>;
+      case 'approved': return <Badge className="bg-green-100 text-green-800"><Check className="h-3 w-3 mr-1" />Aprovado</Badge>;
+      case 'rejected': return <Badge className="bg-red-100 text-red-800"><X className="h-3 w-3 mr-1" />Rejeitado</Badge>;
       default: return <Badge variant="secondary">Desconhecido</Badge>;
     }
   };
-
-  const filteredQuotes = quotes.filter(quote =>
-    quote.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    quote.client.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   return (
     <>
@@ -79,50 +102,61 @@ export default function Quotes() {
         <CardHeader>
           <div className="flex justify-between items-center">
             <div>
-                <CardTitle>Lista de Orçamentos</CardTitle>
-                <CardDescription>{filteredQuotes.length} orçamentos encontrados</CardDescription>
+              <CardTitle>Lista de Orçamentos</CardTitle>
+              <CardDescription>{total} orçamentos encontrados</CardDescription>
             </div>
             <div className="w-full max-w-sm">
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input placeholder="Buscar por nº do orçamento ou cliente..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
-                </div>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input placeholder="Buscar por nº do orçamento..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
+              </div>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Orçamento</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead>Validade</TableHead>
-                <TableHead>Valor Total</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredQuotes.map((quote) => (
-                <TableRow key={quote.id}>
-                  <TableCell className="font-mono">{quote.id}</TableCell>
-                  <TableCell className="font-medium">{quote.client}</TableCell>
-                  <TableCell>{quote.date}</TableCell>
-                  <TableCell>{quote.validity}</TableCell>
-                  <TableCell className="font-medium">R$ {quote.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
-                  <TableCell>{getStatusBadge(quote.status)}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <Button variant="ghost" size="sm" onClick={() => handleViewDetails(quote)}><Eye className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleEdit(quote)}><Edit className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="sm"><FileText className="h-4 w-4" /></Button>
-                    </div>
-                  </TableCell>
+          {loading ? (
+            <TableSkeleton columns={7} />
+          ) : quotes.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Orçamento</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Data</TableHead>
+                  <TableHead>Validade</TableHead>
+                  <TableHead>Valor Total</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Ações</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {quotes.map((quote) => (
+                  <TableRow key={quote.id}>
+                    <TableCell className="font-mono">{quote.quoteNumber}</TableCell>
+                    <TableCell className="font-medium">{quote.customer?.companyName || quote.customer?.tradeName}</TableCell>
+                    <TableCell>{new Date(quote.createdAt).toLocaleDateString('pt-BR')}</TableCell>
+                    <TableCell>{new Date(quote.validUntil).toLocaleDateString('pt-BR')}</TableCell>
+                    <TableCell className="font-medium">R$ {quote.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
+                    <TableCell>{getStatusBadge(quote.status)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        <Button variant="ghost" size="sm" onClick={() => handleViewDetails(quote)}><Eye className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleEdit(quote)}><Edit className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="sm"><FileText className="h-4 w-4" /></Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <EmptyState
+              icon={FileText}
+              title="Nenhum orçamento encontrado"
+              description="Não há orçamentos cadastrados no sistema."
+              action={<Button>Criar Primeiro Orçamento</Button>}
+            />
+          )}
         </CardContent>
       </Card>
 

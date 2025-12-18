@@ -1,4 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import pkg from '@prisma/client';
+const PrismaClientRuntime = (pkg as any).PrismaClient as any;
 import { prismaMaster } from '../lib/prisma.js';
 import { config } from '../config/environment.js';
 import { logger } from '../utils/logger.js';
@@ -13,7 +14,7 @@ async function main() {
       return;
     }
     const tenantDbUrl = config.DATABASE_URL.replace(/\/(\w+)$/, `/${tenant.databaseName}`);
-    const tenantPrisma = new PrismaClient({ datasources: { db: { url: tenantDbUrl } } });
+    const tenantPrisma = new PrismaClientRuntime({ datasources: { db: { url: tenantDbUrl } } });
     const users = await tenantPrisma.user.findMany({ select: { id: true, email: true, name: true, role: true, isActive: true, password: true } });
     console.log(`Usuários do tenant ${tenant.name} (${tenant.cnpj}) - database ${tenant.databaseName}:`);
     users.forEach(u => console.log(u));

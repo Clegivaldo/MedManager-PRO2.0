@@ -1,7 +1,9 @@
 import { prismaMaster } from '../lib/prisma.js';
 import { hashPassword } from '../services/auth.service.js';
 import { logger } from '../utils/logger.js';
-import { UserRole } from '@prisma/client';
+import pkg from '@prisma/client';
+import type { UserRole } from '@prisma/client';
+const { UserRole } = pkg as any;
 
 /**
  * Script para criar usuário admin no banco mestre

@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
-import { PrismaClient } from '@prisma/client';
+import pkg from '@prisma/client';
+const PrismaClientRuntime = (pkg as any).PrismaClient as any;
 import { prismaMaster } from '../lib/prisma.js';
 import { config } from '../config/environment.js';
 
@@ -13,7 +14,7 @@ async function main() {
     return;
   }
   const tenantDbUrl = config.DATABASE_URL.replace(/\/(\w+)$/, `/${tenant.databaseName}`);
-  const tenantPrisma = new PrismaClient({ datasources: { db: { url: tenantDbUrl } } });
+  const tenantPrisma = new PrismaClientRuntime({ datasources: { db: { url: tenantDbUrl } } });
   const user = await tenantPrisma.user.findUnique({ where: { email } });
   if (!user) {
     console.log('Usuário não encontrado');

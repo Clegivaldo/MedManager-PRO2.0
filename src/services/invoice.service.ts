@@ -65,6 +65,7 @@ class InvoiceService {
     startDate?: string;
     endDate?: string;
     operationType?: 'ENTRY' | 'EXIT' | 'DEVOLUTION' | 'sale' | 'return' | 'transfer' | 'bonus' | 'sample';
+    search?: string;
   }) {
     const response = await api.get<ApiResponse<InvoiceListResponse>>('/invoices', { params });
     return response.data.data;
@@ -99,13 +100,18 @@ class InvoiceService {
   }
 
   async downloadDanfe(id: string) {
-    const response = await api.get(`/invoices/${id}/danfe`, { responseType: 'blob' });
+    const response = await api.get(`/fiscal/nfe/${id}/danfe`, { responseType: 'blob' });
     return response.data as Blob;
   }
 
   async downloadXml(id: string) {
     const response = await api.get(`/invoices/${id}/xml`, { responseType: 'blob' });
     return response.data as Blob;
+  }
+
+  async correction(id: string, correctionText: string) {
+    const response = await api.post(`/fiscal/nfe/cce/${id}`, { correctionText });
+    return response.data;
   }
 }
 

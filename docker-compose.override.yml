@@ -1,0 +1,8 @@
+services:
+  backend:
+    volumes:
+      - ./api/dist:/app/dist:ro
+      - ./uploads:/app/uploads
+    environment:
+      - NODE_ENV=development
+      - LOG_LEVEL=debug

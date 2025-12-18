@@ -1,4 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import pkg from '@prisma/client';
+const PrismaClientRuntime = (pkg as any).PrismaClient as any;
 import { hashPassword } from '../services/auth.service.js';
 import { config } from '../config/environment.js';
 import { prismaMaster } from '../lib/prisma.js';
@@ -18,7 +19,7 @@ async function run() {
   }
 
   const tenantDbUrl = config.DATABASE_URL.replace(/\/(\w+)$/, `/${tenant.databaseName}`);
-  const tenantPrisma = new PrismaClient({ datasources: { db: { url: tenantDbUrl } } });
+  const tenantPrisma = new PrismaClientRuntime({ datasources: { db: { url: tenantDbUrl } } });
 
   // Verifica se já existe usuário com email alvo
   let user = await tenantPrisma.user.findUnique({ where: { email: TARGET_EMAIL } });
