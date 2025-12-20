@@ -13,6 +13,7 @@ export interface TenantRequest extends Request {
     databaseName: string;
     databaseUser: string;
     databasePassword: string;
+    modulesEnabled: string[];
   };
 }
 
@@ -30,7 +31,7 @@ export async function tenantMiddleware(
     // Obter tenant ID do header ou subdomínio
     const tenantId = tenantReq.headers['x-tenant-id'] as string;
     const tenantCnpj = tenantReq.headers['x-tenant-cnpj'] as string;
-    
+
     if (!tenantId && !tenantCnpj) {
       throw new AppError('Tenant identification required', 400);
     }
@@ -64,15 +65,16 @@ export async function tenantMiddleware(
       plan: tenant.plan,
       databaseName: tenant.databaseName,
       databaseUser: tenant.databaseUser,
-      databasePassword: tenant.databasePassword
+      databasePassword: tenant.databasePassword,
+      modulesEnabled: tenant.modulesEnabled as string[] || []
     };
 
     logger.info(`Tenant identified: ${tenant.name} (${tenant.cnpj})`);
-    
+
     next();
   } catch (error) {
     logger.error('Error in tenant middleware:', error);
-    
+
     if (error instanceof AppError) {
       res.status(error.statusCode).json({
         error: error.message,
@@ -80,7 +82,7 @@ export async function tenantMiddleware(
       });
       return;
     }
-    
+
     res.status(500).json({
       error: 'Internal server error during tenant identification',
       timestamp: new Date().toISOString()
@@ -100,11 +102,16 @@ export async function optionalTenantMiddleware(
 ): Promise<void> {
   const tenantReq = req as TenantRequest;
   try {
-    const tenantId = req.headers['x-tenant-id'] as string;
+    const tenantId = (req.headers['x-tenant-id'] as string) || (req as any).user?.tenantId;
     const tenantCnpj = req.headers['x-tenant-cnpj'] as string;
-    
+
+    console.log('[DEBUG-MIDDLEWARE] optionalTenantMiddleware started', {
+      tenantIdInHeader: req.headers['x-tenant-id'],
+      tenantIdInUser: (req as any).user?.tenantId,
+      finalTenantId: tenantId
+    });
+
     if (!tenantId && !tenantCnpj) {
-      // Não há tenant, continuar sem ele
       return next();
     }
 
@@ -128,8 +135,18 @@ export async function optionalTenantMiddleware(
         plan: tenant.plan,
         databaseName: tenant.databaseName,
         databaseUser: tenant.databaseUser,
-        databasePassword: tenant.databasePassword
+        databasePassword: tenant.databasePassword,
+        modulesEnabled: tenant.modulesEnabled as string[] || []
       };
+      console.log('[DEBUG-MIDDLEWARE] Tenant resolved', {
+        id: tenant.id,
+        modules: tenant.modulesEnabled
+      });
+    } else {
+      console.log('[DEBUG-MIDDLEWARE] Tenant NOT resolved or inactive', {
+        tenantFound: !!tenant,
+        status: tenant?.status
+      });
     }
 
     next();

@@ -44,9 +44,10 @@ import orderRouter from './routes/order.routes.js';
 import warehouseRouter from './routes/warehouse.routes.js';
 import temperatureRouter from './routes/temperature.routes.js';
 import quoteRouter from './routes/quote.routes.js';
+import nfceRouter from './routes/nfce.routes.js';
 import deliveryRouteRouter from './routes/delivery-route.routes.js';
 import { authenticateToken } from './middleware/auth.js';
-import { validateSubscription } from './middleware/subscription.middleware.js';
+import { validateSubscription, validateModule } from './middleware/subscription.middleware.js';
 import { initPaymentSyncJob, paymentSyncJob } from './jobs/paymentSync.job.js';
 import { initBackupCleanupJob, backupCleanupJob } from './jobs/backupCleanup.job.js';
 
@@ -100,6 +101,11 @@ const authLimiter = rateLimit({
   skipSuccessfulRequests: true,
 });
 
+// Disable login limiter outside production or when running Vitest to avoid throttling automated suites
+const authLimiterMiddleware = (config.NODE_ENV === 'production' && process.env.VITEST !== 'true' && process.env.NODE_ENV !== 'test')
+  ? authLimiter
+  : ((req, _res, next) => next());
+
 // Middlewares globais
 app.use(limiter);
 
@@ -152,6 +158,11 @@ app.use('/static/docs', express.static(path.join(process.cwd(), 'uploads', 'docs
 
 // Middleware de tenant (deve vir antes das rotas) - SKIP para rotas estáticas
 app.use((req, res, next) => {
+  console.log(`[GLOBAL-LOG] ${req.method} ${req.path}`, {
+    idHeader: req.headers['x-tenant-id'],
+    auth: !!req.headers.authorization
+  });
+
   if (req.path.startsWith('/static/')) {
     return next();
   }
@@ -172,7 +183,7 @@ app.get('/health', (req, res) => {
 });
 
 // Rotas da API
-app.use(`/api/${config.API_VERSION}/auth`, authLimiter, authRouter);
+app.use(`/api/${config.API_VERSION}/auth`, authLimiterMiddleware, authRouter);
 app.use(`/api/${config.API_VERSION}/tenants`, tenantRouter);
 
 // Protected routes (require authentication)
@@ -189,6 +200,7 @@ app.use(`/api/${config.API_VERSION}/audit`, authenticateToken, tenantMiddleware,
 app.use(`/api/${config.API_VERSION}/webhooks`, webhookRouter);
 app.use(`/api/${config.API_VERSION}/docs`, authenticateToken, tenantMiddleware, docsRouter);
 app.use(`/api/${config.API_VERSION}/backup`, authenticateToken, backupRouter);
+app.use(`/api/${config.API_VERSION}/nfce`, nfceRouter);
 
 // Rotas protegidas que exigem assinatura ativa
 app.use(`/api/${config.API_VERSION}/superadmin`, authenticateToken, superadminRouter);
@@ -205,7 +217,7 @@ app.use(`/api/${config.API_VERSION}/customers`, authenticateToken, tenantMiddlew
 app.use(`/api/${config.API_VERSION}/suppliers`, authenticateToken, tenantMiddleware, validateSubscription, supplierRouter);
 app.use(`/api/${config.API_VERSION}/invoices`, authenticateToken, tenantMiddleware, validateSubscription, invoiceRouter);
 app.use(`/api/${config.API_VERSION}/fiscal`, authenticateToken, tenantMiddleware, validateSubscription, fiscalRouter);
-app.use(`/api/${config.API_VERSION}/dashboard`, authenticateToken, tenantMiddleware, validateSubscription, dashboardRouter);
+app.use(`/api/${config.API_VERSION}/dashboard`, authenticateToken, tenantMiddleware, validateSubscription, validateModule('DASHBOARD'), dashboardRouter);
 app.use(`/api/${config.API_VERSION}/batches`, authenticateToken, tenantMiddleware, validateSubscription, batchRouter);
 app.use(`/api/${config.API_VERSION}/orders`, authenticateToken, tenantMiddleware, validateSubscription, orderRouter);
 app.use(`/api/${config.API_VERSION}/warehouses`, authenticateToken, tenantMiddleware, validateSubscription, warehouseRouter);

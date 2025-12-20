@@ -7,7 +7,7 @@ class AuthService {
     // Se vier CNPJ e Email, usar endpoint de login por tenant
     const endpoint = credentials.cnpj && credentials.email ? '/auth/login-tenant' : '/auth/login';
     const response = await api.post<ApiResponse<LoginResponse>>(endpoint, credentials);
-    
+
     const { user, tenant, tokens } = response.data.data;
 
     // Salvar tokens e dados do usuário
@@ -43,7 +43,7 @@ class AuthService {
   // Refresh token
   async refreshToken(): Promise<{ accessToken: string; refreshToken: string }> {
     const refreshToken = this.getRefreshToken();
-    
+
     if (!refreshToken) {
       throw new Error('No refresh token available');
     }
@@ -59,12 +59,17 @@ class AuthService {
     return response.data.data;
   }
 
-  // Obter usuário atual
-  async getCurrentUser(): Promise<User> {
-    const response = await api.get<ApiResponse<{ user: User }>>('/auth/me');
-    const user = response.data.data.user;
+  // Obter usuário e tenant atuais
+  async getCurrentUser(): Promise<{ user: User; tenant: any }> {
+    const response = await api.get<ApiResponse<{ user: User; tenant: any }>>('/auth/me');
+    const { user, tenant } = response.data.data;
+
     this.setUser(user);
-    return user;
+    if (tenant) {
+      this.setTenant(tenant);
+    }
+
+    return { user, tenant };
   }
 
   // Verificar se está autenticado

@@ -52,6 +52,18 @@ export default function ProtectedRoute({
             <p className="text-muted-foreground">
               O módulo <span className="font-semibold text-primary">"{requiredModule}"</span> não está incluído no seu plano atual.
             </p>
+            <div className="mt-4 p-4 bg-muted rounded-md text-left overflow-auto max-w-full">
+              <p className="text-xs font-mono font-bold mb-2">DEBUG INFO:</p>
+              <pre className="text-[10px] font-mono">
+                {JSON.stringify({
+                  user: user?.email,
+                  role: user?.role,
+                  tenant: tenant ? { id: tenant.id, name: tenant.name, modules: tenant.modulesEnabled } : 'NULL',
+                  requiredModule,
+                  isSuperOrMaster
+                }, null, 2)}
+              </pre>
+            </div>
           </div>
           <div className="flex gap-4">
             <Button variant="outline" onClick={() => window.history.back()}>

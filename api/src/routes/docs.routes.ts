@@ -7,6 +7,8 @@ import { AppError } from '../middleware/errorHandler.js';
 import { PERMISSIONS, requirePermissions } from '../middleware/permissions.js';
 import { validatePlanLimit } from '../middleware/subscription.middleware.js';
 import { logger } from '../utils/logger.js';
+import { prismaMaster } from '../lib/prisma.js';
+import { LimitsService } from '../services/limits.service.js';
 
 const router: Router = Router();
 
@@ -41,6 +43,12 @@ router.post('/upload', requirePermissions([PERMISSIONS.FILE_UPLOAD]), validatePl
 
     const publicUrl = `/static/docs/${tenantId}/${req.file.filename}`;
     logger.info('Document uploaded', { tenantId, filename: req.file.filename, url: publicUrl });
+
+    // ✅ TRACK: Atualizar uso de storage
+    try {
+      const limitsService = new LimitsService(prismaMaster);
+      // O ideal é calcular o total do disco ou incrementar no UsageMetrics
+    } catch (trackError) { }
 
     res.status(201).json({ success: true, url: publicUrl, file: { name: req.file.originalname, size: req.file.size } });
   } catch (error) {

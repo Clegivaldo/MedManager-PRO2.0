@@ -15,31 +15,39 @@ export async function seedTestEnvironment(): Promise<void> {
     { cnpj: '12345678000155', name: 'Tenant Demo', adminEmail: 'admin@medmanager.com.br' }
   ];
 
-  const plan = await prismaMaster.plan.upsert({
-    where: { name: 'starter' },
-    update: {},
-    create: {
-      name: 'starter',
-      displayName: 'Starter',
-      description: 'Plano inicial para testes',
-      priceMonthly: 99.0,
-      maxUsers: 10,
-      maxProducts: 1000,
-      maxMonthlyTransactions: 1000,
-      maxStorageGb: 5,
-      maxApiCallsPerMinute: 120,
-      features: ['DASHBOARD', 'PRODUCTS', 'STOCK', 'NFE']
-    }
-  });
+  let plan = await prismaMaster.plan.findUnique({ where: { name: 'starter' } });
+  if (!plan) {
+    plan = await prismaMaster.plan.create({
+      data: {
+        name: 'starter',
+        displayName: 'Starter',
+        description: 'Plano inicial para testes',
+        priceMonthly: 99.0,
+        maxUsers: 10,
+        maxProducts: 1000,
+        maxMonthlyTransactions: 1000,
+        maxStorageGb: 5,
+        maxApiCallsPerMinute: 120,
+        features: ['DASHBOARD', 'PRODUCTS', 'STOCK', 'NFE']
+      }
+    });
+  }
 
   for (const t of tenants) {
     const dbName = `tenant_${t.cnpj}`;
     const dbUser = `user_${t.cnpj}`;
     const dbPass = `pass_${t.cnpj}`;
+    const existingByDb = await prismaMaster.tenant.findFirst({ where: { databaseName: dbName } });
 
-    const tenant = await prismaMaster.tenant.upsert({
+    const tenant = existingByDb || await prismaMaster.tenant.upsert({
       where: { cnpj: t.cnpj },
-      update: {},
+      update: {
+        databaseName: dbName,
+        databaseUser: dbUser,
+        databasePassword: dbPass,
+        plan: 'starter',
+        modulesEnabled: ['DASHBOARD', 'PRODUCTS', 'NFE']
+      },
       create: {
         name: t.name,
         cnpj: t.cnpj,
@@ -81,8 +89,21 @@ export async function seedTestEnvironment(): Promise<void> {
     const passwordHash = await bcrypt.hash('admin123', 10);
     await tenantPrisma.user.upsert({
       where: { email: t.adminEmail },
-      update: { permissions: JSON.stringify(Object.values(PERMISSIONS)) },
-      create: { email: t.adminEmail, name: 'Admin Demo', password: passwordHash, role: 'MASTER', permissions: JSON.stringify(Object.values(PERMISSIONS)) }
+      update: {
+        // Garantimos credenciais padronizadas para os testes E2E
+        password: passwordHash,
+        permissions: JSON.stringify(Object.values(PERMISSIONS)),
+        isActive: true,
+        name: 'Admin Demo'
+      },
+      create: {
+        email: t.adminEmail,
+        name: 'Admin Demo',
+        password: passwordHash,
+        role: 'MASTER',
+        permissions: JSON.stringify(Object.values(PERMISSIONS)),
+        isActive: true
+      }
     });
     await tenantPrisma.customer.upsert({
       where: { cnpjCpf: '12345678901234' },
@@ -124,18 +145,19 @@ export async function seedTestEnvironment(): Promise<void> {
         expirationDate: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000)
       }
     });
-    await prismaMaster.tenantFiscalProfile.upsert({
-      where: { tenantId: tenant.id },
-      update: {},
-      create: {
-        tenantId: tenant.id,
-        companyName: `${t.name} LTDA`,
-        tradingName: t.name,
-        cnpj: t.cnpj,
-        taxRegime: 'simple_national',
-        sefazEnvironment: 'homologacao'
-      }
-    });
+    const existingFiscal = await prismaMaster.tenantFiscalProfile.findUnique({ where: { tenantId: tenant.id } });
+    if (!existingFiscal) {
+      await prismaMaster.tenantFiscalProfile.create({
+        data: {
+          tenantId: tenant.id,
+          companyName: `${t.name} LTDA`,
+          tradingName: t.name,
+          cnpj: t.cnpj,
+          taxRegime: 'simple_national',
+          sefazEnvironment: 'homologacao'
+        }
+      });
+    }
   }
   logger.info('Seed concluído', { tenants: tenants.length });
 }

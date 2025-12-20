@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticateToken } from '../middleware/auth.js';
-import { requirePermission } from '../middleware/permissions.js';
+import { requirePermission, PERMISSIONS } from '../middleware/permissions.js';
 import { withTenantPrisma } from '../lib/tenant-prisma.js';
 import { logger } from '../utils/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
@@ -8,7 +8,7 @@ import { AppError } from '../middleware/errorHandler.js';
 const router: Router = Router();
 
 // Criar lote
-router.post('/', authenticateToken, requirePermission('BATCH_CREATE'), async (req, res, next) => {
+router.post('/', authenticateToken, requirePermission(PERMISSIONS.BATCH_CREATE), async (req, res, next) => {
   try {
     const {
       productId,
@@ -85,7 +85,7 @@ router.post('/', authenticateToken, requirePermission('BATCH_CREATE'), async (re
 });
 
 // Listar todos os lotes
-router.get('/', authenticateToken, requirePermission('BATCH_READ'), async (req, res, next) => {
+router.get('/', authenticateToken, requirePermission(PERMISSIONS.BATCH_READ), async (req, res, next) => {
   try {
     const { page = 1, limit = 50, productId, status } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
@@ -148,7 +148,7 @@ router.get('/', authenticateToken, requirePermission('BATCH_READ'), async (req, 
 });
 
 // Obter lote por ID
-router.get('/:id', authenticateToken, requirePermission('BATCH_READ'), async (req, res, next) => {
+router.get('/:id', authenticateToken, requirePermission(PERMISSIONS.BATCH_READ), async (req, res, next) => {
   try {
     const { id } = req.params;
 
@@ -175,7 +175,7 @@ router.get('/:id', authenticateToken, requirePermission('BATCH_READ'), async (re
 });
 
 // Atualizar lote
-router.put('/:id', authenticateToken, requirePermission('BATCH_UPDATE'), async (req, res, next) => {
+router.put('/:id', authenticateToken, requirePermission(PERMISSIONS.BATCH_UPDATE), async (req, res, next) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
@@ -215,7 +215,7 @@ router.put('/:id', authenticateToken, requirePermission('BATCH_UPDATE'), async (
 });
 
 // Deletar lote
-router.delete('/:id', authenticateToken, requirePermission('BATCH_DELETE'), async (req, res, next) => {
+router.delete('/:id', authenticateToken, requirePermission(PERMISSIONS.BATCH_DELETE), async (req, res, next) => {
   try {
     const { id } = req.params;
 

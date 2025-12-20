@@ -80,16 +80,16 @@ router.post('/', authenticateToken, requirePermission(PERMISSIONS.CUSTOMER_CREAT
     }
 
     // Verificar se já existe cliente com mesmo documento
-    const customer = await withTenantPrisma((req as any).tenant, async (prisma) => {
+    const { customer, isExisting } = await withTenantPrisma((req as any).tenant, async (prisma) => {
       const existingCustomer = await prisma.customer.findFirst({
         where: { cnpjCpf }
       });
 
       if (existingCustomer) {
-        throw new AppError('Customer with this document already exists', 400, 'DUPLICATE_CUSTOMER');
+        return { customer: existingCustomer, isExisting: true };
       }
 
-      return await prisma.customer.create({
+      const createdCustomer = await prisma.customer.create({
         data: {
           companyName,
           tradeName,
@@ -102,17 +102,20 @@ router.post('/', authenticateToken, requirePermission(PERMISSIONS.CUSTOMER_CREAT
           isActive
         }
       });
+
+      return { customer: createdCustomer, isExisting: false };
     });
 
-      logger.info(`Customer created: ${customer.companyName}`, {
+    logger.info(`Customer ${isExisting ? 'reused' : 'created'}: ${customer.companyName}`, {
       userId: req.user?.userId,
       customerId: customer.id,
       action: 'CUSTOMER_CREATE'
     });
 
-    res.status(201).json({
+    res.status(isExisting ? 200 : 201).json({
       success: true,
-      data: customer
+      data: customer,
+      duplicate: isExisting
     });
   } catch (error) {
     next(error);

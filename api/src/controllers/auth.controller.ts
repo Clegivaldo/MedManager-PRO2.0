@@ -164,7 +164,7 @@ export class AuthController {
         }
 
         // Gerar tokens
-      const tokens = this.generateTokens(user, userTenant?.id || 'master');
+        const tokens = this.generateTokens(user, userTenant?.id || 'master');
 
         // Registrar login
         logger.info(`User ${user.email} logged in successfully`);
@@ -178,13 +178,15 @@ export class AuthController {
               email: user.email,
               name: user.name,
               role: user.role,
-          tenant: userTenant ? {
-            id: userTenant.id,
-            name: userTenant.name,
-            cnpj: userTenant.cnpj,
-            plan: userTenant.plan
-          } : null
-        },
+              avatarUrl: user.avatarUrl,
+            },
+            tenant: userTenant ? {
+              id: userTenant.id,
+              name: userTenant.name,
+              cnpj: userTenant.cnpj,
+              plan: userTenant.plan,
+              modulesEnabled: userTenant.modulesEnabled as string[] || []
+            } : null,
             tokens
           }
         });
@@ -357,7 +359,7 @@ export class AuthController {
           }
 
           const payload = decoded as any;
-          
+
           // Buscar usuário para verificar se ainda existe e está ativo
           let user;
           let tenant;
@@ -485,7 +487,8 @@ export class AuthController {
             name: tenant.name,
             cnpj: tenant.cnpj,
             plan: tenant.plan,
-            status: tenant.status
+            status: tenant.status,
+            modulesEnabled: tenant.modulesEnabled as string[] || []
           } : null
         }
       });
@@ -506,7 +509,7 @@ export class AuthController {
     try {
       // Em produção, adicionar token a uma blacklist no Redis
       // Por enquanto, apenas retornar sucesso
-      
+
       if (req.user) {
         logger.info(`User ${req.user.email} logged out`);
       }

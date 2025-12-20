@@ -271,6 +271,8 @@ export class NFCeService {
                     await prisma.invoice.update({
                         where: { id: nfeData.invoice.id },
                         data: {
+                            invoiceNumber: nextNumber,
+                            series: activeSeries.seriesNumber,
                             accessKey: sefazResponse.accessKey,
                             protocol: sefazResponse.protocolNumber,
                             status: this.mapInvoiceStatus(normalizeNFeStatus(sefazResponse.statusCode) || sefazResponse.status) || undefined,
@@ -311,10 +313,15 @@ export class NFCeService {
         const aamm = (now.getFullYear() % 100).toString().padStart(2, '0') +
             (now.getMonth() + 1).toString().padStart(2, '0');
 
+        const issuerCnpj = fiscalProfile.cnpj || nfeData.issuer?.cnpj;
+        if (!issuerCnpj) {
+            throw new AppError('Issuer CNPJ not configured', 400);
+        }
+
         const accessKey = generateAccessKey({
             cUF: '35', // SP
             aamm,
-            cnpj: fiscalProfile.cnpj.replace(/\D/g, ''),
+            cnpj: issuerCnpj.replace(/\D/g, ''),
             mod: '65', // NFC-e
             serie: seriesNumber.toString(),
             nNF: invoiceNumber.toString(),
@@ -328,6 +335,19 @@ export class NFCeService {
         const address = typeof fiscalProfile.address === 'string'
             ? JSON.parse(fiscalProfile.address)
             : fiscalProfile.address || {};
+
+        const dest: NFeXmlData['dest'] = nfeData.customer ? {
+            CNPJ: nfeData.customer.cnpjCpf?.length > 11 ? nfeData.customer.cnpjCpf.replace(/\D/g, '') : undefined,
+            CPF: nfeData.customer.cnpjCpf?.length <= 11 ? nfeData.customer.cnpjCpf.replace(/\D/g, '') : undefined,
+            xNome: nfeData.customer.name,
+            indIEDest: '9' as const, // Non-contributor
+            // Address optional
+        } : {
+            // Default consumer to avoid XML builder accessing undefined
+            CPF: '00000000000',
+            xNome: 'Consumidor Final',
+            indIEDest: '9' as const
+        };
 
         const xmlData: NFeXmlData = {
             ide: {
@@ -350,9 +370,9 @@ export class NFCeService {
                 verProc: 'MedManager 2.0',
             },
             emit: {
-                CNPJ: fiscalProfile.cnpj.replace(/\D/g, ''),
-                xNome: fiscalProfile.companyName,
-                xFant: fiscalProfile.tradingName,
+                CNPJ: issuerCnpj.replace(/\D/g, ''),
+                xNome: fiscalProfile.companyName || nfeData.issuer?.name,
+                xFant: fiscalProfile.tradingName || nfeData.issuer?.name,
                 IE: fiscalProfile.stateRegistration || '',
                 IM: fiscalProfile.municipalRegistration,
                 CRT: crt,
@@ -370,14 +390,7 @@ export class NFCeService {
                     fone: fiscalProfile.phone?.replace(/\D/g, ''),
                 },
             },
-            // Dest is optional in NFC-e
-            dest: nfeData.customer ? {
-                CNPJ: nfeData.customer.cnpjCpf?.length > 11 ? nfeData.customer.cnpjCpf.replace(/\D/g, '') : undefined,
-                CPF: nfeData.customer.cnpjCpf?.length <= 11 ? nfeData.customer.cnpjCpf.replace(/\D/g, '') : undefined,
-                xNome: nfeData.customer.name,
-                indIEDest: '9', // Non-contributor
-                // Address optional
-            } : undefined,
+            dest,
 
             det: nfeData.items.map((item, index) => ({
                 nItem: (index + 1).toString(),

@@ -12,8 +12,8 @@ export const prismaMaster = new PrismaClientRuntime({
       url: config.DATABASE_URL
     }
   },
-  log: config.isDevelopment 
-    ? ['query', 'error', 'warn'] 
+  log: config.isDevelopment
+    ? ['query', 'error', 'warn']
     : ['error']
 });
 
@@ -35,15 +35,15 @@ interface TenantConnectionConfig {
 export function getTenantPrisma(conn: TenantConnectionConfig): PrismaClientType {
   const { databaseName, databaseUser, databasePassword } = conn;
   const poolKey = `${databaseName}:${databaseUser}`;
-  
+
   // Verificar se já existe no pool
   if (tenantPrismaPool.has(poolKey)) {
     return tenantPrismaPool.get(poolKey)!;
   }
-  
+
   // Criar nova conexão
   let connectionUrl: string;
-  
+
   if (config.isDevelopment && config.DATABASE_URL.startsWith('file:')) {
     // Usar SQLite para desenvolvimento
     connectionUrl = `file:./tenant_${databaseName}.db`;
@@ -51,23 +51,23 @@ export function getTenantPrisma(conn: TenantConnectionConfig): PrismaClientType 
     // Usar PostgreSQL para produção
     connectionUrl = `postgresql://${databaseUser}:${databasePassword}@${config.DATABASE_URL.split('@')[1].split('/')[0]}/${databaseName}`;
   }
-  
+
   const tenantPrisma = new PrismaClientRuntime({
     datasources: {
       db: {
         url: connectionUrl
       }
     },
-    log: config.isDevelopment 
-      ? ['query', 'error', 'warn'] 
+    log: config.isDevelopment
+      ? ['query', 'error', 'warn']
       : ['error']
   });
-  
+
   // Adicionar ao pool
   tenantPrismaPool.set(poolKey, tenantPrisma);
-  
+
   logger.info(`Created new Prisma client for tenant database: ${databaseName}`);
-  
+
   return tenantPrisma;
 }
 
@@ -77,7 +77,7 @@ export function getTenantPrisma(conn: TenantConnectionConfig): PrismaClientType 
 export function removeTenantPrisma(databaseName: string, databaseUser: string): void {
   const poolKey = `${databaseName}:${databaseUser}`;
   const client = tenantPrismaPool.get(poolKey);
-  
+
   if (client) {
     client.$disconnect();
     tenantPrismaPool.delete(poolKey);
@@ -112,13 +112,13 @@ export async function disconnectAllPrisma(): Promise<void> {
 export async function validateTenantDatabase(conn: TenantConnectionConfig & { DATABASE_URL?: string }): Promise<boolean> {
   try {
     let connectionUrl: string;
-    
+
     if (config.isDevelopment && conn.DATABASE_URL?.startsWith('file:')) {
       connectionUrl = `file:./tenant_${conn.databaseName}.db`;
     } else {
       connectionUrl = `postgresql://${conn.databaseUser}:${conn.databasePassword}@${conn.DATABASE_URL!.split('@')[1].split('/')[0]}/${conn.databaseName}`;
     }
-    
+
     const testClient = new PrismaClientRuntime({
       datasources: {
         db: {
@@ -126,11 +126,11 @@ export async function validateTenantDatabase(conn: TenantConnectionConfig & { DA
         }
       }
     });
-    
+
     // Testar conexão com uma query simples
     await testClient.$queryRaw`SELECT 1`;
     await testClient.$disconnect();
-    
+
     return true;
   } catch (error) {
     logger.error(`Failed to validate tenant database: ${conn.databaseName}`, error);
@@ -142,6 +142,17 @@ export async function validateTenantDatabase(conn: TenantConnectionConfig & { DA
  * Cria banco de dados para um novo tenant
  */
 export async function createTenantDatabase(databaseName: string, databaseUser: string, databasePassword: string): Promise<void> {
+  // Skip creation if database already exists
+  try {
+    const exists = await (prismaMaster as any).$queryRawUnsafe(`SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname='${databaseName}') as exists`);
+    if (exists?.[0]?.exists) {
+      logger.warn(`Database ${databaseName} já existe (ok)`);
+      return;
+    }
+  } catch (e) {
+    logger.warn('Falha ao verificar existência do database (prosseguindo)', { databaseName, error: (e as Error).message });
+  }
+
   let dbCreated = false;
   try {
     await prismaMaster.$executeRawUnsafe(`CREATE DATABASE "${databaseName}"`);
@@ -193,20 +204,20 @@ export async function migrateTenantDatabase(conn: TenantConnectionConfig & { DAT
     const { exec } = await import('child_process');
     const { promisify } = await import('util');
     const execAsync = promisify(exec);
-    
+
     let connectionUrl: string;
-    
+
     if (config.isDevelopment && conn.DATABASE_URL?.startsWith('file:')) {
       connectionUrl = `file:./tenant_${conn.databaseName}.db`;
     } else {
       connectionUrl = `postgresql://${conn.databaseUser}:${conn.databasePassword}@${conn.DATABASE_URL!.split('@')[1].split('/')[0]}/${conn.databaseName}`;
     }
-    
+
     // Executar migrações do Prisma
     await execAsync(`DATABASE_URL="${connectionUrl}" npx prisma migrate deploy`, {
       cwd: process.cwd()
     });
-    
+
     logger.info(`Migrated tenant database: ${conn.databaseName}`);
   } catch (error) {
     logger.error(`Failed to migrate tenant database: ${conn.databaseName}`, error);

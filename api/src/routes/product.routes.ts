@@ -1,15 +1,17 @@
 import { Router } from 'express';
 import { authenticateToken } from '../middleware/auth.js';
-import { requirePermission } from '../middleware/permissions.js';
+import { requirePermission, PERMISSIONS } from '../middleware/permissions.js';
 import { validatePlanLimit } from '../middleware/subscription.middleware.js'; // ✅ ADDED
 import { withTenantPrisma } from '../lib/tenant-prisma.js';
+import { prismaMaster } from '../lib/prisma.js';
+import { LimitsService } from '../services/limits.service.js';
 import { logger } from '../utils/logger.js';
 import { AppError } from '../middleware/errorHandler.js';
 
 const router: Router = Router();
 
 // Rotas de produtos
-router.get('/', authenticateToken, requirePermission('PRODUCT_READ'), async (req, res, next) => {
+router.get('/', authenticateToken, requirePermission(PERMISSIONS.PRODUCT_READ), async (req, res, next) => {
   try {
     const { page = 1, limit = 50, search, category, status } = req.query;
     const tenantId = req.user?.tenantId;
@@ -91,7 +93,7 @@ router.get('/', authenticateToken, requirePermission('PRODUCT_READ'), async (req
 
 router.post('/',
   authenticateToken,
-  requirePermission('PRODUCT_CREATE'),
+  requirePermission(PERMISSIONS.PRODUCT_CREATE),
   validatePlanLimit('product'), // ✅ ENFORCE: Verifica limite de produtos do plano
   async (req, res, next) => {
     try {
@@ -198,6 +200,15 @@ router.post('/',
         return createdProduct;
       });
 
+      // ✅ TRACK: Atualizar contagem de produtos nos limites do plano
+      try {
+        const limitsService = new LimitsService(prismaMaster);
+        const totalProducts = await withTenantPrisma<number>((req as any).tenant, (prisma) => prisma.product.count({ where: { isActive: true } })) as number;
+        await limitsService.trackProductCount((req as any).tenant.id, totalProducts);
+      } catch (trackError) {
+        logger.warn('Failed to track product count', { error: (trackError as Error).message });
+      }
+
       // Registrar log de auditoria
       logger.info(`Product created: ${product.name} (${product.internalCode})`, {
         userId: req.user?.userId,
@@ -220,7 +231,7 @@ router.post('/',
     }
   });
 
-router.get('/:id', authenticateToken, requirePermission('PRODUCT_READ'), async (req, res, next) => {
+router.get('/:id', authenticateToken, requirePermission(PERMISSIONS.PRODUCT_READ), async (req, res, next) => {
   try {
     const { id } = req.params;
     const tenantId = req.user?.tenantId;
@@ -267,7 +278,7 @@ router.get('/:id', authenticateToken, requirePermission('PRODUCT_READ'), async (
   }
 });
 
-router.put('/:id', authenticateToken, requirePermission('PRODUCT_UPDATE'), async (req, res, next) => {
+router.put('/:id', authenticateToken, requirePermission(PERMISSIONS.PRODUCT_UPDATE), async (req, res, next) => {
   try {
     const { id } = req.params;
     const tenantId = req.user?.tenantId;

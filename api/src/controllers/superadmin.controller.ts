@@ -36,7 +36,8 @@ export class SuperAdminController {
             subscriptionStart: true,
             subscriptionEnd: true,
             subscriptionStatus: true,
-            metadata: true
+            metadata: true,
+            databaseName: true
           }
         }),
         prisma.tenant.count({ where })
@@ -49,7 +50,7 @@ export class SuperAdminController {
             const pkg = await import('@prisma/client');
             const PrismaClientRuntime = (pkg as any).PrismaClient as any;
             const { config } = await import('../config/environment.js');
-            const tenantDbUrl = config.DATABASE_URL.replace(/\/([\w]+)$/, `/${tenant.id}`);
+            const tenantDbUrl = config.DATABASE_URL.replace(/\/([\w]+)$/, `/${tenant.databaseName}`);
             const tenantPrisma = new PrismaClientRuntime({ datasources: { db: { url: tenantDbUrl } } });
 
             const userCount = await tenantPrisma.user.count();
@@ -476,8 +477,8 @@ export class SuperAdminController {
 
   fixUserPermissions = async (req: Request, res: Response) => {
     try {
-        const pkg = await import('@prisma/client');
-        const PrismaClientRuntime = (pkg as any).PrismaClient as any;
+      const pkg = await import('@prisma/client');
+      const PrismaClientRuntime = (pkg as any).PrismaClient as any;
       const { ROLES } = await import('../middleware/permissions.js');
       const { config } = await import('../config/environment.js');
 
@@ -496,7 +497,7 @@ export class SuperAdminController {
       for (const tenant of tenants) {
         try {
           const tenantDbUrl = config.DATABASE_URL.replace(/\/(\w+)$/, `/${tenant.databaseName}`);
-            const tenantPrisma = new PrismaClientRuntime({
+          const tenantPrisma = new PrismaClientRuntime({
             datasources: { db: { url: tenantDbUrl } }
           });
 

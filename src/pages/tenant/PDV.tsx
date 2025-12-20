@@ -62,7 +62,7 @@ const PDV: React.FC = () => {
     const { data: customers = [] } = useQuery({
         queryKey: ['pdv-customers'],
         queryFn: async () => {
-            const response = await api.get('/clients', { params: { limit: 50 } });
+            const response = await api.get('/customers', { params: { limit: 50 } });
             return response.data.customers || response.data || [];
         },
     });

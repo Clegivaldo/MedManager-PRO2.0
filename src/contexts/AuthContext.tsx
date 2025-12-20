@@ -26,22 +26,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const tenant = authService.getTenant();
 
           if (user) {
-            setState({
-              user,
-              tenant,
-              isAuthenticated: true,
-              isLoading: false,
-            });
-
-            // Buscar dados atualizados do usuário
+            // Se temos usuário em cache, tentamos buscar dados atualizados ANTES de liberar o loading
             try {
-              const updatedUser = await authService.getCurrentUser();
-              setState(prev => ({
-                ...prev,
+              const { user: updatedUser, tenant: updatedTenant } = await authService.getCurrentUser();
+              setState({
                 user: updatedUser,
-              }));
+                tenant: updatedTenant || tenant,
+                isAuthenticated: true,
+                isLoading: false,
+              });
             } catch (error) {
-              console.error('Erro ao buscar usuário atualizado:', error);
+              console.error('Erro ao buscar perfil atualizado na inicialização:', error);
+              // Em caso de erro na atualização, usa o cache se disponível
+              setState({
+                user,
+                tenant,
+                isAuthenticated: true,
+                isLoading: false,
+              });
             }
           } else {
             setState(prev => ({ ...prev, isLoading: false }));
@@ -94,13 +96,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const refreshUser = async (): Promise<void> => {
     try {
-      const user = await authService.getCurrentUser();
+      const { user, tenant } = await authService.getCurrentUser();
       setState(prev => ({
         ...prev,
         user,
+        tenant: tenant || prev.tenant,
       }));
     } catch (error) {
-      console.error('Erro ao atualizar usuário:', error);
+      console.error('Erro ao atualizar dados de autenticação:', error);
       throw error;
     }
   };

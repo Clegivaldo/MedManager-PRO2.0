@@ -11,6 +11,8 @@ import pkg from '@prisma/client';
 const InvoiceType = (pkg as any).InvoiceType as any;
 const InvoiceStatus = (pkg as any).InvoiceStatus as any;
 const MovementType = (pkg as any).MovementType as any;
+import { prismaMaster } from '../lib/prisma.js';
+import { LimitsService } from '../services/limits.service.js';
 
 
 const router: Router = Router();
@@ -399,6 +401,14 @@ router.post('/',
         });
       });
 
+      // ✅ TRACK: Incrementar contagem de transações (rascunhos também contam como transação de negócio?)
+      // Se não, mover apenas para o /emit. Mas como validatePlanLimit('transaction') é chamado aqui,
+      // devemos trackear o uso aqui também.
+      try {
+        const limitsService = new LimitsService(prismaMaster);
+        await limitsService.trackTransaction((req as any).tenant.id);
+      } catch (trackError) { }
+
       logger.info(`Invoice ${invoice!.number} created as draft`, {
         tenantId,
         userId,
@@ -406,7 +416,8 @@ router.post('/',
         total: invoice!.totalValue
       });
 
-      res.status(201).json(invoice);
+      // Envelope para compatibilidade com suítes E2E
+      res.status(201).json({ invoice, data: invoice });
 
     } catch (error) {
       next(error);
@@ -652,7 +663,16 @@ router.post('/:id/emit', requirePermissions([PERMISSIONS.NFE_ISSUE]), async (req
       protocolNumber: nfeResult.protocolNumber,
     });
 
-    res.json(updatedInvoice);
+    // ✅ TRACK: Incrementar contagem de NF-e emitidas
+    try {
+      if (updatedInvoice.status === 'AUTHORIZED') {
+        const limitsService = new LimitsService(prismaMaster);
+        await limitsService.trackNfeIssued((req as any).tenant?.id || tenantId);
+      }
+    } catch (trackError) { }
+
+    // Envelope para compatibilidade com suítes E2E
+    res.json({ invoice: updatedInvoice, data: updatedInvoice });
 
   } catch (error) {
     next(error);
