@@ -130,10 +130,10 @@ function AppContent() {
                   <Route path="inventory" element={<ProtectedRoute requiredModule="INVENTORY" />}>
                     <Route index element={<Inventory />} />
                   </Route>
-                  <Route path="orders" element={<ProtectedRoute requiredModule="SALES" />}>
+                  <Route path="orders" element={<ProtectedRoute requiredModule="ORDERS" />}>
                     <Route index element={<Orders />} />
                   </Route>
-                  <Route path="quotes" element={<ProtectedRoute requiredModule="SALES" />}>
+                  <Route path="quotes" element={<ProtectedRoute requiredModule="QUOTES" />}>
                     <Route index element={<Quotes />} />
                   </Route>
                   <Route path="sales" element={<ProtectedRoute requiredModule="SALES" />}>
@@ -142,7 +142,7 @@ function AppContent() {
                   <Route path="financials" element={<ProtectedRoute requiredModule="FINANCIAL" />}>
                     <Route index element={<Financials />} />
                   </Route>
-                  <Route path="routes" element={<ProtectedRoute requiredModule="ROUTES" />}>
+                  <Route path="routes" element={<ProtectedRoute requiredModule="DELIVERY" />}>
                     <Route index element={<RoutesPage />} />
                   </Route>
                   <Route path="compliance" element={<ProtectedRoute requiredModule="COMPLIANCE" />}>

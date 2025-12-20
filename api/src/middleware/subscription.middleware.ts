@@ -147,7 +147,7 @@ export const validateSubscription = async (
 export const validateModule = (requiredModule: string) => {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const tenantId = req.headers['x-tenant-id'] as string;
+      const tenantReq = req as any;
       const userRole = (req as any).user?.role;
 
       // SUPERADMIN tem acesso a tudo
@@ -155,25 +155,32 @@ export const validateModule = (requiredModule: string) => {
         return next();
       }
 
-      if (!tenantId) {
-        throw new AppError('Tenant ID não fornecido', 400);
-      }
+      // Tentar obter tenant do contexto (req.tenant após tenantMiddleware)
+      let modules = tenantReq.tenant?.modulesEnabled as string[] || [];
 
-      // Buscar tenant
-      const tenant = await prisma.tenant.findUnique({
-        where: { id: tenantId },
-        select: {
-          modulesEnabled: true,
-        },
-      });
+      // Se não estiver em req.tenant, tentar buscar do banco
+      if (modules.length === 0) {
+        const tenantId = req.headers['x-tenant-id'] as string;
+        
+        if (!tenantId) {
+          throw new AppError('Tenant ID não fornecido', 400);
+        }
 
-      if (!tenant) {
-        throw new AppError('Tenant não encontrado', 404);
+        const tenant = await prisma.tenant.findUnique({
+          where: { id: tenantId },
+          select: {
+            modulesEnabled: true,
+          },
+        });
+
+        if (!tenant) {
+          throw new AppError('Tenant não encontrado', 404);
+        }
+
+        modules = tenant.modulesEnabled as string[];
       }
 
       // Verificar se módulo está habilitado
-      const modules = tenant.modulesEnabled as string[];
-      
       if (!modules.includes(requiredModule)) {
         throw new AppError(
           `Módulo "${requiredModule}" não está disponível no seu plano. Faça upgrade para acessar.`,

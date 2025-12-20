@@ -32,8 +32,8 @@ interface SidebarProps {
 
 const menuItems = [
   { title: 'Dashboard', icon: LayoutDashboard, href: '/dashboard', module: 'DASHBOARD' },
-  { title: 'Pedidos', icon: ShoppingCart, href: '/orders', badge: { text: '5', variant: 'default' as const }, module: 'SALES' },
-  { title: 'Orçamentos', icon: ClipboardList, href: '/quotes', module: 'SALES' },
+  { title: 'Pedidos', icon: ShoppingCart, href: '/orders', badge: { text: '5', variant: 'default' as const }, module: 'ORDERS' },
+  { title: 'Orçamentos', icon: ClipboardList, href: '/quotes', module: 'QUOTES' },
   { title: 'Vendas', icon: DollarSign, href: '/sales', module: 'SALES' },
   { title: 'Produtos', icon: Package, href: '/products', module: 'PRODUCTS' },
   { title: 'Estoque', icon: Warehouse, href: '/inventory', badge: { text: '12', variant: 'destructive' as const }, module: 'INVENTORY' },
@@ -41,7 +41,7 @@ const menuItems = [
   { title: 'Financeiro', icon: Banknote, href: '/financials', module: 'FINANCIAL' },
   { title: 'NFe', icon: FileText, href: '/nfe', module: 'NFE' },
   { title: 'PDV (NFC-e)', icon: Receipt, href: '/pdv', module: 'NFE' },
-  { title: 'Entregas', icon: Route, href: '/routes', module: 'ROUTES' },
+  { title: 'Entregas', icon: Route, href: '/routes', module: 'DELIVERY' },
   { title: 'Conformidade', icon: Shield, href: '/compliance', badge: { text: '3', variant: 'secondary' as const }, module: 'COMPLIANCE' },
 ];
 

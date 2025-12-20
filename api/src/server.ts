@@ -219,11 +219,11 @@ app.use(`/api/${config.API_VERSION}/invoices`, authenticateToken, tenantMiddlewa
 app.use(`/api/${config.API_VERSION}/fiscal`, authenticateToken, tenantMiddleware, validateSubscription, fiscalRouter);
 app.use(`/api/${config.API_VERSION}/dashboard`, authenticateToken, tenantMiddleware, validateSubscription, validateModule('DASHBOARD'), dashboardRouter);
 app.use(`/api/${config.API_VERSION}/batches`, authenticateToken, tenantMiddleware, validateSubscription, batchRouter);
-app.use(`/api/${config.API_VERSION}/orders`, authenticateToken, tenantMiddleware, validateSubscription, orderRouter);
-app.use(`/api/${config.API_VERSION}/warehouses`, authenticateToken, tenantMiddleware, validateSubscription, warehouseRouter);
-app.use(`/api/${config.API_VERSION}/temperature`, authenticateToken, tenantMiddleware, validateSubscription, temperatureRouter);
-app.use(`/api/${config.API_VERSION}/quotes`, authenticateToken, tenantMiddleware, validateSubscription, quoteRouter);
-app.use(`/api/${config.API_VERSION}/delivery-routes`, authenticateToken, tenantMiddleware, validateSubscription, deliveryRouteRouter);
+app.use(`/api/${config.API_VERSION}/orders`, authenticateToken, tenantMiddleware, validateSubscription, validateModule('ORDERS'), orderRouter);
+app.use(`/api/${config.API_VERSION}/warehouses`, authenticateToken, tenantMiddleware, validateSubscription, validateModule('WAREHOUSE'), warehouseRouter);
+app.use(`/api/${config.API_VERSION}/temperature`, authenticateToken, tenantMiddleware, validateSubscription, validateModule('WAREHOUSE'), temperatureRouter);
+app.use(`/api/${config.API_VERSION}/quotes`, authenticateToken, tenantMiddleware, validateSubscription, validateModule('QUOTES'), quoteRouter);
+app.use(`/api/${config.API_VERSION}/delivery-routes`, authenticateToken, tenantMiddleware, validateSubscription, validateModule('DELIVERY'), deliveryRouteRouter);
 
 // Rota de teste
 app.get('/api/test', (req, res) => {
