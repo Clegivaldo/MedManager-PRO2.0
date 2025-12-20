@@ -565,3 +565,17 @@ router.post('/nfe/cce/:invoiceId', authenticateToken, requirePermissions([PERMIS
     next(error);
   }
 });
+
+// Inutilização de Numeração (Faixa de 1 até 999.999.999)
+router.post('/nfe/inutilize', authenticateToken, requirePermissions([PERMISSIONS.NFE_CANCEL]), tenantMiddleware, async (req, res, next) => {
+  try {
+    const { serie, numeroInicial, numeroFinal, justification } = req.body;
+    const tenantId = req.tenant?.id as string;
+    if (!tenantId) throw new AppError('Tenant not identified', 400);
+
+    const result = await nfeService.inutilizarNumeracao(serie, numeroInicial, numeroFinal, justification, tenantId);
+    res.json({ success: result.success, data: result });
+  } catch (error) {
+    next(error);
+  }
+});

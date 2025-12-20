@@ -1,5 +1,6 @@
 import { getTenantPrisma } from '../lib/tenant-prisma.js';
 import { logger } from '../utils/logger.js';
+import { AppError } from '../utils/errors.js';
 
 interface CreateTransactionData {
     type: 'RECEIVABLE' | 'PAYABLE';
@@ -9,6 +10,7 @@ interface CreateTransactionData {
     category?: string;
     client?: string;
     supplier?: string;
+    notes?: string;
 }
 
 interface ListTransactionsParams {
@@ -30,15 +32,39 @@ class FinancialService {
     async getSummary(tenantId: string) {
         const prisma: any = await getTenantPrisma(tenantId);
 
-        // Simulação de dados - substituir por queries reais
+        const transactions = await prisma.financialTransaction.findMany({
+            where: { status: { not: 'CANCELLED' } }
+        });
+
         const summary = {
-            totalReceivable: 50000,
-            totalPayable: 30000,
-            pendingReceivable: 25000,
-            pendingPayable: 15000,
-            overdueReceivable: 5000,
-            overduePayable: 2000,
+            totalReceivable: 0,
+            totalPayable: 0,
+            pendingReceivable: 0,
+            pendingPayable: 0,
+            overdueReceivable: 0,
+            overduePayable: 0,
         };
+
+        const now = new Date();
+
+        transactions.forEach((t: any) => {
+            const val = Number(t.value);
+            const isOverdue = new Date(t.dueDate) < now && t.status === 'PENDING';
+
+            if (t.type === 'RECEIVABLE') {
+                summary.totalReceivable += val;
+                if (t.status === 'PENDING') {
+                    summary.pendingReceivable += val;
+                    if (isOverdue) summary.overdueReceivable += val;
+                }
+            } else {
+                summary.totalPayable += val;
+                if (t.status === 'PENDING') {
+                    summary.pendingPayable += val;
+                    if (isOverdue) summary.overduePayable += val;
+                }
+            }
+        });
 
         return summary;
     }
@@ -52,35 +78,28 @@ class FinancialService {
         const { page, limit, type, status, startDate, endDate } = params;
         const skip = (page - 1) * limit;
 
-        // Simulação de dados - substituir por queries reais
-        const transactions = [
-            {
-                id: '1',
-                type: 'RECEIVABLE',
-                description: 'Venda de produtos',
-                value: 12450.00,
-                dueDate: '2024-12-07',
-                status: 'PENDING',
-                category: 'Vendas',
-                client: 'Cliente A',
-                createdAt: new Date().toISOString(),
-            },
-            {
-                id: '2',
-                type: 'PAYABLE',
-                description: 'Fornecedor B',
-                value: 8750.00,
-                dueDate: '2024-11-20',
-                status: 'OVERDUE',
-                category: 'Fornecedores',
-                supplier: 'Fornecedor B',
-                createdAt: new Date().toISOString(),
-            },
-        ];
+        const where: any = {};
+        if (type) where.type = type;
+        if (status) where.status = status;
+        if (startDate || endDate) {
+            where.dueDate = {};
+            if (startDate) where.dueDate.gte = new Date(startDate);
+            if (endDate) where.dueDate.lte = new Date(endDate);
+        }
+
+        const [transactions, total] = await Promise.all([
+            prisma.financialTransaction.findMany({
+                where,
+                skip,
+                take: limit,
+                orderBy: { dueDate: 'asc' }
+            }),
+            prisma.financialTransaction.count({ where })
+        ]);
 
         return {
             transactions,
-            total: transactions.length,
+            total,
             page,
             limit,
         };
@@ -92,16 +111,36 @@ class FinancialService {
     async getCashFlow(tenantId: string, params: { startDate?: string; endDate?: string }) {
         const prisma: any = await getTenantPrisma(tenantId);
 
-        // Simulação de dados - substituir por queries reais
-        const cashFlow = [
-            { date: '2024-11-01', income: 15000, expense: 8000, balance: 7000 },
-            { date: '2024-11-08', income: 22000, expense: 12000, balance: 10000 },
-            { date: '2024-11-15', income: 18000, expense: 9000, balance: 9000 },
-            { date: '2024-11-22', income: 25000, expense: 15000, balance: 10000 },
-            { date: '2024-11-29', income: 20000, expense: 11000, balance: 9000 },
-        ];
+        const where: any = { status: 'PAID' };
+        if (params.startDate || params.endDate) {
+            where.paymentDate = {};
+            if (params.startDate) where.paymentDate.gte = new Date(params.startDate);
+            if (params.endDate) where.paymentDate.lte = new Date(params.endDate);
+        }
 
-        return cashFlow;
+        const paidTransactions = await prisma.financialTransaction.findMany({
+            where,
+            orderBy: { paymentDate: 'asc' }
+        });
+
+        // Agrupar por data
+        const flowMap = new Map<string, { date: string, income: number, expense: number, balance: number }>();
+
+        paidTransactions.forEach((t: any) => {
+            const date = new Date(t.paymentDate).toISOString().split('T')[0];
+            const current = flowMap.get(date) || { date, income: 0, expense: 0, balance: 0 };
+
+            const val = Number(t.value);
+            if (t.type === 'RECEIVABLE') {
+                current.income += val;
+            } else {
+                current.expense += val;
+            }
+            current.balance = current.income - current.expense;
+            flowMap.set(date, current);
+        });
+
+        return Array.from(flowMap.values());
     }
 
     /**
@@ -110,15 +149,15 @@ class FinancialService {
     async createTransaction(tenantId: string, data: CreateTransactionData) {
         const prisma: any = await getTenantPrisma(tenantId);
 
-        // Simulação - substituir por criação real no banco
-        const transaction = {
-            id: Date.now().toString(),
-            ...data,
-            status: 'PENDING',
-            createdAt: new Date().toISOString(),
-        };
+        const transaction = await prisma.financialTransaction.create({
+            data: {
+                ...data,
+                dueDate: new Date(data.dueDate),
+                status: 'PENDING'
+            }
+        });
 
-        logger.info(`Transaction created: ${transaction.id}`);
+        logger.info(`Transaction created: ${transaction.id} for tenant ${tenantId}`);
 
         return transaction;
     }
@@ -129,12 +168,13 @@ class FinancialService {
     async updateTransaction(tenantId: string, id: string, data: Partial<CreateTransactionData>) {
         const prisma: any = await getTenantPrisma(tenantId);
 
-        // Simulação - substituir por update real
-        const transaction = {
-            id,
-            ...data,
-            updatedAt: new Date().toISOString(),
-        };
+        const updateData: any = { ...data };
+        if (data.dueDate) updateData.dueDate = new Date(data.dueDate);
+
+        const transaction = await prisma.financialTransaction.update({
+            where: { id },
+            data: updateData
+        });
 
         return transaction;
     }
@@ -145,8 +185,15 @@ class FinancialService {
     async markAsPaid(tenantId: string, id: string, paymentDate?: string) {
         const prisma: any = await getTenantPrisma(tenantId);
 
-        // Simulação - substituir por update real
-        logger.info(`Transaction ${id} marked as paid`);
+        await prisma.financialTransaction.update({
+            where: { id },
+            data: {
+                status: 'PAID',
+                paymentDate: paymentDate ? new Date(paymentDate) : new Date()
+            }
+        });
+
+        logger.info(`Transaction ${id} marked as paid for tenant ${tenantId}`);
     }
 
     /**
@@ -155,8 +202,12 @@ class FinancialService {
     async cancelTransaction(tenantId: string, id: string) {
         const prisma: any = await getTenantPrisma(tenantId);
 
-        // Simulação - substituir por update real
-        logger.info(`Transaction ${id} cancelled`);
+        await prisma.financialTransaction.update({
+            where: { id },
+            data: { status: 'CANCELLED' }
+        });
+
+        logger.info(`Transaction ${id} cancelled for tenant ${tenantId}`);
     }
 }
 

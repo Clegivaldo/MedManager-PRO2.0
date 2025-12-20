@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,6 +12,7 @@ import {
   ChevronLeft, ChevronRight, RefreshCw, Loader2, Edit2
 } from 'lucide-react';
 import { CorrectionModal } from './CorrectionModal';
+import { InutilizacaoModal } from './InutilizacaoModal';
 import { useToast } from '@/hooks/use-toast';
 import invoiceService from '@/services/invoice.service';
 import { getErrorMessage } from '@/services/api';
@@ -53,6 +55,7 @@ export default function NFe() {
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [isCorrectionModalOpen, setIsCorrectionModalOpen] = useState(false);
+  const [isInutilizacaoModalOpen, setIsInutilizacaoModalOpen] = useState(false);
 
   useEffect(() => {
     loadInvoices();
@@ -192,10 +195,15 @@ export default function NFe() {
               <CardTitle>NFe Emitidas</CardTitle>
               <CardDescription>{total} notas fiscais encontradas</CardDescription>
             </div>
-            <Button onClick={loadInvoices} variant="outline" size="sm">
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Atualizar
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={() => setIsInutilizacaoModalOpen(true)} variant="secondary" size="sm">
+                Inutilizar Nº
+              </Button>
+              <Button onClick={loadInvoices} variant="outline" size="sm">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Atualizar
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -464,6 +472,12 @@ export default function NFe() {
           onSuccess={loadInvoices}
         />
       )}
+
+      <InutilizacaoModal
+        isOpen={isInutilizacaoModalOpen}
+        onClose={() => setIsInutilizacaoModalOpen(false)}
+        onSuccess={loadInvoices}
+      />
     </>
   );
 }

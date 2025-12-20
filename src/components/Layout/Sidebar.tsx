@@ -21,6 +21,7 @@ import {
   Users2,
   History,
   Building2,
+  Receipt,
 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -39,6 +40,7 @@ const menuItems = [
   { title: 'Clientes', icon: Users, href: '/clients', module: 'SALES' },
   { title: 'Financeiro', icon: Banknote, href: '/financials', module: 'FINANCIAL' },
   { title: 'NFe', icon: FileText, href: '/nfe', module: 'NFE' },
+  { title: 'PDV (NFC-e)', icon: Receipt, href: '/pdv', module: 'NFE' },
   { title: 'Entregas', icon: Route, href: '/routes', module: 'ROUTES' },
   { title: 'Conformidade', icon: Shield, href: '/compliance', badge: { text: '3', variant: 'secondary' as const }, module: 'COMPLIANCE' },
 ];

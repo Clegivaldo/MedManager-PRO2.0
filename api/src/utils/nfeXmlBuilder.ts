@@ -57,7 +57,7 @@ export interface NFeXmlData {
     indIEDest: '1' | '2' | '9'; // 1=Contribuinte ICMS, 2=Isento, 9=Não Contribuinte
     IE?: string;
     email?: string;
-    enderDest: {
+    enderDest?: {
       xLgr: string;
       nro: string;
       xCpl?: string;
@@ -225,7 +225,7 @@ ${emit.CNAE ? `<CNAE>${emit.CNAE}</CNAE>` : ''}
 <dest>
 ${dest.CNPJ ? `<CNPJ>${dest.CNPJ}</CNPJ>` : `<CPF>${dest.CPF}</CPF>`}
 <xNome>${escapeXml(dest.xNome)}</xNome>
-<enderDest>
+    ${dest.enderDest ? `<enderDest>
 <xLgr>${escapeXml(dest.enderDest.xLgr)}</xLgr>
 <nro>${escapeXml(dest.enderDest.nro)}</nro>
 ${dest.enderDest.xCpl ? `<xCpl>${escapeXml(dest.enderDest.xCpl)}</xCpl>` : ''}
@@ -237,7 +237,7 @@ ${dest.enderDest.xCpl ? `<xCpl>${escapeXml(dest.enderDest.xCpl)}</xCpl>` : ''}
 <cPais>${dest.enderDest.cPais}</cPais>
 <xPais>${escapeXml(dest.enderDest.xPais)}</xPais>
 ${dest.enderDest.fone ? `<fone>${dest.enderDest.fone}</fone>` : ''}
-</enderDest>
+</enderDest>` : ''}
 <indIEDest>${dest.indIEDest}</indIEDest>
 ${dest.IE ? `<IE>${dest.IE}</IE>` : ''}
 ${dest.email ? `<email>${escapeXml(dest.email)}</email>` : ''}
@@ -377,7 +377,7 @@ export function generateAccessKey(data: {
   const { cUF, aamm, cnpj, mod, serie, nNF, tpEmis, cNF } = data;
 
   // Montar chave sem DV (43 dígitos)
-  const keyWithoutDV = 
+  const keyWithoutDV =
     cUF.padStart(2, '0') +
     aamm +
     cnpj.padStart(14, '0') +
@@ -389,6 +389,6 @@ export function generateAccessKey(data: {
 
   // Calcular e adicionar DV
   const dv = calculateCheckDigit(keyWithoutDV);
-  
+
   return keyWithoutDV + dv;
 }

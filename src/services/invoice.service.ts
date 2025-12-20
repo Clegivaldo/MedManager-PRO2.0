@@ -113,6 +113,11 @@ class InvoiceService {
     const response = await api.post(`/fiscal/nfe/cce/${id}`, { correctionText });
     return response.data;
   }
+
+  async inutilize(serie: string, numeroInicial: string, numeroFinal: string, justification: string) {
+    const response = await api.post('/fiscal/nfe/inutilize', { serie, numeroInicial, numeroFinal, justification });
+    return response.data;
+  }
 }
 
 export default new InvoiceService();

@@ -332,7 +332,7 @@ export class NFeService {
 
     // Validar itens da NF-e
     for (const item of nfeData.items) {
-      if (!item.product || !item.quantity || !item.unitPrice || !item.total) {
+      if (!item.product || item.quantity == null || item.unitPrice == null || item.total == null) {
         throw new AppError('Invalid NFe item data', 400);
       }
 
@@ -1060,6 +1060,82 @@ export class NFeService {
     }
   }
 
+
+  /**
+   * Inutiliza uma faixa de numeração de NF-e
+   */
+  async inutilizarNumeracao(
+    serie: string,
+    numeroInicial: string,
+    numeroFinal: string,
+    justificativa: string,
+    tenantId: string
+  ): Promise<SefazResponse> {
+    try {
+      if (!justificativa || justificativa.length < 15) {
+        throw new AppError('Justification must have at least 15 characters', 400);
+      }
+
+      // Buscar perfil fiscal
+      const fiscalProfile = await prismaMaster.tenantFiscalProfile.findUnique({ where: { tenantId } });
+      if (!fiscalProfile) {
+        throw new AppError('Fiscal profile not configured', 400);
+      }
+
+      const useSimulation = (!fiscalProfile.certificatePath || !fiscalProfile.certificatePassword) && config.ALLOW_NFE_SIMULATION && fiscalProfile.sefazEnvironment === 'homologacao' && config.isDevelopment;
+      if (useSimulation) {
+        logger.warn('Inutilization simulated (no certificate).');
+        return {
+          success: true,
+          status: 'authorized',
+          statusCode: '102',
+          statusMessage: 'Inutilização de número homologado (Simulação)',
+          protocolNumber: 'SIM-INUT-' + Date.now(),
+          authorizationDate: new Date(),
+          details: { simulation: true, serie, numeroInicial, numeroFinal }
+        };
+      }
+
+      // Real Inutilization
+      const environment = fiscalProfile.sefazEnvironment === 'producao' ? 'production' : 'homologation';
+      const sefazConfig: SefazConfig = {
+        environment,
+        state: 'SP',
+        certificatePath: fiscalProfile.certificatePath || undefined,
+        certificatePassword: fiscalProfile.certificatePassword || undefined
+      };
+
+      const sefazService = new SefazService(sefazConfig);
+      if (fiscalProfile.certificatePath) {
+        await sefazService.loadCertificate();
+      }
+
+      const ano = new Date().getFullYear().toString().substring(2);
+      const inutResponse = await sefazService.inutilizarNumeracao(
+        ano,
+        fiscalProfile.cnpj.replace(/\D/g, ''),
+        serie,
+        numeroInicial,
+        numeroFinal,
+        justificativa
+      );
+
+      return {
+        success: inutResponse.status === 'success',
+        status: inutResponse.status === 'success' ? 'authorized' : 'error',
+        statusCode: inutResponse.statusCode,
+        statusMessage: inutResponse.statusMessage,
+        protocolNumber: inutResponse.protocol,
+        authorizationDate: new Date(),
+        details: { serie, numeroInicial, numeroFinal }
+      };
+
+    } catch (error) {
+      logger.error('Inutilization failed', { tenantId, serie, numeroInicial, numeroFinal, error: (error as Error).message });
+      throw new AppError(`Inutilization failed: ${(error as Error).message}`, 500);
+    }
+  }
+
   /**
    * Gera DANFE (Documento Auxiliar da Nota Fiscal Eletrônica)
    */
@@ -1105,6 +1181,7 @@ export class NFeService {
    * Obtém código de pagamento para NF-e
    */
   private getPaymentMethodCode(paymentMethod: string): string {
+    const method = (paymentMethod || '').toLowerCase();
     const paymentCodes: { [key: string]: string } = {
       'cash': '01',
       'check': '02',
@@ -1120,6 +1197,6 @@ export class NFeService {
       'pix': '17'
     };
 
-    return paymentCodes[paymentMethod] || '99';
+    return paymentCodes[method] || '99';
   }
 }

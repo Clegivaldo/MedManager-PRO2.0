@@ -38,6 +38,7 @@ const FiscalProfile = lazy(() => import('./pages/tenant/FiscalProfile'));
 const LicenseExpired = lazy(() => import('./pages/tenant/LicenseExpired'));
 const PaymentGatewayConfig = lazy(() => import('./pages/tenant/PaymentGatewayConfig'));
 const MyInvoices = lazy(() => import('./pages/tenant/Financial/MyInvoices'));
+const PDV = lazy(() => import('./pages/tenant/PDV'));
 
 // Superadmin Pages
 const TenantManagement = lazy(() => import('./pages/superadmin/TenantManagement'));
@@ -158,6 +159,9 @@ function AppContent() {
                   </Route>
                   <Route path="audit" element={<ProtectedRoute requiredModule="AUDIT" />}>
                     <Route index element={<Audit />} />
+                  </Route>
+                  <Route path="pdv" element={<ProtectedRoute requiredModule="NFE" />}>
+                    <Route index element={<PDV />} />
                   </Route>
 
                   <Route path="user-profile" element={<UserProfile />} />

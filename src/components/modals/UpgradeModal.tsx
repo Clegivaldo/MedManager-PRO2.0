@@ -79,11 +79,20 @@ export function UpgradeModal({
     const handleUpgrade = async (planId: string) => {
         setLoading(true);
         try {
-            // TODO: Integrar com API de upgrade
-            console.log('Upgrading to plan:', planId);
+            // Em um cenário real, aqui iniciaria o checkout com Asaas/InfinityPay
+            // Como MVP, vamos simular uma solicitação ao suporte/admin
+            console.log('Solicitação de upgrade para:', planId);
 
-            // Por enquanto, apenas redirecionar para página de planos
-            window.location.href = `/settings?tab=subscription&upgrade=${planId}`;
+            // Simular delay de rede
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            onOpenChange(false);
+
+            // Disparar evento para o Toaster global (se estivesse acessível aqui) ou usar window.alert temporário
+            // O ideal seria passar uma prop showToast ou usar o hook useToast do componente pai se possível, 
+            // mas como é um componente 'isolado' no App.tsx, vamos manter simples.
+            alert(`Sua solicitação para o plano ${PLANS.find(p => p.id === planId)?.name} foi enviada ao nosso time comercial! Entraremos em contato em breve.`);
+
         } catch (error) {
             console.error('Error upgrading:', error);
         } finally {

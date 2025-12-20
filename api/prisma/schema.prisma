@@ -167,6 +167,7 @@ model User {
   
   // Relacionamentos
   auditLogs     AuditLog[]
+  tenantAuditLogs TenantAuditLog[]
   stockMovements StockMovement[]
   invoices      Invoice[]
   sngpcSubmissions SngpcSubmission[]
@@ -179,6 +180,46 @@ model User {
   @@map("users")
   @@index([email])
   @@index([role])
+}
+
+model FinancialTransaction {
+  id            String    @id @default(uuid())
+  type          String    // RECEIVABLE, PAYABLE
+  description   String
+  value         Decimal
+  dueDate       DateTime  @map("due_date")
+  paymentDate   DateTime? @map("payment_date")
+  status        String    @default("PENDING") // PENDING, PAID, CANCELLED, OVERDUE
+  category      String?
+  client        String?
+  supplier      String?
+  notes         String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@map("financial_transactions")
+  @@index([type])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model TenantAuditLog {
+  id          String    @id @default(uuid())
+  userId      String?   @map("user_id")
+  tableName   String    @map("table_name")
+  recordId    String?   @map("record_id")
+  operation   String    // CREATE, UPDATE, DELETE, etc
+  oldData     Json?     @map("old_data")
+  newData     Json?     @map("new_data")
+  ipAddress   String?   @map("ip_address")
+  userAgent   String?   @map("user_agent")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  user        User?     @relation(fields: [userId], references: [id])
+
+  @@map("tenant_audit_logs")
+  @@index([createdAt])
+  @@index([tableName, recordId])
 }
 
 model Product {
