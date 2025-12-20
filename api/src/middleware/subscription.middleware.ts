@@ -149,9 +149,16 @@ export const validateModule = (requiredModule: string) => {
     try {
       const tenantReq = req as any;
       const userRole = (req as any).user?.role;
+      const tenantContext = tenantReq.tenant;
 
-      // SUPERADMIN tem acesso a tudo
-      if (userRole === 'SUPERADMIN' || userRole === 'MASTER') {
+      // SUPERADMIN sem tenant específica tem acesso a tudo
+      if (userRole === 'SUPERADMIN' && !tenantContext) {
+        return next();
+      }
+
+      // MASTER com tenant específica ainda precisa respeitar módulos da tenant
+      if (userRole === 'MASTER' && !tenantContext) {
+        // MASTER sem tenant (navegando como superadmin) tem acesso a tudo
         return next();
       }
 

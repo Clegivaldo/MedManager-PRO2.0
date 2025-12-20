@@ -56,12 +56,21 @@ export default function Sidebar({ className }: SidebarProps) {
   const location = useLocation();
   const { user, tenant } = useAuth(); // Agora usamos também o tenant
   const role = (user?.role || '').toUpperCase();
-  const isSuperOrMaster = role === 'SUPERADMIN' || role === 'MASTER';
+  
+  // IMPORTANTE: Se é SUPERADMIN (sem tenant), vê tudo
+  // Se é MASTER mas com tenant específica, respeita módulos da tenant
+  const isSuperAdminGlobal = role === 'SUPERADMIN' && !tenant;
+  const isMasterWithTenant = role === 'MASTER' && tenant;
 
   // Função auxiliar para verificar se módulo está habilitado
   const hasModule = (moduleName?: string) => {
     if (!moduleName) return true; // Se não requer módulo, mostra
-    if (isSuperOrMaster) return true; // SuperAdmin vê tudo
+    if (isSuperAdminGlobal) return true; // SuperAdmin global vê tudo
+    if (isMasterWithTenant) {
+      // MASTER com tenant específica respeita os módulos da tenant
+      const modules = tenant?.modulesEnabled || [];
+      return modules.includes(moduleName);
+    }
     const modules = tenant?.modulesEnabled || [];
     return modules.includes(moduleName);
   };
