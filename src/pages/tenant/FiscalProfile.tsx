@@ -144,6 +144,7 @@ const FiscalProfile = () => {
       const response = await api.get('/fiscal');
       if (response.data.profile) {
         setProfile(response.data.profile);
+        const addr = response.data.profile.address || {};
         setFormData({
           companyName: response.data.profile.companyName || '',
           tradingName: response.data.profile.tradingName || '',
@@ -156,14 +157,14 @@ const FiscalProfile = () => {
           cscId: response.data.profile.cscId || '',
           cscToken: response.data.profile.cscToken || '',
           sefazEnvironment: response.data.profile.sefazEnvironment || 'homologacao',
-          address: response.data.profile.address || {
-            street: '',
-            number: '',
-            complement: '',
-            district: '',
-            city: '',
-            state: '',
-            zipCode: ''
+          address: {
+            street: addr.street || '',
+            number: addr.number || '',
+            complement: addr.complement || '',
+            district: addr.district || '',
+            city: addr.city || '',
+            state: addr.state || '',
+            zipCode: addr.zipCode || ''
           }
         });
       }
@@ -192,9 +193,53 @@ const FiscalProfile = () => {
   };
 
   const handleSaveProfile = async () => {
+    // Validação de campos obrigatórios
+    const errors: string[] = [];
+    
+    if (!formData.companyName?.trim()) errors.push('Razão Social');
+    if (!formData.cnpj || formData.cnpj.length !== 14) errors.push('CNPJ (14 dígitos)');
+    if (!formData.address?.street?.trim()) errors.push('Endereço - Rua');
+    if (!formData.address?.number?.trim()) errors.push('Endereço - Número');
+    if (!formData.address?.district?.trim()) errors.push('Endereço - Bairro');
+    if (!formData.address?.city?.trim()) errors.push('Endereço - Cidade');
+    if (!formData.address?.state || formData.address.state.length !== 2) errors.push('Endereço - UF (2 letras)');
+    if (!formData.address?.zipCode?.trim()) errors.push('Endereço - CEP');
+
+    if (errors.length > 0) {
+      toast({
+        title: 'Campos obrigatórios não preenchidos',
+        description: (
+          <div>
+            <p className="mb-2">Por favor, preencha os seguintes campos:</p>
+            <ul className="list-disc list-inside">
+              {errors.map((err, idx) => <li key={idx}>{err}</li>)}
+            </ul>
+          </div>
+        ),
+        variant: 'destructive',
+        duration: 8000
+      });
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
-      const response = await api.post('/fiscal', formData);
+      // Remover campos opcionais vazios para passar na validação do backend (Zod)
+      const payload: any = JSON.parse(JSON.stringify(formData));
+      if (!payload.email || payload.email.trim() === '') delete payload.email;
+      if (!payload.phone || payload.phone.trim() === '') delete payload.phone;
+      if (!payload.tradingName || payload.tradingName.trim() === '') delete payload.tradingName;
+      if (!payload.stateRegistration || payload.stateRegistration.trim() === '') delete payload.stateRegistration;
+      if (!payload.municipalRegistration || payload.municipalRegistration.trim() === '') delete payload.municipalRegistration;
+      if (!payload.cscId || payload.cscId.trim() === '') delete payload.cscId;
+      if (!payload.cscToken || payload.cscToken.trim() === '') delete payload.cscToken;
+      // Ajustes finos no endereço (mantemos obrigatório conforme UI)
+      if (payload.address) {
+        if (!payload.address.complement || payload.address.complement.trim() === '') delete payload.address.complement;
+      }
+
+      const response = await api.post('/fiscal', payload);
       setProfile(response.data.profile);
       toast({
         title: 'Perfil fiscal salvo',
@@ -411,13 +456,19 @@ const FiscalProfile = () => {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="companyName">Razão Social *</Label>
+                  <Label htmlFor="companyName">
+                    Razão Social <span className="text-red-500">*</span>
+                  </Label>
                   <Input
                     id="companyName"
                     value={formData.companyName}
                     onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
                     placeholder="Nome registrado na Receita Federal"
+                    className={!formData.companyName?.trim() ? "border-red-300 focus:border-red-500" : ""}
                   />
+                  {!formData.companyName?.trim() && (
+                    <p className="text-xs text-red-500">Campo obrigatório</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="tradingName">Nome Fantasia</Label>
@@ -478,14 +529,21 @@ const FiscalProfile = () => {
 
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="cnpj">CNPJ *</Label>
+                  <Label htmlFor="cnpj">CNPJ <span className="text-red-500">*</span></Label>
                   <Input
                     id="cnpj"
                     value={formData.cnpj}
                     onChange={(e) => setFormData({ ...formData, cnpj: e.target.value.replace(/\D/g, '') })}
                     placeholder="00000000000000"
                     maxLength={14}
+                    className={!formData.cnpj || formData.cnpj.length !== 14 ? "border-red-300" : ""}
                   />
+                  {!formData.cnpj && (
+                    <p className="text-xs text-red-500">Campo obrigatório</p>
+                  )}
+                  {formData.cnpj && formData.cnpj.length !== 14 && (
+                    <p className="text-xs text-red-500">CNPJ deve ter 14 dígitos</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="stateRegistration">Inscrição Estadual</Label>
@@ -559,20 +617,28 @@ const FiscalProfile = () => {
                 <h3 className="text-lg font-semibold mb-4">Endereço</h3>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="col-span-2 space-y-2">
-                    <Label htmlFor="street">Logradouro</Label>
+                    <Label htmlFor="street">Logradouro <span className="text-red-500">*</span></Label>
                     <Input
                       id="street"
                       value={formData.address.street}
                       onChange={(e) => setFormData({ ...formData, address: { ...formData.address, street: e.target.value } })}
+                      className={!formData.address?.street?.trim() ? "border-red-300" : ""}
                     />
+                    {!formData.address?.street?.trim() && (
+                      <p className="text-xs text-red-500">Campo obrigatório</p>
+                    )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="number">Número</Label>
+                    <Label htmlFor="number">Número <span className="text-red-500">*</span></Label>
                     <Input
                       id="number"
                       value={formData.address.number}
                       onChange={(e) => setFormData({ ...formData, address: { ...formData.address, number: e.target.value } })}
+                      className={!formData.address?.number?.trim() ? "border-red-300" : ""}
                     />
+                    {!formData.address?.number?.trim() && (
+                      <p className="text-xs text-red-500">Campo obrigatório</p>
+                    )}
                   </div>
                 </div>
 
@@ -586,42 +652,61 @@ const FiscalProfile = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="district">Bairro</Label>
+                    <Label htmlFor="district">Bairro <span className="text-red-500">*</span></Label>
                     <Input
                       id="district"
                       value={formData.address.district}
                       onChange={(e) => setFormData({ ...formData, address: { ...formData.address, district: e.target.value } })}
+                      className={!formData.address?.district?.trim() ? "border-red-300" : ""}
                     />
+                    {!formData.address?.district?.trim() && (
+                      <p className="text-xs text-red-500">Campo obrigatório</p>
+                    )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="zipCode">CEP</Label>
+                    <Label htmlFor="zipCode">CEP <span className="text-red-500">*</span></Label>
                     <Input
                       id="zipCode"
                       value={formData.address.zipCode}
                       onChange={(e) => setFormData({ ...formData, address: { ...formData.address, zipCode: e.target.value.replace(/\D/g, '') } })}
                       maxLength={8}
+                      className={!formData.address?.zipCode?.trim() ? "border-red-300" : ""}
                     />
+                    {!formData.address?.zipCode?.trim() && (
+                      <p className="text-xs text-red-500">Campo obrigatório</p>
+                    )}
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 mt-4">
                   <div className="space-y-2">
-                    <Label htmlFor="city">Cidade</Label>
+                    <Label htmlFor="city">Cidade <span className="text-red-500">*</span></Label>
                     <Input
                       id="city"
                       value={formData.address.city}
                       onChange={(e) => setFormData({ ...formData, address: { ...formData.address, city: e.target.value } })}
+                      className={!formData.address?.city?.trim() ? "border-red-300" : ""}
                     />
+                    {!formData.address?.city?.trim() && (
+                      <p className="text-xs text-red-500">Campo obrigatório</p>
+                    )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="state">Estado (UF)</Label>
+                    <Label htmlFor="state">Estado (UF) <span className="text-red-500">*</span></Label>
                     <Input
                       id="state"
                       value={formData.address.state}
                       onChange={(e) => setFormData({ ...formData, address: { ...formData.address, state: e.target.value.toUpperCase() } })}
                       maxLength={2}
                       placeholder="SP"
+                      className={!formData.address?.state || formData.address.state.length !== 2 ? "border-red-300" : ""}
                     />
+                    {!formData.address?.state && (
+                      <p className="text-xs text-red-500">Campo obrigatório</p>
+                    )}
+                    {formData.address?.state && formData.address.state.length !== 2 && (
+                      <p className="text-xs text-red-500">UF deve ter 2 letras</p>
+                    )}
                   </div>
                 </div>
               </div>

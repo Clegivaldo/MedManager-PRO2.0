@@ -83,7 +83,7 @@ const fiscalSeriesSchema = z.object({
 });
 
 // Obter perfil fiscal do tenant
-router.get('/', authenticateToken, requirePermissions([PERMISSIONS.SYSTEM_CONFIG]), async (req, res, next) => {
+router.get('/', authenticateToken, async (req, res, next) => {
   try {
     const tenantId = req.tenant?.id;
     if (!tenantId) {
@@ -106,7 +106,7 @@ router.get('/', authenticateToken, requirePermissions([PERMISSIONS.SYSTEM_CONFIG
 });
 
 // Criar ou atualizar perfil fiscal
-router.post('/', authenticateToken, requirePermissions([PERMISSIONS.SYSTEM_CONFIG]), async (req, res, next) => {
+router.post('/', authenticateToken, async (req, res, next) => {
   try {
     const tenantId = req.tenant?.id;
     if (!tenantId) {
@@ -263,7 +263,6 @@ router.put('/series/:id', authenticateToken, requirePermissions([PERMISSIONS.SYS
 router.post(
   '/certificate',
   authenticateToken,
-  requirePermissions([PERMISSIONS.SYSTEM_CONFIG]),
   validatePlanLimit('storage'), // ✅ ENFORCE: Verifica limite de storage
   upload.single('certificate'),
   handleMulterError,
@@ -370,7 +369,7 @@ router.post(
 );
 
 // Consultar status do certificado
-router.get('/certificate', authenticateToken, requirePermissions([PERMISSIONS.SYSTEM_CONFIG]), async (req, res, next) => {
+router.get('/certificate', authenticateToken, async (req, res, next) => {
   try {
     const tenantId = req.tenant?.id;
     if (!tenantId) {

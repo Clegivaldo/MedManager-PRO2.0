@@ -3,7 +3,7 @@ const PrismaClientRuntime = (pkg as any).PrismaClient as any;
 import bcrypt from 'bcryptjs';
 
 async function createTenantUser() {
-  const tenantDbUrl = 'postgresql://postgres:postgres123@db:5432/medmanager_tenant_demo';
+  const tenantDbUrl = 'postgresql://postgres:postgres123@db:5432/e9675bde-126b-429a-a150-533e055e7cc0';
   
   const prisma = new PrismaClientRuntime({
     datasources: {
@@ -25,7 +25,7 @@ async function createTenantUser() {
         email: 'admin@farmaciademo.com.br',
         name: 'Admin Farmácia Demo',
         password: hashedPassword,
-        role: 'ADMIN',
+        role: 'MASTER',
         isActive: true
       }
     });

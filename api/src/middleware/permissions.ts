@@ -453,8 +453,8 @@ export const requirePermissions = (permissions: string[]) => {
         throw new AppError('User not authenticated', 401);
       }
 
-      // Superadmin bypass
-      if (req.user.role === UserRole.SUPERADMIN) {
+      // Superadmin and MASTER bypass
+      if (req.user.role === UserRole.SUPERADMIN || req.user.role === UserRole.MASTER) {
         return next();
       }
 
@@ -488,8 +488,8 @@ export const requireAnyPermission = (permissions: string[]) => {
         throw new AppError('User not authenticated', 401);
       }
 
-      // Superadmin bypass
-      if (req.user.role === UserRole.SUPERADMIN) {
+      // Superadmin and MASTER bypass
+      if (req.user.role === UserRole.SUPERADMIN || req.user.role === UserRole.MASTER) {
         return next();
       }
 
@@ -548,8 +548,8 @@ export const requireResourcePermission = (permission: string, resourceField: str
         throw new AppError('User not authenticated', 401);
       }
 
-      // Superadmin bypass
-      if (req.user.role === UserRole.SUPERADMIN) {
+      // Superadmin and MASTER bypass
+      if (req.user.role === UserRole.SUPERADMIN || req.user.role === UserRole.MASTER) {
         return next();
       }
 

@@ -1,4 +1,5 @@
 import forge from 'node-forge';
+import crypto from 'crypto';
 import { logger } from './logger.js';
 import { AppError } from '../middleware/errorHandler.js';
 
@@ -148,7 +149,6 @@ export function validateCertificate(certInfo: CertificateInfo): void {
  */
 // Criptografar certificado para armazenamento usando AES-256-GCM
 export function encryptCertificate(data: Buffer): string {
-  const crypto = require('crypto');
   
   // Obter chave de criptografia da variável de ambiente
   const encryptionKey = process.env.CERTIFICATE_ENCRYPTION_KEY;
@@ -181,7 +181,6 @@ export function encryptCertificate(data: Buffer): string {
  */
 // Descriptografar certificado usando AES-256-GCM
 export function decryptCertificate(encrypted: string): Buffer {
-  const crypto = require('crypto');
   
   // Obter chave de criptografia
   const encryptionKey = process.env.CERTIFICATE_ENCRYPTION_KEY;

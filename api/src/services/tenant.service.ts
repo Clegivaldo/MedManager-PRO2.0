@@ -265,6 +265,16 @@ export class TenantService {
       this.validateIdentifier(databaseName);
       logger.info(`Running migrations for database: ${databaseName}`);
 
+      // Buscar database_user do tenant
+      const tenant = await prismaMaster.tenant.findFirst({
+        where: { databaseName },
+        select: { databaseUser: true }
+      });
+
+      if (!tenant) {
+        throw new Error(`Tenant not found for database: ${databaseName}`);
+      }
+
       // URL de conexão com o banco do tenant
       const tenantDatabaseUrl = config.DATABASE_URL.replace(/\/(\w+)$/, `/${databaseName}`);
 
@@ -275,6 +285,15 @@ export class TenantService {
       });
 
       logger.info(`Migrations completed for database: ${databaseName}`);
+
+      // Conceder permissões nas tabelas existentes (migrations já criaram as tabelas)
+      // Isso é necessário porque ALTER DEFAULT PRIVILEGES só afeta tabelas FUTURAS
+      const grantExistingTablesSQL = `
+        GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "${tenant.databaseUser}";
+        GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO "${tenant.databaseUser}";
+      `;
+      await execAsync(`psql "${tenantDatabaseUrl}" -c "${grantExistingTablesSQL}"`);
+      logger.info(`Granted permissions on existing tables for database: ${databaseName}`);
     } catch (error) {
       logger.error(`Error running migrations for database ${databaseName}:`, error);
       throw error;
@@ -305,14 +324,18 @@ export class TenantService {
       // Verificar se já existe usuário com esse email para evitar duplicar
       const existing = await prismaTenant.user.findUnique({ where: { email: emailToUse } });
       if (!existing) {
+        // Importar permissões para dar acesso completo ao admin
+        const { ROLES } = await import('../middleware/permissions.js');
+        const adminPermissions = ROLES.MASTER.permissions;
+
         await prismaTenant.user.create({
           data: {
             email: emailToUse,
             name: 'Administrador',
             password: await hashPassword('admin123'),
-            role: UserRole.ADMIN,
+            role: UserRole.MASTER,
             isActive: true,
-            permissions: '[]'
+            permissions: JSON.stringify(adminPermissions)
           }
         });
         logger.info(`Default admin user created (${emailToUse}) for tenant: ${tenantName}`);

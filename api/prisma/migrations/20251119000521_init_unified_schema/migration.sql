@@ -50,6 +50,22 @@ CREATE TABLE "audit_log" (
     CONSTRAINT "audit_log_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable (tenant-specific audit log)
+CREATE TABLE "tenant_audit_logs" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "user_id" UUID,
+    "table_name" VARCHAR(255) NOT NULL,
+    "record_id" VARCHAR(255),
+    "operation" VARCHAR(50) NOT NULL,
+    "old_data" JSONB,
+    "new_data" JSONB,
+    "ip_address" VARCHAR(45),
+    "user_agent" TEXT,
+    "created_at" TIMESTAMP NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT "tenant_audit_logs_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateTable
 CREATE TABLE "notifications" (
     "id" TEXT NOT NULL,
@@ -585,3 +601,7 @@ ALTER TABLE "guia33" ADD CONSTRAINT "guia33_substance_id_fkey" FOREIGN KEY ("sub
 
 -- AddForeignKey
 ALTER TABLE "guia33" ADD CONSTRAINT "guia33_generated_by_fkey" FOREIGN KEY ("generated_by") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- CreateIndex (tenant audit logs)
+CREATE INDEX "idx_tenant_audit_logs_created_at" ON "tenant_audit_logs"("created_at");
+CREATE INDEX "idx_tenant_audit_logs_table_record" ON "tenant_audit_logs"("table_name", "record_id");
