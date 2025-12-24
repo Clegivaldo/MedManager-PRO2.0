@@ -7,11 +7,8 @@ import { Request, Response } from 'express';
  * Utiliza o ID do tenant (do header ou request) como chave
  */
 export const tenantRateLimit = rateLimit({
-    windowMs: 60 * 1000, // 1 minuto
-    max: (req) => {
-        // Pode ser customizado por plano no futuro
-        return 1000; // 1000 requisições por minuto por tenant
-    },
+    windowMs: config.RATE_LIMIT_TENANT_WINDOW_MS,
+    max: (_req) => config.RATE_LIMIT_TENANT_MAX_REQUESTS,
     keyGenerator: (req: Request) => {
         // Tenta pegar do objeto request (já populado pelo tenantMiddleware)
         if ((req as any).tenant?.id) {

@@ -578,8 +578,24 @@ export class NFeService {
       // Descriptografar certificado usando AES-256-GCM
       const pfxBuffer = decryptCertificate(encryptedPfxBase64.trim());
 
+      // Descriptografar senha do certificado se estiver criptografada
+      let certPassword = fiscalProfile.certificatePassword;
+      if (certPassword && certPassword.includes(':')) {
+        // Formato de senha criptografada: v1:iv:tag:data
+        try {
+          const { decrypt: decryptPassword } = await import('../utils/encryption.js');
+          certPassword = decryptPassword(certPassword);
+          if (!certPassword) {
+            throw new AppError('Failed to decrypt certificate password', 500);
+          }
+        } catch (e) {
+          // Fallback: tentar usar como senha em texto simples (para compatibilidade)
+          logger.warn('Certificate password decryption failed, trying plaintext', { error: (e as Error).message });
+        }
+      }
+
       // Validar certificado antes de usar
-      const validation = validateCertificate(pfxBuffer, fiscalProfile.certificatePassword);
+      const validation = validateCertificate(pfxBuffer, certPassword);
       if (!validation.valid) {
         throw new AppError(`Invalid certificate: ${validation.error}`, 400);
       }
@@ -598,7 +614,7 @@ export class NFeService {
       const signatureResult = signXml({
         xml,
         pfxBuffer,
-        pfxPassword: fiscalProfile.certificatePassword,
+        pfxPassword: certPassword,
       });
 
       logger.info('XML signed successfully', {
@@ -637,12 +653,26 @@ export class NFeService {
     });
 
     try {
+      // Descriptografar senha do certificado se criptografada
+      let certPassword = fiscalProfile.certificatePassword;
+      if (certPassword && certPassword.includes(':')) {
+        try {
+          const { decrypt: decryptPassword } = await import('../utils/encryption.js');
+          certPassword = decryptPassword(certPassword);
+          if (!certPassword) {
+            throw new AppError('Failed to decrypt certificate password', 500);
+          }
+        } catch (e) {
+          logger.warn('Certificate password decryption failed, trying plaintext');
+        }
+      }
+
       // Configurar SefazService
       const sefazConfig: SefazConfig = {
         environment,
         state: 'SP', // Por padrão SP, pode ser configurado por tenant
         certificatePath: fiscalProfile.certificatePath || undefined,
-        certificatePassword: fiscalProfile.certificatePassword || undefined
+        certificatePassword: certPassword || undefined
       };
 
       const sefazService = new SefazService(sefazConfig);

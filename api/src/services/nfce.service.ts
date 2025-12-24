@@ -459,16 +459,46 @@ export class NFCeService {
         }
         const encryptedPfxBase64 = await fs.readFile(fiscalProfile.certificatePath, 'utf-8');
         const pfxBuffer = decryptCertificate(encryptedPfxBase64.trim());
-        return (signXml({ xml, pfxBuffer, pfxPassword: fiscalProfile.certificatePassword })).signedXml;
+
+        // Descriptografar senha do certificado se criptografada
+        let certPassword = fiscalProfile.certificatePassword;
+        if (certPassword && certPassword.includes(':')) {
+            try {
+                const { decrypt: decryptPassword } = await import('../utils/encryption.js');
+                certPassword = decryptPassword(certPassword);
+                if (!certPassword) {
+                    throw new AppError('Failed to decrypt certificate password', 500);
+                }
+            } catch (e) {
+                logger.warn('Certificate password decryption failed, trying plaintext');
+            }
+        }
+
+        return (signXml({ xml, pfxBuffer, pfxPassword: certPassword })).signedXml;
     }
 
     private async sendToSefaz(xml: string, nfeData: NFeInvoiceData, fiscalProfile: any): Promise<SefazResponse> {
         const environment = fiscalProfile.sefazEnvironment === 'producao' ? 'production' : 'homologation';
+        
+        // Descriptografar senha do certificado se criptografada
+        let certPassword = fiscalProfile.certificatePassword;
+        if (certPassword && certPassword.includes(':')) {
+            try {
+                const { decrypt: decryptPassword } = await import('../utils/encryption.js');
+                certPassword = decryptPassword(certPassword);
+                if (!certPassword) {
+                    throw new AppError('Failed to decrypt certificate password', 500);
+                }
+            } catch (e) {
+                logger.warn('Certificate password decryption failed, trying plaintext');
+            }
+        }
+
         const sefazConfig: SefazConfig = {
             environment,
             state: 'SP',
             certificatePath: fiscalProfile.certificatePath,
-            certificatePassword: fiscalProfile.certificatePassword
+            certificatePassword: certPassword
         };
         const sefazService = new SefazService(sefazConfig);
         await sefazService.loadCertificate();

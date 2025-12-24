@@ -76,7 +76,7 @@ export default function WarehouseKPIs() {
         return (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 {[1, 2, 3].map((i) => (
-                    <Card key={i} className="border-0 shadow-sm">
+                    <Card key={i} className="border border-gray-200 shadow-sm">
                         <CardContent className="p-6">
                             <div className="h-20 bg-gray-100 animate-pulse rounded" />
                         </CardContent>
@@ -91,7 +91,7 @@ export default function WarehouseKPIs() {
             {kpis.map((kpi, index) => {
                 const Icon = kpi.icon;
                 return (
-                    <Card key={index} className="border-0 shadow-sm">
+                    <Card key={index} className="border border-gray-200 shadow-sm">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">{kpi.title}</CardTitle>
                             <div className={`p-2 rounded-lg ${kpi.bgColor}`}>

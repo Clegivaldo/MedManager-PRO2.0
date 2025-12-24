@@ -32,7 +32,7 @@ export default function StockHealthCards() {
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <Card className="border-0 shadow-sm">
+            <Card className="border border-gray-200 shadow-sm">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Saúde do Estoque</CardTitle>
                     <div className={`p-2 rounded-lg ${healthBg}`}>
@@ -49,7 +49,7 @@ export default function StockHealthCards() {
                 </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-sm">
+            <Card className="border border-gray-200 shadow-sm">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Estoque Crítico</CardTitle>
                     <div className="p-2 rounded-lg bg-red-100">
@@ -66,7 +66,7 @@ export default function StockHealthCards() {
                 </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-sm">
+            <Card className="border border-gray-200 shadow-sm">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Vencendo em Breve</CardTitle>
                     <div className="p-2 rounded-lg bg-yellow-100">

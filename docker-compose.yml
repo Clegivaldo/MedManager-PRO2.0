@@ -39,11 +39,13 @@ services:
     build:
       context: ./api
       dockerfile: Dockerfile
+    image: medmanager-pro20-backend:securefix
     container_name: backend
     environment:
       NODE_ENV: production
       PORT: 3333
-      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres123@db:5432/medmanager_master}
+      # Hardcoded para Docker (usar db como hostname)
+      DATABASE_URL: postgresql://postgres:postgres123@db:5432/medmanager_master
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}

@@ -4,6 +4,7 @@ import { logger } from '../utils/logger.js';
 import { prismaMaster } from '../lib/prisma.js';
 import { AppError } from '../utils/errors.js';
 import { config } from '../config/environment.js';
+import { decrypt } from '../utils/encryption.js';
 
 // Interface estendida para Request com tenant
 export interface TenantRequest extends Request {
@@ -83,7 +84,7 @@ export async function tenantMiddleware(
       plan: tenant.plan,
       databaseName: tenant.databaseName,
       databaseUser: tenant.databaseUser,
-      databasePassword: tenant.databasePassword,
+      databasePassword: decrypt(tenant.databasePassword) || tenant.databasePassword, // Descriptografar senha
       modulesEnabled: tenant.modulesEnabled as string[] || []
     };
 
@@ -170,7 +171,7 @@ export async function optionalTenantMiddleware(
         plan: tenant.plan,
         databaseName: tenant.databaseName,
         databaseUser: tenant.databaseUser,
-        databasePassword: tenant.databasePassword,
+        databasePassword: decrypt(tenant.databasePassword) || tenant.databasePassword, // Descriptografar senha
         modulesEnabled: tenant.modulesEnabled as string[] || []
       };
       console.log('[DEBUG-MIDDLEWARE] Tenant resolved', {

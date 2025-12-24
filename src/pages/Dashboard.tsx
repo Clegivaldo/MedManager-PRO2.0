@@ -121,7 +121,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {isLoading ? (
           Array(4).fill(0).map((_, i) => (
-            <Card key={i} className="border-0 shadow-sm">
+            <Card key={i} className="border border-gray-200 shadow-sm">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div className="space-y-2">
@@ -135,7 +135,7 @@ export default function Dashboard() {
           ))
         ) : (
           <>
-            <Card className="border-0 shadow-sm">
+            <Card className="border border-gray-200 shadow-sm">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
@@ -151,7 +151,7 @@ export default function Dashboard() {
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-sm">
+            <Card className="border border-gray-200 shadow-sm">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
@@ -167,7 +167,7 @@ export default function Dashboard() {
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-sm">
+            <Card className="border border-gray-200 shadow-sm">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
@@ -182,7 +182,7 @@ export default function Dashboard() {
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-sm">
+            <Card className="border border-gray-200 shadow-sm">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
@@ -202,7 +202,7 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         <div className="lg:col-span-3">
-          <Card className="border-0 shadow-sm bg-gradient-to-r from-indigo-50 to-purple-50">
+          <Card className="border border-indigo-200 shadow-sm bg-gradient-to-r from-indigo-50 to-purple-50">
             <CardHeader>
               <CardTitle className="flex items-center text-indigo-900">
                 <TrendingUp className="h-5 w-5 mr-2 text-indigo-600" />
@@ -221,7 +221,7 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1">
-          <Card className="border-0 shadow-sm h-full">
+          <Card className="border border-gray-200 shadow-sm h-full">
             <CardHeader>
               <CardTitle className="flex items-center">
                 <Shield className="h-5 w-5 mr-2 text-blue-600" />
@@ -276,7 +276,7 @@ export default function Dashboard() {
 
         <div className="lg:col-span-2">
           <div className="space-y-6">
-            <Card className="border-0 shadow-sm">
+            <Card className="border border-gray-200 shadow-sm">
               <CardHeader>
                 <CardTitle className="flex items-center">
                   <Package className="h-5 w-5 mr-2 text-orange-600" />
@@ -362,7 +362,7 @@ export default function Dashboard() {
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-sm">
+            <Card className="border border-gray-200 shadow-sm">
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <div className="flex items-center">

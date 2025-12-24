@@ -4,6 +4,7 @@ const PrismaClientRuntime = (pkg as any).PrismaClient as any;
 import { config } from '../config/environment.js';
 import { logger } from '../utils/logger.js';
 import { prismaMaster } from './prisma.js';
+import { decrypt } from '../utils/encryption.js';
 
 /**
  * Pool para reutilizar conexões Prisma por tenant
@@ -71,7 +72,17 @@ export function getTenantPrisma(tenantContext?: any | string): PrismaClientType 
     if (tenantContext.databaseUser && tenantContext.databasePassword) {
       // URL com credenciais de banco customizadas
       const masterUrl = new URL(config.DATABASE_URL);
-      tenantDbUrl = `${masterUrl.protocol}//${tenantContext.databaseUser}:${tenantContext.databasePassword}@${masterUrl.host}/${dbName}`;
+      // Garantir descriptografia da senha, caso esteja criptografada
+      let dbPassword: string = tenantContext.databasePassword;
+      try {
+        const maybeDecrypted = decrypt(dbPassword);
+        if (maybeDecrypted && typeof maybeDecrypted === 'string') {
+          dbPassword = maybeDecrypted;
+        }
+      } catch (_e) {
+        // Se falhar, usar como está (plaintext)
+      }
+      tenantDbUrl = `${masterUrl.protocol}//${tenantContext.databaseUser}:${dbPassword}@${masterUrl.host}/${dbName}`;
       logger.debug(`[getTenantPrisma] Using custom credentials for ${dbName}`);
     } else {
       // URL padrão (substituir apenas banco)

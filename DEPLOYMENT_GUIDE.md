@@ -58,6 +58,23 @@ npx prisma migrate deploy
 npx prisma db seed
 ```
 
+### Migração de Criptografia (Senhas de Tenant)
+```bash
+# IMPORTANTE: Execute apenas UMA VEZ após deploy da nova versão
+# Criptografa senhas de banco de dados dos tenants existentes
+cd api
+pnpm exec tsx src/scripts/migrate-encrypt-passwords.ts
+
+# Ou dentro do container Docker:
+docker exec backend pnpm exec tsx src/scripts/migrate-encrypt-passwords.ts
+```
+
+**Notas:**
+- Faz backup antes de executar
+- Script pula senhas já criptografadas (formato v1:iv:tag:data)
+- Valida criptografia/descriptografia após migração
+- Relata: migrados, pulados, erros
+
 ## 3. Certificado SSL/TLS
 
 ```bash

@@ -28,6 +28,21 @@ RUN rm -rf .pnpm-store 2>/dev/null || true
 RUN pnpm exec prisma generate
 RUN pnpm build
 
+# Sanity check: ensure decrypt() is present in compiled tenant middleware
+# This prevents accidental builds with stale code that doesn't decrypt passwords
+RUN test -f dist/middleware/tenantMiddleware.js \
+	&& grep -q "decrypt(tenant.databasePassword)" dist/middleware/tenantMiddleware.js \
+	|| (echo 'Build sanity check failed: decrypt() missing in dist/middleware/tenantMiddleware.js' \
+		&& sed -n '1,80p' dist/middleware/tenantMiddleware.js \
+		&& exit 1)
+
+# Ensure tenant-prisma includes decrypt fallback when building custom credentials
+RUN test -f dist/lib/tenant-prisma.js \
+	&& grep -q "decrypt(" dist/lib/tenant-prisma.js \
+	|| (echo 'Build sanity check failed: decrypt() missing in dist/lib/tenant-prisma.js' \
+		&& sed -n '1,120p' dist/lib/tenant-prisma.js \
+		&& exit 1)
+
 # Production image
 FROM node:20-slim AS prod
 WORKDIR /app
