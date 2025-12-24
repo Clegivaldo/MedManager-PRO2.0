@@ -1,4 +1,13 @@
 import axios from 'axios';
+// ⚠️ ATENÇÃO: Carregar credenciais de .env.test
+require('dotenv').config({ path: '.env.test' });
+
+if (!process.env.TEST_USER_EMAIL || !process.env.TEST_USER_PASSWORD) {
+  console.error('❌ ERRO: Configure TEST_USER_EMAIL e TEST_USER_PASSWORD no .env.test');
+  process.exit(1);
+}
+
+
 
 const API_URL = 'http://localhost:3333/api/v1';
 const TENANT_ID = 'bde5734e-fdff-427c-b013-1c81116ea604';
@@ -30,7 +39,7 @@ async function runTests() {
     console.log('📍 Passo 1: Login e autenticação...');
     const loginRes = await axios.post(`${API_URL}/auth/login`, {
       email: 'admin@farmaciademo.com.br',
-      password: 'admin123'
+      password: process.env.TEST_USER_PASSWORD || 'admin123'
     });
     
     token = loginRes.data.data.tokens.accessToken;

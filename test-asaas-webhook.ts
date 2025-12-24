@@ -5,10 +5,18 @@
 
 import axios, { AxiosError } from 'axios';
 
-const API_URL = 'http://localhost:3333/api/v1';
-const TENANT_ID = 'bde5734e-fdff-427c-b013-1c81116ea604';
-const TEST_USER_EMAIL = 'admin@farmaciademo.com.br';
-const TEST_USER_PASSWORD = 'admin123';
+// ⚠️ ATENÇÃO: Carregar credenciais de .env.test
+require('dotenv').config({ path: '.env.test' });
+
+if (!process.env.TEST_USER_EMAIL || !process.env.TEST_USER_PASSWORD || !process.env.TEST_TENANT_ID) {
+  console.error('❌ ERRO: Configure .env.test com TEST_USER_EMAIL, TEST_USER_PASSWORD e TEST_TENANT_ID');
+  process.exit(1);
+}
+
+const API_URL = process.env.API_URL || 'http://localhost:3333/api/v1';
+const TENANT_ID = process.env.TEST_TENANT_ID;
+const TEST_USER_EMAIL = process.env.TEST_USER_EMAIL;
+const TEST_USER_PASSWORD = process.env.TEST_USER_PASSWORD;
 
 interface ApiResponse<T = any> {
   success: boolean;

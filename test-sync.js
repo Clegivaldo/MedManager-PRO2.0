@@ -6,27 +6,42 @@ console.log(`Charge ID: ${chargeId}\n`);
 // Fazer requisição POST para a API
 const baseUrl = 'http://localhost:3333/api/v1';
 
-// Como não temos um token, vamos direto no banco para sincronizar
-// Primeiro, vamos checar o status atual
+// ⚠️ IMPORTANTE: Usar execFile ao invés de exec para prevenir command injection
 console.log('1️⃣  Verificando status ANTES de sincronizar...');
 
-const { exec } = require('child_process');
+const { execFile } = require('child_process');
 
-exec(`docker exec db psql -U postgres medmanager_master -c "SELECT status FROM payments WHERE gateway_charge_id = '${chargeId}'"`, (error, stdout, stderr) => {
+// Usar execFile com array de argumentos (seguro contra injection)
+execFile('docker', [
+  'exec',
+  'db',
+  'psql',
+  '-U',
+  'postgres',
+  'medmanager_master',
+  '-c',
+  `SELECT status FROM payments WHERE gateway_charge_id = '${chargeId}'`
+], (error, stdout, stderr) => {
   if (error) {
     console.error('Erro ao verificar status:', error);
     return;
   }
   console.log('Status atual no BD:', stdout);
 
-  // Agora fazemos a sincronização
   console.log('\n2️⃣  Sincronizando...');
   
-  // Vamos usar curl para fazer POST no endpoint
-  exec(`curl -X POST http://localhost:3333/api/v1/superadmin/charges/${chargeId}/sync \\
-    -H "Content-Type: application/json" \\
-    -H "Authorization: Bearer invalid" 2>/dev/null | jq .`, 
-    (error, stdout, stderr) => {
-      console.log('Resposta da sincronização:', stdout);
-    });
+  // Usar axios ao invés de curl para requisições HTTP (mais seguro)
+  const axios = require('axios');
+  axios.post(`http://localhost:3333/api/v1/superadmin/charges/${chargeId}/sync`, {}, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer invalid'
+    }
+  })
+  .then(response => {
+    console.log('Resposta da sincronização:', JSON.stringify(response.data, null, 2));
+  })
+  .catch(error => {
+    console.error('Erro na sincronização:', error.response?.data || error.message);
+  });
 });

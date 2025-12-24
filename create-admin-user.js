@@ -1,5 +1,12 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
+// ⚠️ ATENÇÃO: Carregar credenciais de .env.test
+require('dotenv').config({ path: '.env.test' });
+
+if (!process.env.SUPERADMIN_PASSWORD) {
+  console.error('❌ ERRO: Configure SUPERADMIN_PASSWORD no .env.test');
+  process.exit(1);
+}
 
 const prismaMaster = new PrismaClient({
   datasources: {
@@ -11,7 +18,7 @@ const prismaMaster = new PrismaClient({
 
 async function createAdminUser() {
   try {
-    const password = 'admin123456';
+    const password = process.env.SUPERADMIN_PASSWORD;
     const hash = await bcrypt.hash(password, 12);
     
     console.log('Creating admin user with hash:', hash);

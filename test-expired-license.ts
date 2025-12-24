@@ -1,4 +1,13 @@
 /**
+// ⚠️ ATENÇÃO: Carregar credenciais de .env.test
+require('dotenv').config({ path: '.env.test' });
+
+if (!process.env.TEST_USER_EMAIL || !process.env.TEST_USER_PASSWORD) {
+  console.error('❌ ERRO: Configure TEST_USER_EMAIL e TEST_USER_PASSWORD no .env.test');
+  process.exit(1);
+}
+
+
  * Teste E2E do fluxo de licença expirada
  * Valida:
  * 1. Middleware validateSubscription retorna 403 LICENSE_EXPIRED
@@ -39,7 +48,7 @@ async function testExpiredLicenseFlow() {
     console.log('📍 Passo 1: Fazendo login com tenant com licença expirada...');
     const loginResponse = await axios.post<ApiResponse<LoginResponse>>(`${API_URL}/auth/login`, {
       email: 'admin@farmaciademo.com.br',
-      password: 'admin123',
+      password: process.env.TEST_USER_PASSWORD || 'admin123',
     });
 
     if (!loginResponse.data.data) {

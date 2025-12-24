@@ -1,3 +1,12 @@
+// ⚠️ ATENÇÃO: Carregar credenciais de .env.test
+require('dotenv').config({ path: '.env.test' });
+
+if (!process.env.TEST_USER_EMAIL || !process.env.TEST_USER_PASSWORD) {
+  console.error('❌ ERRO: Configure TEST_USER_EMAIL e TEST_USER_PASSWORD no .env.test');
+  process.exit(1);
+}
+
+
 #!/usr/bin/env node
 
 /**
@@ -19,7 +28,7 @@ async function testCreateCharge() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email: 'admin@medmanager.com.br',
-        password: 'admin123'
+        password: process.env.TEST_USER_PASSWORD || 'admin123'
       })
     });
 

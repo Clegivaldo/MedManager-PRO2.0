@@ -1,4 +1,13 @@
 /**
+// ⚠️ ATENÇÃO: Carregar credenciais de .env.test
+require('dotenv').config({ path: '.env.test' });
+
+if (!process.env.TEST_USER_EMAIL || !process.env.TEST_USER_PASSWORD) {
+  console.error('❌ ERRO: Configure TEST_USER_EMAIL e TEST_USER_PASSWORD no .env.test');
+  process.exit(1);
+}
+
+
  * Script: Listar todos os tenants disponíveis
  * Uso: npx tsx list-tenants.ts
  */
@@ -12,7 +21,7 @@ async function main() {
     console.log('🔐 Fazendo login como superadmin...');
     const loginRes = await axios.post(`${API_URL}/auth/login`, {
       email: 'admin@farmaciademo.com.br',
-      password: 'admin123'
+      password: process.env.TEST_USER_PASSWORD || 'admin123'
     });
     const token = loginRes.data.data?.tokens?.accessToken;
     

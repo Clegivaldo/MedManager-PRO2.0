@@ -1,6 +1,6 @@
 import { getTenantPrisma } from '../lib/tenant-prisma.js';
 import { logger } from '../utils/logger.js';
-import crypto from 'crypto';
+import { encrypt, decrypt } from '../utils/encryption.js';
 import fs from 'fs/promises';
 import path from 'path';
 import { config } from '../config/environment.js';
@@ -84,7 +84,7 @@ class TenantSettingsService {
         // Criptografar cscToken se fornecido
         const updateData: any = { ...data };
         if (data.cscToken) {
-            updateData.cscToken = this.encrypt(data.cscToken);
+            updateData.cscToken = encrypt(data.cscToken);
         }
 
         // Atualizar
@@ -175,8 +175,8 @@ class TenantSettingsService {
         // Caminho relativo
         const certificatePath = `/certificates/${tenantId}/${filename}`;
 
-        // Criptografar senha
-        const encryptedPassword = this.encrypt(password);
+        // Criptografar senha usando m\u00f3dulo centralizado
+        const encryptedPassword = encrypt(password);
 
         // Atualizar configurações
         const existing = await prisma.tenantSettings?.findFirst?.();
@@ -202,44 +202,6 @@ class TenantSettingsService {
                 },
             });
         }
-    }
-
-    /**
-     * Criptografar dados sensíveis
-     */
-    private encrypt(text: string): string {
-        const algorithm = 'aes-256-gcm';
-        const key = Buffer.from((config as any).encryptionKey || 'default-key-32-chars-long-here!', 'utf8');
-        const iv = crypto.randomBytes(16);
-
-        const cipher = crypto.createCipheriv(algorithm, key, iv);
-        let encrypted = cipher.update(text, 'utf8', 'hex');
-        encrypted += cipher.final('hex');
-
-        const authTag = cipher.getAuthTag();
-
-        return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
-    }
-
-    /**
-     * Descriptografar dados sensíveis
-     */
-    decrypt(encryptedText: string): string {
-        const algorithm = 'aes-256-gcm';
-        const key = Buffer.from((config as any).encryptionKey || 'default-key-32-chars-long-here!', 'utf8');
-
-        const parts = encryptedText.split(':');
-        const iv = Buffer.from(parts[0], 'hex');
-        const authTag = Buffer.from(parts[1], 'hex');
-        const encrypted = parts[2];
-
-        const decipher = crypto.createDecipheriv(algorithm, key, iv);
-        decipher.setAuthTag(authTag);
-
-        let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-        decrypted += decipher.final('utf8');
-
-        return decrypted;
     }
 }
 

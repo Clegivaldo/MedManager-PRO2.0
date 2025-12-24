@@ -1,10 +1,18 @@
 #!/usr/bin/env node
 
+// ⚠️ ATENÇÃO: Credenciais devem vir de variáveis de ambiente
+require('dotenv').config({ path: '.env.test' });
+
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 
-const adminEmail = 'admin@farmaciademo.com.br';
-const adminPassword = 'admin123';
+if (!process.env.TEST_USER_EMAIL || !process.env.TEST_USER_PASSWORD) {
+  console.error('❌ ERRO: TEST_USER_EMAIL e TEST_USER_PASSWORD devem estar definidos em .env.test');
+  process.exit(1);
+}
+
+const adminEmail = process.env.TEST_USER_EMAIL;
+const adminPassword = process.env.TEST_USER_PASSWORD;
 const tenantDatabaseName = 'tenant_demo';
 
 async function setupTenantDemo() {
@@ -51,7 +59,7 @@ async function setupTenantDemo() {
 
     console.log('✅ Tenant Demo user created:', user.email);
     console.log('   Email:', user.email);
-    console.log('   Senha: admin123');
+    console.log('   Senha: (definida em TEST_USER_PASSWORD no .env.test)');
 
     await prismaTenant.$disconnect();
   } catch (error) {

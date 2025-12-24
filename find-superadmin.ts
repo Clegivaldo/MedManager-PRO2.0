@@ -1,18 +1,25 @@
 /**
  * Script: Verificar qual usuário é superadmin no sistema
  * Uso: npx tsx find-superadmin.ts
+ * ⚠️ Carrega credenciais de .env.test (NUNCA hardcode)
  */
 
+import dotenv from 'dotenv';
 import axios from 'axios';
+
+dotenv.config({ path: '.env.test' });
 
 const API_URL = 'http://localhost:3333/api/v1';
 
-// Tentar vários usuários conhecidos
+if (!process.env.TEST_USER_EMAIL || !process.env.TEST_USER_PASSWORD || !process.env.SUPERADMIN_EMAIL || !process.env.SUPERADMIN_PASSWORD) {
+  console.error('❌ ERRO: Configure TEST_USER_EMAIL, TEST_USER_PASSWORD, SUPERADMIN_EMAIL e SUPERADMIN_PASSWORD no .env.test');
+  process.exit(1);
+}
+
+// Tentar apenas credenciais fornecidas via ambiente (sem defaults inseguros)
 const USERS_TO_TRY = [
-  { email: 'admin@farmaciademo.com.br', password: 'admin123', name: 'Admin Farmácia Demo' },
-  { email: 'superadmin@medmanager.com', password: 'superadmin123', name: 'Superadmin' },
-  { email: 'super@admin.com', password: 'super123', name: 'Super Admin 2' },
-  { email: 'admin@medmanager.com.br', password: 'admin123', name: 'Admin MedManager' },
+  { email: process.env.TEST_USER_EMAIL!, password: process.env.TEST_USER_PASSWORD!, name: 'Admin (.env.test)' },
+  { email: process.env.SUPERADMIN_EMAIL!, password: process.env.SUPERADMIN_PASSWORD!, name: 'Superadmin (.env.test)' },
 ];
 
 async function tryLogin(email: string, password: string, name: string) {
@@ -56,8 +63,12 @@ async function main() {
     const result = await tryLogin(user.email, user.password, user.name);
     if (result?.token) {
       console.log('\n✅ ENCONTRADO! Use as credenciais acima para testes.');
+      console.log('\n⚠️  IMPORTANTE: Configure as credenciais no arquivo .env.test');
       console.log('\nComando para test-asaas-integration.ts:');
-      console.log(`  npx tsx test-asaas-integration.ts --email="${result.email}" --password="${result.password}"`);
+      console.log(`  npx tsx test-asaas-integration.ts`);
+      console.log('\n📝 Exemplo de .env.test:');
+      console.log(`  SUPERADMIN_EMAIL=${result.email}`);
+      console.log(`  SUPERADMIN_PASSWORD=<sua_senha_segura>`);
       process.exit(0);
     }
   }

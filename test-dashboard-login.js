@@ -1,5 +1,14 @@
+// ⚠️ ATENÇÃO: Carregar credenciais de .env.test
+require('dotenv').config({ path: '.env.test' });
+
+if (!process.env.TEST_USER_EMAIL || !process.env.TEST_USER_PASSWORD) {
+  console.error('❌ ERRO: Configure TEST_USER_EMAIL e TEST_USER_PASSWORD no .env.test');
+  process.exit(1);
+}
+
+
 (async () => {
-  const payload = { cnpj: '12345678000195', email: 'admin@farmaciademo.com.br', password: 'admin123' };
+  const payload = { cnpj: '12345678000195', email: 'admin@farmaciademo.com.br', password: process.env.TEST_USER_PASSWORD || 'admin123' };
   const loginRes = await fetch('http://localhost:3333/api/v1/auth/login-tenant', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

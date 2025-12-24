@@ -7,13 +7,24 @@
  */
 import axios from 'axios';
 
-const API_URL = 'http://localhost:3333/api/v1';
-const TENANT_ID = process.env.TEST_TENANT_ID || 'ca1372e9-f78a-489f-b2cd-38ead44e95c9'; // Farmácia Demo
-const USER_EMAIL = process.env.TEST_USER_EMAIL || 'admin@farmaciademo.com.br';
-const USER_PASSWORD = process.env.TEST_USER_PASSWORD || 'admin123';
+// ⚠️ ATENÇÃO: Todas as credenciais devem estar no arquivo .env.test
+if (!process.env.TEST_TENANT_ID || !process.env.TEST_USER_EMAIL || !process.env.TEST_USER_PASSWORD) {
+  console.error('❌ ERRO: Variáveis de ambiente não configuradas!');
+  console.error('Crie o arquivo .env.test a partir de .env.test.template');
+  process.exit(1);
+}
+
+const API_URL = process.env.API_URL || 'http://localhost:3333/api/v1';
+const TENANT_ID = process.env.TEST_TENANT_ID;
+const USER_EMAIL = process.env.TEST_USER_EMAIL;
+const USER_PASSWORD = process.env.TEST_USER_PASSWORD;
 const PAYMENT_METHOD = (process.argv[2] || 'PIX').toUpperCase() as 'PIX' | 'BOLETO';
-// Token do webhook (mesmo cadastrado no painel Asaas). Ajustar se diferente.
-const WEBHOOK_TOKEN = process.env.TEST_ASAAS_WEBHOOK_TOKEN || '$aact_hmlg_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OmU1MWFlZjc3LTY5NTYtNDZhMi05ZjZhLTg5NDhkOThmZTIxZjo6JGFhY2hfMzUzNWFmNGItMDNmNC00MWU0LWEyMTAtZWNlMzMxMzExNmQ3';
+const WEBHOOK_TOKEN = process.env.TEST_ASAAS_WEBHOOK_TOKEN;
+
+if (!WEBHOOK_TOKEN) {
+  console.error('❌ ERRO: TEST_ASAAS_WEBHOOK_TOKEN é obrigatório!');
+  process.exit(1);
+}
 
 async function main() {
   console.log('🚀 Iniciando teste de cobrança + webhook Asaas\n');

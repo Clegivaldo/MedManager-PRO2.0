@@ -1,4 +1,13 @@
 /**
+// ⚠️ ATENÇÃO: Carregar credenciais de .env.test
+require('dotenv').config({ path: '.env.test' });
+
+if (!process.env.TEST_USER_EMAIL || !process.env.TEST_USER_PASSWORD) {
+  console.error('❌ ERRO: Configure TEST_USER_EMAIL e TEST_USER_PASSWORD no .env.test');
+  process.exit(1);
+}
+
+
  * Teste Completo: Fluxo de Pagamento Asaas
  * 
  * Valida o ciclo completo:
@@ -91,7 +100,7 @@ class CompletePaymentFlowTest {
     try {
       const response = await axios.post(`${API_URL}/auth/login`, {
         email: 'admin@farmaciademo.com.br',
-        password: 'admin123'
+        password: process.env.TEST_USER_PASSWORD || 'admin123'
       });
 
       this.token = response.data.data.tokens.accessToken;

@@ -17,8 +17,26 @@ certificates/
 *.pfx
 *.p12
 *.pfx.enc
+*.pem
+*.key
+*.crt
+
+# Environment variables (NUNCA commitar!)
 .env
 .env.*
+!.env.example
+!.env.production.template
+!.env.test.template
+
+# Arquivo de teste com credenciais reais - NUNCA COMMITAR
+.env.test
+
+# Backups e dados sensíveis
+*.sql
+*.dump
+backups/
+uploads/
+*.backup
 
 # Editor directories and files
 .vscode/*

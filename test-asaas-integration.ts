@@ -12,18 +12,31 @@
 
 import axios from 'axios';
 
-const API_URL = 'http://localhost:3333/api/v1';
+const API_URL = process.env.API_URL || 'http://localhost:3333/api/v1';
 
-// Credenciais de teste (sandbox)
-const SUPERADMIN_EMAIL = process.env.SUPERADMIN_EMAIL || 'admin@farmaciademo.com.br';
-const SUPERADMIN_PASSWORD = process.env.SUPERADMIN_PASSWORD || 'admin123';
-const TENANT_ID = process.env.TEST_TENANT_ID || 'ca1372e9-f78a-489f-b2cd-38ead44e95c9'; // Farmácia Demo
-const TENANT_USER_EMAIL = 'admin@farmaciademo.com.br';
-const TENANT_USER_PASSWORD = 'admin123';
+// ⚠️ ATENÇÃO: Todas as credenciais devem estar no arquivo .env.test
+// NUNCA commitar credenciais hardcoded!
+if (!process.env.SUPERADMIN_EMAIL || !process.env.SUPERADMIN_PASSWORD) {
+  console.error('❌ ERRO: Variáveis de ambiente não configuradas!');
+  console.error('Crie o arquivo .env.test a partir de .env.test.template');
+  process.exit(1);
+}
 
-// Chave Asaas SANDBOX (obtenha em: https://www.asaas.com/docs/reference/sandbox-credentials)
-const ASAAS_API_KEY = process.env.ASAAS_API_KEY || '$aact_hmlg_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OmU1MWFlZjc3LTY5NTYtNDZhMi05ZjZhLTg5NDhkOThmZTIxZjo6JGFhY2hfMzUzNWFmNGItMDNmNC00MWU0LWEyMTAtZWNlMzMxMzExNmQ3';
-const ASAAS_WEBHOOK_TOKEN = process.env.ASAAS_WEBHOOK_TOKEN || 'test-webhook-token-123';
+const SUPERADMIN_EMAIL = process.env.SUPERADMIN_EMAIL;
+const SUPERADMIN_PASSWORD = process.env.SUPERADMIN_PASSWORD;
+const TENANT_ID = process.env.TEST_TENANT_ID;
+const TENANT_USER_EMAIL = process.env.TEST_USER_EMAIL;
+const TENANT_USER_PASSWORD = process.env.TEST_USER_PASSWORD;
+
+// Chave Asaas SANDBOX - obtenha em: https://www.asaas.com/docs/reference/sandbox-credentials
+const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
+const ASAAS_WEBHOOK_TOKEN = process.env.ASAAS_WEBHOOK_TOKEN;
+
+if (!ASAAS_API_KEY || !ASAAS_WEBHOOK_TOKEN) {
+  console.error('❌ ERRO: ASAAS_API_KEY e ASAAS_WEBHOOK_TOKEN são obrigatórios!');
+  console.error('Configure no arquivo .env.test');
+  process.exit(1);
+}
 
 interface TestResult {
   success: boolean;

@@ -6,6 +6,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { config } from '../config/environment.js';
 import { hashPassword } from '../services/auth.service.js';
+import { encrypt, decrypt } from '../utils/encryption.js';
 import pkg from '@prisma/client';
 const UserRole = (pkg as any).UserRole as any;
 
@@ -57,14 +58,14 @@ export class TenantService {
       // Criar estrutura de pastas isoladas
       const folderStructure = await this.createTenantFolderStructure(cnpj);
 
-      // Salvar tenant no banco mestre
+      // Salvar tenant no banco mestre (com senha criptografada)
       const tenant = await prismaMaster.tenant.create({
         data: {
           name,
           cnpj,
           databaseName,
           databaseUser,
-          databasePassword,
+          databasePassword: encrypt(databasePassword), // ✅ Criptografado com AES-256-GCM
           plan,
           status: 'active',
           metadata: JSON.stringify(metadata),
@@ -379,6 +380,19 @@ export class TenantService {
     if (!/^[a-zA-Z0-9_]+$/.test(identifier)) {
       throw new Error(`Invalid identifier: ${identifier}`);
     }
+  }
+
+  /**
+   * Obter senha descriptografada do banco de dados do tenant
+   * @param encryptedPassword - Senha criptografada armazenada
+   * @returns Senha em texto plano para uso em conexões
+   */
+  getDecryptedPassword(encryptedPassword: string): string {
+    const decrypted = decrypt(encryptedPassword);
+    if (!decrypted) {
+      throw new Error('Failed to decrypt database password');
+    }
+    return decrypted;
   }
 }
 
