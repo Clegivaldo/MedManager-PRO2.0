@@ -9,7 +9,7 @@ import axios from 'axios';
 
 const API_URL = 'http://localhost:3333/api/v1';
 const TENANT_ID = process.env.TEST_TENANT_ID || 'ca1372e9-f78a-489f-b2cd-38ead44e95c9'; // Farmácia Demo
-const USER_EMAIL = process.env.TEST_USER_EMAIL || 'admin@farmaciademo.com';
+const USER_EMAIL = process.env.TEST_USER_EMAIL || 'admin@farmaciademo.com.br';
 const USER_PASSWORD = process.env.TEST_USER_PASSWORD || 'admin123';
 const PAYMENT_METHOD = (process.argv[2] || 'PIX').toUpperCase() as 'PIX' | 'BOLETO';
 // Token do webhook (mesmo cadastrado no painel Asaas). Ajustar se diferente.

@@ -1,9 +1,9 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { getTenantPrisma } from '../lib/tenant-prisma.js';
 import { AppError } from '../middleware/errorHandler.js';
 
 export class QuoteController {
-    async list(req: Request, res: Response) {
+    async list(req: Request, res: Response, next: NextFunction) {
         try {
             const { page = 1, limit = 50, search, status } = req.query;
             const skip = (Number(page) - 1) * Number(limit);
@@ -22,6 +22,9 @@ export class QuoteController {
             }
 
             const prisma = getTenantPrisma((req as any).tenant);
+            if (!prisma) {
+                return next(new AppError('Tenant context not available', 400, 'TENANT_REQUIRED'));
+            }
 
             const [quotes, total] = await Promise.all([
                 prisma.quote.findMany({
@@ -54,14 +57,17 @@ export class QuoteController {
                 },
             });
         } catch (error) {
-            throw error;
+            next(error);
         }
     }
 
-    async getById(req: Request, res: Response) {
+    async getById(req: Request, res: Response, next: NextFunction) {
         try {
             const { id } = req.params;
             const prisma = getTenantPrisma((req as any).tenant);
+            if (!prisma) {
+                return next(new AppError('Tenant context not available', 400, 'TENANT_REQUIRED'));
+            }
 
             const quote = await prisma.quote.findUnique({
                 where: { id },
@@ -84,14 +90,17 @@ export class QuoteController {
                 data: quote,
             });
         } catch (error) {
-            throw error;
+            next(error);
         }
     }
 
-    async create(req: Request, res: Response) {
+    async create(req: Request, res: Response, next: NextFunction) {
         try {
             const { customerId, validUntil, items, notes } = req.body;
             const prisma = getTenantPrisma((req as any).tenant);
+            if (!prisma) {
+                return next(new AppError('Tenant context not available', 400, 'TENANT_REQUIRED'));
+            }
 
             // Generate quote number
             const count = await prisma.quote.count();
@@ -132,15 +141,18 @@ export class QuoteController {
                 data: quote,
             });
         } catch (error) {
-            throw error;
+            next(error);
         }
     }
 
-    async update(req: Request, res: Response) {
+    async update(req: Request, res: Response, next: NextFunction) {
         try {
             const { id } = req.params;
             const { status, notes } = req.body;
             const prisma = getTenantPrisma((req as any).tenant);
+            if (!prisma) {
+                return next(new AppError('Tenant context not available', 400, 'TENANT_REQUIRED'));
+            }
 
             const quote = await prisma.quote.update({
                 where: { id },
@@ -160,14 +172,17 @@ export class QuoteController {
                 data: quote,
             });
         } catch (error) {
-            throw error;
+            next(error);
         }
     }
 
-    async delete(req: Request, res: Response) {
+    async delete(req: Request, res: Response, next: NextFunction) {
         try {
             const { id } = req.params;
             const prisma = getTenantPrisma((req as any).tenant);
+            if (!prisma) {
+                return next(new AppError('Tenant context not available', 400, 'TENANT_REQUIRED'));
+            }
 
             await prisma.quote.delete({
                 where: { id },
@@ -178,7 +193,7 @@ export class QuoteController {
                 message: 'Quote deleted successfully',
             });
         } catch (error) {
-            throw error;
+            next(error);
         }
     }
 }

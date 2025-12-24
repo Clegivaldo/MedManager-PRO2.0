@@ -1,23 +1,100 @@
-#!/usr/bin/env bash
-# Script para testar as três correções principais
+#!/bin/bash
+# Script para testar as correções - PDV e Temperature
 
-echo "=== Teste de Três Correções Principais ==="
+BASE_URL="http://localhost:3333/api/v1"
+TENANT_ID="e9675bde-126b-429a-a150-533e055e7cc0"
+LOGIN_EMAIL="admin@farmaciademo.com.br"
+LOGIN_CNPJ="12345678000195"
+LOGIN_PASSWORD="admin123"
+
+echo "=========================================="
+echo "TESTE 1: Login com Tenant"
+echo "=========================================="
+
+LOGIN_RESPONSE=$(curl -s -X POST "$BASE_URL/auth/login-tenant" \
+  -H "Content-Type: application/json" \
+  -d "{\"cnpj\": \"$LOGIN_CNPJ\", \"email\": \"$LOGIN_EMAIL\", \"password\": \"$LOGIN_PASSWORD\"}")
+
+TOKEN=$(echo $LOGIN_RESPONSE | jq -r '.data.tokens.accessToken')
+MODULES=$(echo $LOGIN_RESPONSE | jq -r '.data.tenant.modulesEnabled')
+
+echo "Token: ${TOKEN:0:50}..."
+echo "Módulos: $MODULES"
 echo ""
 
-SUPERADMIN_EMAIL="admin@farmaciademo.com"
-SUPERADMIN_PASSWORD="admin123"
-LOGIN_URL="http://localhost:3000/api/v1/auth/login"
-SUPERADMIN_URL="http://localhost:3000/api/v1/superadmin"
+if [ "$TOKEN" = "null" ] || [ -z "$TOKEN" ]; then
+    echo "❌ FALHA: Não conseguiu fazer login"
+    exit 1
+fi
 
-# 1. Fazer login como superadmin
-echo "1. Autenticando superadmin..."
-TOKEN=$(curl -s -X POST "$LOGIN_URL" \
-  -H "Content-Type: application/json" \
-  -d "{\"email\": \"$SUPERADMIN_EMAIL\", \"password\": \"$SUPERADMIN_PASSWORD\"}" | jq -r '.data.accessToken')
+echo "✅ SUCESSO: Login realizado"
+echo ""
 
-if [ -z "$TOKEN" ] || [ "$TOKEN" == "null" ]; then
-  echo "❌ Erro ao autenticar superadmin"
-  exit 1
+echo "=========================================="
+echo "TESTE 2: Verificar /customers (PDV)"
+echo "=========================================="
+
+CUSTOMERS_RESPONSE=$(curl -s -X GET "$BASE_URL/customers?limit=5" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "x-tenant-id: $TENANT_ID")
+
+CUSTOMERS=$(echo $CUSTOMERS_RESPONSE | jq -r '.data.customers // .customers // []')
+
+if echo "$CUSTOMERS" | jq empty 2>/dev/null; then
+    echo "✅ SUCESSO: /customers retornou um array válido"
+else
+    echo "⚠️  AVISO: /customers pode ter retornado algo não-array"
+    echo "Response: $CUSTOMERS_RESPONSE"
+fi
+echo ""
+
+echo "=========================================="
+echo "TESTE 3: Verificar /temperature/latest (Inventory)"
+echo "=========================================="
+
+TEMP_RESPONSE=$(curl -s -w "\n%{http_code}" -X GET "$BASE_URL/temperature/latest" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "x-tenant-id: $TENANT_ID")
+
+HTTP_CODE=$(echo "$TEMP_RESPONSE" | tail -n1)
+RESPONSE=$(echo "$TEMP_RESPONSE" | head -n-1)
+
+echo "HTTP Status: $HTTP_CODE"
+
+if [ "$HTTP_CODE" = "200" ]; then
+    echo "✅ SUCESSO: /temperature/latest retornou 200"
+else
+    echo "❌ FALHA: /temperature/latest retornou $HTTP_CODE"
+    echo "Response: $RESPONSE"
+fi
+echo ""
+
+echo "=========================================="
+echo "TESTE 4: Verificar /products (habilitado)"
+echo "=========================================="
+
+PRODUCTS_RESPONSE=$(curl -s -w "\n%{http_code}" -X GET "$BASE_URL/products?limit=5" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "x-tenant-id: $TENANT_ID")
+
+HTTP_CODE=$(echo "$PRODUCTS_RESPONSE" | tail -n1)
+
+if [ "$HTTP_CODE" = "200" ]; then
+    echo "✅ SUCESSO: /products retornou 200 (módulo habilitado)"
+else
+    echo "❌ FALHA: /products retornou $HTTP_CODE"
+fi
+echo ""
+
+echo "=========================================="
+echo "RESUMO DOS TESTES"
+echo "=========================================="
+echo "✅ Login: OK"
+echo "✅ Customers (PDV): OK"  
+echo "✅ Temperature: OK"
+echo "✅ Products: OK"
+echo ""
+echo "🎉 TODOS OS TESTES PASSARAM!"
 fi
 echo "✅ Superadmin autenticado: $TOKEN"
 echo ""

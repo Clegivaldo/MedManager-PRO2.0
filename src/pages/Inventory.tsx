@@ -19,6 +19,7 @@ import TemperatureChart from '@/components/tenant/charts/TemperatureChart';
 import warehouseService, { Warehouse } from '@/services/warehouse.service';
 import temperatureService, { LatestReading } from '@/services/temperature.service';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import EmptyState from '@/components/EmptyState';
 import TableSkeleton from '@/components/TableSkeleton';
 
@@ -32,14 +33,16 @@ export default function Inventory() {
   const [warehouseMode, setWarehouseMode] = useState<'create' | 'edit'>('create');
   const [latestReadings, setLatestReadings] = useState<LatestReading[]>([]);
   const { toast } = useToast();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   const loadWarehouses = async () => {
     try {
       setLoading(true);
       const response = await warehouseService.list({ status: 'active' });
-      setWarehouses(response.warehouses || []);
-      if (response.warehouses.length > 0 && !activeWarehouseId) {
-        setActiveWarehouseId(response.warehouses[0].id);
+      const list = response?.data?.warehouses || [];
+      setWarehouses(list);
+      if (list.length > 0 && !activeWarehouseId) {
+        setActiveWarehouseId(list[0].id);
       }
     } catch (error) {
       console.error('Error loading warehouses:', error);
@@ -56,20 +59,24 @@ export default function Inventory() {
   const loadTemperatures = async () => {
     try {
       const readings = await temperatureService.getLatest();
-      setLatestReadings(readings);
+      const latest = Array.isArray(readings?.data) ? readings.data : [];
+      setLatestReadings(latest);
     } catch (error) {
       console.error('Error loading temperatures:', error);
     }
   };
 
   useEffect(() => {
-    loadWarehouses();
-    loadTemperatures();
+    // ✅ CORREÇÃO: Só carregar dados após autenticação estar completa
+    if (!authLoading && isAuthenticated) {
+      loadWarehouses();
+      loadTemperatures();
 
-    // Poll temperatures every 2 minutes
-    const interval = setInterval(loadTemperatures, 120000);
-    return () => clearInterval(interval);
-  }, []);
+      // Poll temperatures every 2 minutes
+      const interval = setInterval(loadTemperatures, 120000);
+      return () => clearInterval(interval);
+    }
+  }, [authLoading, isAuthenticated]);
 
   const handleCreateWarehouse = () => {
     setSelectedWarehouse(null);
@@ -146,7 +153,7 @@ export default function Inventory() {
       </div>
 
       {/* Temperature Alerts */}
-      {latestReadings.some(r => r.latestReading?.isAlert) && (
+      {Array.isArray(latestReadings) && latestReadings.some(r => r.latestReading?.isAlert) && (
         <Card className="border-red-200 bg-red-50 dark:bg-red-950 mb-6">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-red-800 dark:text-red-200">
@@ -180,7 +187,7 @@ export default function Inventory() {
         <TableSkeleton columns={4} />
       ) : warehouses.length === 0 ? (
         <EmptyState
-          icon={WarehouseIcon}
+          icon={<WarehouseIcon className="h-12 w-12" />}
           title="Nenhum armazém cadastrado"
           description="Crie seu primeiro armazém para começar o controle de estoque."
           action={<Button onClick={handleCreateWarehouse}>Criar Primeiro Armazém</Button>}

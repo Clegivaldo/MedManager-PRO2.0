@@ -4,6 +4,7 @@ import { hashPassword } from '../services/auth.service.js';
 import { config } from '../config/environment.js';
 import { prismaMaster } from '../lib/prisma.js';
 import { logger } from '../utils/logger.js';
+import { PERMISSIONS } from '../middleware/permissions.js';
 
 async function run() {
   const DEMO_CNPJ = '12345678000195';
@@ -44,14 +45,14 @@ async function run() {
         email: TARGET_EMAIL,
         name: 'Administrador Demo',
         password: await hashPassword(PASSWORD),
-        role: 'ADMIN',
+        role: 'MASTER',
         isActive: true,
-        permissions: '[]'
+        permissions: JSON.stringify(Object.values(PERMISSIONS))
       }
     });
   } else {
     logger.info('Reforçando senha do usuário admin demo');
-    await tenantPrisma.user.update({ where: { email: TARGET_EMAIL }, data: { password: await hashPassword(PASSWORD), isActive: true } });
+    await tenantPrisma.user.update({ where: { email: TARGET_EMAIL }, data: { password: await hashPassword(PASSWORD), isActive: true, role: 'MASTER', permissions: JSON.stringify(Object.values(PERMISSIONS)) } });
   }
 
   logger.info('Usuário admin demo pronto', { email: TARGET_EMAIL });

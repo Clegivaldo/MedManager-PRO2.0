@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { getTenantPrisma } from '../lib/tenant-prisma.js';
 import { z } from 'zod';
 import { AppError } from '../middleware/errorHandler.js';
@@ -14,8 +14,13 @@ const warehouseSchema = z.object({
 
 export class WarehouseController {
     // GET /api/v1/warehouses - List all warehouses
-    async list(req: Request, res: Response) {
+    async list(req: Request, res: Response, next: NextFunction) {
         try {
+            const tenant = (req as any).tenant;
+            if (!tenant) {
+                throw new AppError('Tenant context required', 400);
+            }
+
             const { page = 1, limit = 50, search, status } = req.query;
 
             const skip = (Number(page) - 1) * Number(limit);
@@ -36,17 +41,20 @@ export class WarehouseController {
                 where.isActive = false;
             }
 
-            const prisma = getTenantPrisma((req as any).tenant);
+            const prisma = getTenantPrisma(tenant);
+            if (!prisma) {
+                throw new AppError('Failed to initialize database connection', 500);
+            }
 
             const [warehouses, total] = await Promise.all([
                 prisma.warehouse.findMany({
                     where,
                     skip,
                     take,
+                    // Removido _count.stock até que relação com Stock seja adicionada ao schema
                     include: {
                         _count: {
                             select: {
-                                stock: true,
                                 temperatureReadings: true,
                             },
                         },
@@ -69,12 +77,12 @@ export class WarehouseController {
                 },
             });
         } catch (error) {
-            throw error;
+            return next(error as any);
         }
     }
 
     // GET /api/v1/warehouses/:id - Get warehouse by ID
-    async getById(req: Request, res: Response) {
+    async getById(req: Request, res: Response, next: NextFunction) {
         try {
             const { id } = req.params;
             const prisma = getTenantPrisma((req as any).tenant);
@@ -84,7 +92,6 @@ export class WarehouseController {
                 include: {
                     _count: {
                         select: {
-                            stock: true,
                             temperatureReadings: true,
                         },
                     },
@@ -104,12 +111,12 @@ export class WarehouseController {
                 data: warehouse,
             });
         } catch (error) {
-            throw error;
+            return next(error as any);
         }
     }
 
     // POST /api/v1/warehouses - Create warehouse
-    async create(req: Request, res: Response) {
+    async create(req: Request, res: Response, next: NextFunction) {
         try {
             const data = warehouseSchema.parse(req.body);
             const prisma = getTenantPrisma((req as any).tenant);
@@ -136,12 +143,12 @@ export class WarehouseController {
                 data: warehouse,
             });
         } catch (error) {
-            throw error;
+            return next(error as any);
         }
     }
 
     // PUT /api/v1/warehouses/:id - Update warehouse
-    async update(req: Request, res: Response) {
+    async update(req: Request, res: Response, next: NextFunction) {
         try {
             const { id } = req.params;
             const prisma = getTenantPrisma((req as any).tenant);
@@ -164,33 +171,25 @@ export class WarehouseController {
                 data: warehouse,
             });
         } catch (error) {
-            throw error;
+            return next(error as any);
         }
     }
 
     // DELETE /api/v1/warehouses/:id - Delete warehouse (soft delete)
-    async delete(req: Request, res: Response) {
+    async delete(req: Request, res: Response, next: NextFunction) {
         try {
             const { id } = req.params;
             const prisma = getTenantPrisma((req as any).tenant);
 
             const existing = await prisma.warehouse.findUnique({
                 where: { id },
-                include: {
-                    _count: {
-                        select: { stock: true },
-                    },
-                },
             });
 
             if (!existing) {
                 throw new AppError('Warehouse not found', 404, 'WAREHOUSE_NOT_FOUND');
             }
 
-            // Check if warehouse has stock
-            if (existing._count.stock > 0) {
-                throw new AppError('Cannot delete warehouse with existing stock', 400, 'WAREHOUSE_HAS_STOCK');
-            }
+            // Nota: verificação de estoque removida até que a relação Stock-Warehouse seja implementada
 
             // Soft delete
             const warehouse = await prisma.warehouse.update({
@@ -203,7 +202,7 @@ export class WarehouseController {
                 data: warehouse,
             });
         } catch (error) {
-            throw error;
+            return next(error as any);
         }
     }
 }

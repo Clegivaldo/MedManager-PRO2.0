@@ -38,7 +38,7 @@ async function testExpiredLicenseFlow() {
     // 1. Fazer login com usuário do tenant com licença expirada
     console.log('📍 Passo 1: Fazendo login com tenant com licença expirada...');
     const loginResponse = await axios.post<ApiResponse<LoginResponse>>(`${API_URL}/auth/login`, {
-      email: 'admin@farmaciademo.com',
+      email: 'admin@farmaciademo.com.br',
       password: 'admin123',
     });
 

@@ -151,7 +151,7 @@ export default function RoutesPage() {
                 </Table>
               ) : (
                 <EmptyState
-                  icon={Truck}
+                  icon={<Truck className="h-12 w-12" />}
                   title="Nenhuma rota encontrada"
                   description="Não há rotas cadastradas."
                   action={<Button>Criar Primeira Rota</Button>}

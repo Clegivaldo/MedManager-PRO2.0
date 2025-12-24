@@ -11,7 +11,7 @@ import { PERMISSIONS } from '../middleware/permissions.js';
  */
 export async function seedTestEnvironment(): Promise<void> {
   const tenants = [
-    { cnpj: '12345678000195', name: 'Farmácia Demo', adminEmail: 'admin@farmaciademo.com' },
+    { cnpj: '12345678000195', name: 'Farmácia Demo', adminEmail: 'admin@farmaciademo.com.br' },
     { cnpj: '12345678000155', name: 'Tenant Demo', adminEmail: 'admin@medmanager.com.br' }
   ];
 

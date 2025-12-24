@@ -157,7 +157,7 @@
 
 ### Credenciais de Teste
 ```
-Email: admin@farmaciademo.com
+Email: admin@farmaciademo.com.br
 Senha: admin123
 Plano: Professional (expirado -30 dias)
 ```

@@ -37,7 +37,7 @@ npx tsx test-asaas-integration.ts
 
 ### Teste Manual (Interface Web)
 1. Acessar: http://localhost:5173
-2. Login: `admin@farmaciademo.com` / `admin123`
+2. Login: `admin@farmaciademo.com.br` / `admin123`
 3. Menu: Tenants
 4. Clicar ícone 💳 (roxo)
 5. **Inserir 5.00** ← **Persiste!** ✅

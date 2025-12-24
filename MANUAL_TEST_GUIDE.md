@@ -27,12 +27,12 @@ Se receber erro de conexão, aguarde 10 segundos e atualize a página.
 ### Credenciais de Teste
 | Campo | Valor |
 |-------|-------|
-| Email | admin@farmaciademo.com |
+| Email | admin@farmaciademo.com.br |
 | Senha | admin123 |
 
 ### Passos
 1. Página inicial carrega com formulário de login
-2. Inserir: `admin@farmaciademo.com`
+2. Inserir: `admin@farmaciademo.com.br`
 3. Inserir: `admin123`
 4. Clicar: "Entrar"
 

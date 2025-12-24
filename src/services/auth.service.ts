@@ -6,9 +6,11 @@ class AuthService {
   async login(credentials: LoginCredentials): Promise<LoginResponse> {
     // Se vier CNPJ e Email, usar endpoint de login por tenant
     const endpoint = credentials.cnpj && credentials.email ? '/auth/login-tenant' : '/auth/login';
+    console.log('[AUTH-SERVICE] Login with:', { cnpj: credentials.cnpj, email: credentials.email, endpoint });
     const response = await api.post<ApiResponse<LoginResponse>>(endpoint, credentials);
 
     const { user, tenant, tokens } = response.data.data;
+    console.log('[AUTH-SERVICE] Response:', { userId: user.id, tenantId: user.tenantId, hasTenant: !!tenant, tenantId2: tenant?.id });
 
     // Salvar tokens e dados do usuário
     this.setTokens(tokens.accessToken, tokens.refreshToken);
@@ -86,12 +88,14 @@ class AuthService {
   private setUser(user: User): void {
     localStorage.setItem('user', JSON.stringify(user));
     if (user.tenantId) {
+      console.log('[AUTH-SERVICE-SETUSER] Saving tenant_id from user:', user.tenantId);
       localStorage.setItem('tenant_id', user.tenantId);
     }
   }
 
   private setTenant(tenant: any): void {
     localStorage.setItem('tenant', JSON.stringify(tenant));
+    console.log('[AUTH-SERVICE-SETTENANT] Saving tenant_id from tenant:', tenant.id);
     localStorage.setItem('tenant_id', tenant.id);
   }
 

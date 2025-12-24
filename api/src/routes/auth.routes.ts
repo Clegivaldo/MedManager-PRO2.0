@@ -181,11 +181,15 @@ router.post('/login', async (req, res, next) => {
       userId: user.id,
       email: user.email,
       role: user.role,
+      tenantId: user.tenantId || undefined, // ✅ NOVO: Incluir tenantId se existir
       permissions
     });
-    const refreshToken = generateRefreshToken({ userId: user.id });
+    const refreshToken = generateRefreshToken({ 
+      userId: user.id,
+      tenantId: user.tenantId || undefined // ✅ NOVO: Incluir tenantId se existir
+    });
 
-    logger.info(`User ${user.email} logged in successfully`, { userId: user.id, role: user.role });
+    logger.info(`User ${user.email} logged in successfully`, { userId: user.id, role: user.role, tenantId: user.tenantId });
 
     // Buscar informações do tenant se o usuário pertencer a um
     let tenantInfo = null;
@@ -231,6 +235,7 @@ router.post('/login-tenant', async (req, res, next) => {
   try {
     const { cnpj, email, password } = req.body as { cnpj?: string; email?: string; password?: string };
     logger.info('Login (tenant) attempt', { email, cnpj });
+    console.log('[LOGIN-TENANT] Attempt with:', { cnpj, email, hasPassword: !!password });
 
     if (!cnpj || !email || !password) {
       throw new AppError('CNPJ, email and password are required', 400);

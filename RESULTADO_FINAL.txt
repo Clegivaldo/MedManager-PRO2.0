@@ -38,7 +38,7 @@
 │     └─ QR Code: Disponível e validado                                   │
 │                                                                            │
 │  ✅ Test 4: Superadmin Verificado                                       │
-│     └─ Email: admin@farmaciademo.com                                    │
+│     └─ Email: admin@farmaciademo.com.br                                  │
 │     └─ Role: SUPERADMIN ✓                                               │
 │                                                                            │
 │  ✅ Test 5: Tenants Carregados                                          │
@@ -68,7 +68,7 @@
 │                                                                            │
 │  🌐 Teste Manual (Interface Web):                                        │
 │     1. Acessar: http://localhost:5173                                   │
-│     2. Login: admin@farmaciademo.com / admin123                         │
+│     2. Login: admin@farmaciademo.com.br / admin123                       │
 │     3. Menu → Tenants                                                   │
 │     4. Clicar 💳 em qualquer tenant                                     │
 │     5. Inserir 5.00 ← PERSISTE! ✅                                     │

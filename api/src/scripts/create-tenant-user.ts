@@ -17,12 +17,12 @@ async function createTenantUser() {
     const hashedPassword = await bcrypt.hash('admin123', 10);
     
     const user = await prisma.user.upsert({
-      where: { email: 'admin@farmaciademo.com' },
+      where: { email: 'admin@farmaciademo.com.br' },
       update: {
         password: hashedPassword
       },
       create: {
-        email: 'admin@farmaciademo.com',
+        email: 'admin@farmaciademo.com.br',
         name: 'Admin Farmácia Demo',
         password: hashedPassword,
         role: 'ADMIN',

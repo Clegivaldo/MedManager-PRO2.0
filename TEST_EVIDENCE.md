@@ -151,9 +151,9 @@
 🔍 PROCURANDO USUÁRIO SUPERADMIN
 ═══════════════════════════════════════════════════════
 
-🔐 Tentando: Admin Farmácia Demo (admin@farmaciademo.com)...
+🔐 Tentando: Admin Farmácia Demo (admin@farmaciademo.com.br)...
 ✓ Login bem-sucedido!
-  Email: admin@farmaciademo.com
+  Email: admin@farmaciademo.com.br
   Role: SUPERADMIN
   Tenant ID: N/A
   Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiO...
@@ -164,7 +164,7 @@
 
 ### Análise
 - ✅ Superadmin encontrado
-- ✅ Email: `admin@farmaciademo.com`
+- ✅ Email: `admin@farmaciademo.com.br`
 - ✅ Senha: `admin123`
 - ✅ Role confirmado: `SUPERADMIN`
 - ✅ Acesso a endpoints /superadmin funcionando

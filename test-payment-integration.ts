@@ -29,7 +29,7 @@ async function runTests() {
     // Passo 1: Login
     console.log('📍 Passo 1: Login e autenticação...');
     const loginRes = await axios.post(`${API_URL}/auth/login`, {
-      email: 'admin@farmaciademo.com',
+      email: 'admin@farmaciademo.com.br',
       password: 'admin123'
     });
     

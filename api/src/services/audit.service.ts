@@ -1,4 +1,4 @@
-import { getTenantPrisma } from '../lib/tenant-prisma.js';
+import { prismaMaster } from '../lib/prisma.js';
 import { logger } from '../utils/logger.js';
 
 interface AuditLogEntry {
@@ -31,17 +31,17 @@ class AuditService {
      */
     async log(tenantId: string, entry: AuditLogEntry) {
         try {
-            const prisma: any = await getTenantPrisma(tenantId);
-            await prisma.tenantAuditLog.create({
+            await prismaMaster.auditLog.create({
                 data: {
-                    userId: entry.userId,
+                    tenantId,
+                    userId: entry.userId || null,
                     tableName: entry.tableName,
-                    recordId: entry.recordId,
+                    recordId: entry.recordId || null,
                     operation: entry.operation,
                     oldData: entry.oldData || null,
                     newData: entry.newData || null,
-                    ipAddress: entry.ipAddress,
-                    userAgent: entry.userAgent,
+                    ipAddress: entry.ipAddress || null,
+                    userAgent: entry.userAgent || null,
                 }
             });
         } catch (error) {
@@ -54,12 +54,10 @@ class AuditService {
      * Listar logs de auditoria
      */
     async listLogs(tenantId: string, params: ListLogsParams) {
-        const prisma: any = await getTenantPrisma(tenantId);
-
         const { page, limit, userId, tableName, operation, startDate, endDate } = params;
         const skip = (page - 1) * limit;
 
-        const where: any = {};
+        const where: any = { tenantId };
         if (userId) where.userId = userId;
         if (tableName) where.tableName = tableName;
         if (operation) where.operation = operation;
@@ -70,28 +68,19 @@ class AuditService {
         }
 
         const [logs, total] = await Promise.all([
-            prisma.tenantAuditLog.findMany({
+            prismaMaster.auditLog.findMany({
                 where,
                 skip,
                 take: limit,
-                orderBy: { createdAt: 'desc' },
-                include: {
-                    user: {
-                        select: {
-                            id: true,
-                            name: true,
-                            email: true
-                        }
-                    }
-                }
+                orderBy: { createdAt: 'desc' }
             }),
-            prisma.tenantAuditLog.count({ where })
+            prismaMaster.auditLog.count({ where })
         ]);
 
         return {
             logs: logs.map((l: any) => ({
                 ...l,
-                userName: l.user?.name || 'Sistema'
+                userName: 'Sistema' // User info not available in master DB
             })),
             total,
             page,
@@ -103,23 +92,12 @@ class AuditService {
      * Buscar detalhes de um log específico
      */
     async getLog(tenantId: string, id: string) {
-        const prisma: any = await getTenantPrisma(tenantId);
-
-        const log = await prisma.tenantAuditLog.findUnique({
-            where: { id },
-            include: {
-                user: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true
-                    }
-                }
-            }
+        const log = await prismaMaster.auditLog.findFirst({
+            where: { id, tenantId }
         });
 
         if (log) {
-            (log as any).userName = log.user?.name || 'Sistema';
+            (log as any).userName = 'Sistema'; // User info not available in master DB
         }
 
         return log;

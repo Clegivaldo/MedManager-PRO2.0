@@ -3,7 +3,7 @@
 Write-Host "=== Creating Sample Billing Accounts ===" -ForegroundColor Cyan
 Write-Host ""
 
-$SUPERADMIN_EMAIL = "admin@farmaciademo.com"
+$SUPERADMIN_EMAIL = "admin@farmaciademo.com.br"
 $SUPERADMIN_PASSWORD = "admin123"
 $LOGIN_URL = "http://localhost:3333/api/v1/auth/login"
 

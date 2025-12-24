@@ -128,7 +128,7 @@ Script: test-create-charge-and-webhook.ts PIX
 
 | Campo | Valor |
 |-------|-------|
-| Superadmin Email | admin@farmaciademo.com |
+| Superadmin Email | admin@farmaciademo.com.br |
 | Superadmin Senha | admin123 |
 | Tenant Teste | Farmácia Demo |
 | Tenant ID | ca1372e9-f78a-489f-b2cd-38ead44e95c9 |
@@ -142,7 +142,7 @@ Script: test-create-charge-and-webhook.ts PIX
 
 ### Passo 1: Login como Superadmin
 1. Acessar: http://localhost:5173
-2. Email: `admin@farmaciademo.com`
+2. Email: `admin@farmaciademo.com.br`
 3. Senha: `admin123`
 
 ### Passo 2: Navegar para Tenants

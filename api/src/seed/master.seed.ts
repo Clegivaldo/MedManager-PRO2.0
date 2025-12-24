@@ -20,7 +20,7 @@ async function seed() {
     const masterTenant = await prismaMaster.tenant.create({
       data: {
         name: 'MedManager Master',
-        cnpj: '12345678000195',
+        cnpj: '00000000000001',
         databaseName: 'tenant_master',
         databaseUser: 'tenant_master',
         databasePassword: 'master123',
@@ -42,7 +42,7 @@ async function seed() {
     const demoTenant = await prismaMaster.tenant.create({
       data: {
         name: 'Farmácia Demo',
-        cnpj: '98765432000195',
+        cnpj: '12345678000195',
         databaseName: 'tenant_demo',
         databaseUser: 'tenant_demo',
         databasePassword: 'demo123',

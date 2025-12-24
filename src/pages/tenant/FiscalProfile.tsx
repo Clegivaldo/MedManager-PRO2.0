@@ -141,7 +141,7 @@ const FiscalProfile = () => {
   const loadProfile = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/v1/fiscal');
+      const response = await api.get('/fiscal');
       if (response.data.profile) {
         setProfile(response.data.profile);
         setFormData({
@@ -182,7 +182,7 @@ const FiscalProfile = () => {
 
   const loadCertificateStatus = async () => {
     try {
-      const response = await api.get('/api/v1/fiscal/certificate');
+      const response = await api.get('/fiscal/certificate');
       setCertificateStatus(response.data);
     } catch (error: any) {
       if (error.response?.status !== 404) {
@@ -194,7 +194,7 @@ const FiscalProfile = () => {
   const handleSaveProfile = async () => {
     try {
       setLoading(true);
-      const response = await api.post('/api/v1/fiscal', formData);
+      const response = await api.post('/fiscal', formData);
       setProfile(response.data.profile);
       toast({
         title: 'Perfil fiscal salvo',
@@ -205,7 +205,7 @@ const FiscalProfile = () => {
         try {
           const fd = new FormData();
           fd.append('logo', logoFile);
-          await api.post('/api/v1/fiscal/logo', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+          await api.post('/fiscal/logo', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
           toast({ title: 'Logo enviada', description: 'Logo da empresa atualizada.' });
         } catch (err) {
           // não bloquear o salvamento se endpoint não existir
@@ -275,7 +275,7 @@ const FiscalProfile = () => {
       formDataUpload.append('password', certificatePassword);
       formDataUpload.append('certificateType', certificateType);
 
-      const response = await api.post('/api/v1/fiscal/certificate', formDataUpload, {
+      const response = await api.post('/fiscal/certificate', formDataUpload, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
@@ -313,7 +313,7 @@ const FiscalProfile = () => {
 
     try {
       setLoading(true);
-      const response = await api.post('/api/v1/fiscal/series', seriesForm);
+      const response = await api.post('/fiscal/series', seriesForm);
       toast({
         title: 'Série adicionada',
         description: 'Série fiscal criada com sucesso.'

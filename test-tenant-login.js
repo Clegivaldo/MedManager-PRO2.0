@@ -13,7 +13,7 @@ async function testTenantLogin() {
   try {
     console.log('🔍 Buscando usuário...');
     const user = await prisma.user.findUnique({
-      where: { email: 'admin@farmaciademo.com' }
+      where: { email: 'admin@farmaciademo.com.br' }
     });
 
     if (!user) {

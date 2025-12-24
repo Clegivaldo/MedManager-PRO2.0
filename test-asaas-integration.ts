@@ -15,10 +15,10 @@ import axios from 'axios';
 const API_URL = 'http://localhost:3333/api/v1';
 
 // Credenciais de teste (sandbox)
-const SUPERADMIN_EMAIL = process.env.SUPERADMIN_EMAIL || 'admin@farmaciademo.com';
+const SUPERADMIN_EMAIL = process.env.SUPERADMIN_EMAIL || 'admin@farmaciademo.com.br';
 const SUPERADMIN_PASSWORD = process.env.SUPERADMIN_PASSWORD || 'admin123';
 const TENANT_ID = process.env.TEST_TENANT_ID || 'ca1372e9-f78a-489f-b2cd-38ead44e95c9'; // Farmácia Demo
-const TENANT_USER_EMAIL = 'admin@farmaciademo.com';
+const TENANT_USER_EMAIL = 'admin@farmaciademo.com.br';
 const TENANT_USER_PASSWORD = 'admin123';
 
 // Chave Asaas SANDBOX (obtenha em: https://www.asaas.com/docs/reference/sandbox-credentials)

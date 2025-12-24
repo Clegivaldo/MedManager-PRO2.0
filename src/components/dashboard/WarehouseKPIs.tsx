@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Warehouse, TrendingUp, TrendingDown, AlertTriangle, Thermometer } from 'lucide-react';
 import warehouseService from '@/services/warehouse.service';
 import temperatureService from '@/services/temperature.service';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function WarehouseKPIs() {
     const [stats, setStats] = useState({
@@ -12,10 +13,14 @@ export default function WarehouseKPIs() {
         stockItems: 0,
     });
     const [loading, setLoading] = useState(true);
+    const { isAuthenticated, isLoading: authLoading } = useAuth();
 
     useEffect(() => {
-        loadStats();
-    }, []);
+        // ✅ CORREÇÃO: Só carregar dados após autenticação estar completa
+        if (!authLoading && isAuthenticated) {
+            loadStats();
+        }
+    }, [authLoading, isAuthenticated]);
 
     const loadStats = async () => {
         try {

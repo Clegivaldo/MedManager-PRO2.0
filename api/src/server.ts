@@ -46,10 +46,12 @@ import temperatureRouter from './routes/temperature.routes.js';
 import quoteRouter from './routes/quote.routes.js';
 import nfceRouter from './routes/nfce.routes.js';
 import deliveryRouteRouter from './routes/delivery-route.routes.js';
+import systemRouter from './routes/system.routes.js';
 import { authenticateToken } from './middleware/auth.js';
 import { validateSubscription, validateModule } from './middleware/subscription.middleware.js';
-import { initPaymentSyncJob, paymentSyncJob } from './jobs/paymentSync.job.js';
-import { initBackupCleanupJob, backupCleanupJob } from './jobs/backupCleanup.job.js';
+import { initPaymentSyncJob } from './jobs/paymentSync.job.js';
+import { initBackupCleanupJob } from './jobs/backupCleanup.job.js';
+import { requireSuperAdmin } from './middleware/rbac.js';
 
 const app: Application = express();
 
@@ -89,6 +91,7 @@ const limiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => req.method === 'OPTIONS', // NÃO aplicar rate limit em OPTIONS
 });
 
 // Rate limiting - Login (mais restritivo)
@@ -99,6 +102,7 @@ const authLimiter = rateLimit({
     error: 'Too many login attempts, please try again after 15 minutes.',
   },
   skipSuccessfulRequests: true,
+  skip: (req) => req.method === 'OPTIONS', // NÃO aplicar rate limit em OPTIONS
 });
 
 // Disable login limiter outside production or when running Vitest to avoid throttling automated suites
@@ -138,7 +142,13 @@ app.use(cors({
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-tenant-id', 'x-webhook-token'],
+  exposedHeaders: ['Content-Length'],
+  optionsSuccessStatus: 200,
 }));
+
+// CORS preflight handler
+app.options('*', cors());
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -154,19 +164,14 @@ app.use('/static', (req, res, next) => {
 // Static files (logos e avatars) - SEM AUTENTICAÇÃO
 app.use('/static/logos', express.static(path.join(process.cwd(), 'uploads', 'logos')));
 app.use('/static/avatars', express.static(path.join(process.cwd(), 'uploads', 'avatars')));
-app.use('/static/docs', express.static(path.join(process.cwd(), 'uploads', 'docs')));
-
 // Middleware de tenant (deve vir antes das rotas) - SKIP para rotas estáticas
-app.use((req, res, next) => {
-  console.log(`[GLOBAL-LOG] ${req.method} ${req.path}`, {
-    idHeader: req.headers['x-tenant-id'],
-    auth: !!req.headers.authorization
-  });
-
+app.use(async (req, res, next) => {
   if (req.path.startsWith('/static/')) {
     return next();
   }
-  return optionalTenantMiddleware(req, res, next);
+  
+  // Call optionalTenantMiddleware and AWAIT it
+  await optionalTenantMiddleware(req, res, next);
 });
 
 // Rate limiting por Tenant (após identificar o tenant)
@@ -201,6 +206,7 @@ app.use(`/api/${config.API_VERSION}/webhooks`, webhookRouter);
 app.use(`/api/${config.API_VERSION}/docs`, authenticateToken, tenantMiddleware, docsRouter);
 app.use(`/api/${config.API_VERSION}/backup`, authenticateToken, backupRouter);
 app.use(`/api/${config.API_VERSION}/nfce`, nfceRouter);
+app.use(`/api/${config.API_VERSION}/system`, systemRouter);
 
 // Rotas protegidas que exigem assinatura ativa
 app.use(`/api/${config.API_VERSION}/superadmin`, authenticateToken, superadminRouter);
@@ -221,9 +227,11 @@ app.use(`/api/${config.API_VERSION}/dashboard`, authenticateToken, tenantMiddlew
 app.use(`/api/${config.API_VERSION}/batches`, authenticateToken, tenantMiddleware, validateSubscription, batchRouter);
 app.use(`/api/${config.API_VERSION}/orders`, authenticateToken, tenantMiddleware, validateSubscription, validateModule('ORDERS'), orderRouter);
 app.use(`/api/${config.API_VERSION}/warehouses`, authenticateToken, tenantMiddleware, validateSubscription, validateModule('WAREHOUSE'), warehouseRouter);
-app.use(`/api/${config.API_VERSION}/temperature`, authenticateToken, tenantMiddleware, validateSubscription, validateModule('WAREHOUSE'), temperatureRouter);
+app.use(`/api/${config.API_VERSION}/temperature`, authenticateToken, tenantMiddleware, validateSubscription, validateModule('INVENTORY'), temperatureRouter);
 app.use(`/api/${config.API_VERSION}/quotes`, authenticateToken, tenantMiddleware, validateSubscription, validateModule('QUOTES'), quoteRouter);
 app.use(`/api/${config.API_VERSION}/delivery-routes`, authenticateToken, tenantMiddleware, validateSubscription, validateModule('DELIVERY'), deliveryRouteRouter);
+
+// Cron routes moved to routes/system.routes.ts and mounted above
 
 // Rota de teste
 app.get('/api/test', (req, res) => {
@@ -284,39 +292,6 @@ httpServer.listen(PORT, () => {
   initBackupCleanupJob();
 });
 
-// Rotas de status de crons
-app.get(`/api/${config.API_VERSION}/system/cron/payments/status`, (req, res) => {
-  res.json({ success: true, job: paymentSyncJob.getStatus() });
-});
-
-app.get(`/api/${config.API_VERSION}/system/cron/backups/status`, (req, res) => {
-  res.json({ success: true, job: backupCleanupJob.getStatus() });
-});
-
-// Logs recentes do cron de pagamentos
-app.get(`/api/${config.API_VERSION}/system/cron/payments/logs`, (req, res) => {
-  const limit = Number((req.query.limit as string) || '100');
-  const levelFilter = (req.query.level as string) || '';
-  let logs = paymentSyncJob.getLogs(limit);
-  if (levelFilter) {
-    logs = logs.filter(l => l.level === levelFilter);
-  }
-  res.json({ success: true, logs });
-});
-
-// Download arquivo diário de logs do cron de pagamentos
-app.get(`/api/${config.API_VERSION}/system/cron/payments/logs/file`, (req, res) => {
-  const date = (req.query.date as string) || new Date().toISOString().substring(0, 10); // YYYY-MM-DD
-  const pathLib = require('path');
-  const fs = require('fs');
-  const filePath = pathLib.join(process.cwd(), 'logs', `payment-sync-${date}.log`);
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ success: false, error: 'Log file not found for date', date });
-  }
-  res.setHeader('Content-Type', 'text/plain');
-  res.setHeader('Content-Disposition', `attachment; filename=payment-sync-${date}.log`);
-  const stream = fs.createReadStream(filePath);
-  stream.pipe(res);
-});
+// (moved up) cron routes are defined above
 
 export default app;

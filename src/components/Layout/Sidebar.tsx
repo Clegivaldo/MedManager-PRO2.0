@@ -80,8 +80,8 @@ export default function Sidebar({ className }: SidebarProps) {
   const managementItems = (() => {
     let base = baseManagementItems.filter(item => hasModule(item.module));
 
-    // Mostrar Jobs do Sistema apenas para ADMIN ou SUPERADMIN
-    if (role === 'ADMIN' || role === 'SUPERADMIN' || role === 'MASTER') {
+    // Mostrar Jobs do Sistema apenas para SUPERADMIN global (sem tenant)
+    if (isSuperAdminGlobal) {
       base.push({ title: 'Jobs do Sistema', icon: Settings, href: '/system-jobs' } as any);
     }
     // Gateways Pagamento apenas para MASTER/SUPERADMIN

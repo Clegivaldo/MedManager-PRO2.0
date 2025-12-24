@@ -49,6 +49,12 @@ export function authenticateToken(req: Request, res: Response, next: NextFunctio
       }
 
       // Adicionar informações do usuário à requisição
+      console.log('[JWT-DECODE] Decoded token:', {
+        userId: (decoded as any).userId,
+        email: (decoded as any).email,
+        role: (decoded as any).role,
+        tenantId: (decoded as any).tenantId
+      });
       req.user = decoded as JWTPayload;
       next();
     });

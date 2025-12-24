@@ -144,8 +144,8 @@ curl -X POST http://localhost:3333/api/v1/auth/login \
 
 | Nome | CNPJ | Plan | Status |
 |------|------|------|--------|
-| MedManager Master | 12345678000195 | enterprise | active |
-| Farmácia Demo | 98765432000195 | professional | active |
+| MedManager Master | 00000000000001 | enterprise | active |
+| Farmácia Demo | 12345678000195 | professional | active |
 | Drogaria Local | 11223344000155 | starter | active |
 
 ---

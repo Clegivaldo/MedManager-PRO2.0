@@ -9,7 +9,7 @@ const API_URL = 'http://localhost:3333/api/v1';
 
 // Tentar vários usuários conhecidos
 const USERS_TO_TRY = [
-  { email: 'admin@farmaciademo.com', password: 'admin123', name: 'Admin Farmácia Demo' },
+  { email: 'admin@farmaciademo.com.br', password: 'admin123', name: 'Admin Farmácia Demo' },
   { email: 'superadmin@medmanager.com', password: 'superadmin123', name: 'Superadmin' },
   { email: 'super@admin.com', password: 'super123', name: 'Super Admin 2' },
   { email: 'admin@medmanager.com.br', password: 'admin123', name: 'Admin MedManager' },

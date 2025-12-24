@@ -27,6 +27,7 @@ import EmptyState from '@/components/EmptyState';
 import TableSkeleton from '@/components/TableSkeleton';
 import orderService, { Order } from '@/services/order.service';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function Orders() {
   const [loading, setLoading] = useState(true);
@@ -40,6 +41,7 @@ export default function Orders() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const { toast } = useToast();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   const loadOrders = async () => {
     try {
@@ -65,8 +67,11 @@ export default function Orders() {
   };
 
   useEffect(() => {
-    loadOrders();
-  }, [page, searchTerm, selectedStatus]);
+    // ✅ CORREÇÃO: Só carregar dados após autenticação estar completa
+    if (!authLoading && isAuthenticated) {
+      loadOrders();
+    }
+  }, [page, searchTerm, selectedStatus, authLoading, isAuthenticated]);
 
   const handleViewDetails = (order: Order) => {
     setSelectedOrder(order);

@@ -20,6 +20,7 @@ import QuoteDetailsModal from '@/components/tenant/modals/QuoteDetailsModal';
 import EditQuoteModal from '@/components/tenant/modals/EditQuoteModal';
 import quoteService, { Quote } from '@/services/quote.service';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import TableSkeleton from '@/components/TableSkeleton';
 import EmptyState from '@/components/EmptyState';
 
@@ -33,6 +34,7 @@ export default function Quotes() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const { toast } = useToast();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   const loadQuotes = async () => {
     try {
@@ -42,8 +44,8 @@ export default function Quotes() {
         limit: 50,
         search: searchTerm || undefined,
       });
-      setQuotes(response.quotes || []);
-      setTotal(response.pagination?.total || 0);
+      setQuotes(response.data?.quotes || []);
+      setTotal(response.data?.pagination?.total || 0);
     } catch (error) {
       console.error('Error loading quotes:', error);
       toast({
@@ -57,8 +59,11 @@ export default function Quotes() {
   };
 
   useEffect(() => {
-    loadQuotes();
-  }, [page, searchTerm]);
+    // ✅ CORREÇÃO: Só carregar dados após autenticação estar completa
+    if (!authLoading && isAuthenticated) {
+      loadQuotes();
+    }
+  }, [page, searchTerm, authLoading, isAuthenticated]);
 
   const handleViewDetails = (quote: Quote) => {
     setSelectedQuote(quote);
@@ -151,7 +156,7 @@ export default function Quotes() {
             </Table>
           ) : (
             <EmptyState
-              icon={FileText}
+              icon={<FileText className="h-12 w-12" />}
               title="Nenhum orçamento encontrado"
               description="Não há orçamentos cadastrados no sistema."
               action={<Button>Criar Primeiro Orçamento</Button>}

@@ -169,8 +169,10 @@ function AppContent() {
                   <Route path="payment-gateway-config" element={<PaymentGatewayConfig />} />
                   <Route path="my-invoices" element={<MyInvoices />} />
                   <Route path="usage" element={<Usage />} />
-                  {/* Admin util: status de jobs do sistema */}
-                  <Route path="system-jobs" element={<SystemJobsStatus />} />
+                  {/* Admin util: status de jobs do sistema (apenas SUPERADMIN) */}
+                  <Route path="system-jobs" element={<ProtectedRoute allowedRoles={['SUPERADMIN']} />}> 
+                    <Route index element={<SystemJobsStatus />} />
+                  </Route>
                 </Route>
               </Route>
 

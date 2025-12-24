@@ -22,6 +22,11 @@ COPY public ./public
 COPY src ./src
 
 ENV NODE_ENV=development
-ENV VITE_API_BASE_URL=http://localhost:3333/api/v1
+# Em Docker, usar 'backend' como hostname (nome do serviço no docker-compose)
+# Para desenvolvimento local fora do Docker, VITE_API_URL pode ser sobrescrito
+ENV VITE_API_BASE_URL=http://backend:3333/api/v1
+
 EXPOSE 5173
-CMD ["pnpm", "dev", "--host", "0.0.0.0"]
+
+# Start Vite dev server for the frontend container
+CMD ["pnpm", "dev", "--host", "0.0.0.0", "--port", "5173"]

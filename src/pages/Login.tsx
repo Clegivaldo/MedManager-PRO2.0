@@ -16,7 +16,7 @@ export default function Login() {
   const { toast } = useToast();
   
   const [emailLogin, setEmailLogin] = useState({ email: '', password: '' });
-  const [cnpjLogin, setCnpjLogin] = useState({ cnpj: '', password: '' });
+  const [cnpjLogin, setCnpjLogin] = useState({ cnpj: '', email: '', password: '' }); // ✅ NOVO: adicionar email
   const [isLoading, setIsLoading] = useState(false);
   const [showEmailPassword, setShowEmailPassword] = useState(false);
   const [showTenantPassword, setShowTenantPassword] = useState(false);
@@ -48,7 +48,12 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      const response = await login({ cnpj: cnpjLogin.cnpj, email: (cnpjLogin as any).email, password: cnpjLogin.password });
+      // ✅ NOVO: Garantir que email é passado para usar /auth/login-tenant
+      const response = await login({ 
+        cnpj: cnpjLogin.cnpj, 
+        email: cnpjLogin.email, 
+        password: cnpjLogin.password 
+      });
       const role = response.user.role.toUpperCase();
       if (role === 'SUPERADMIN') {
         navigate('/superadmin');
@@ -205,8 +210,8 @@ export default function Login() {
                       id="cnpj-email"
                       type="email"
                       placeholder="seu@email.com"
-                      value={(cnpjLogin as any).email || ''}
-                      onChange={(e) => setCnpjLogin({ ...cnpjLogin, ...(cnpjLogin as any), email: e.target.value })}
+                      value={cnpjLogin.email}
+                      onChange={(e) => setCnpjLogin({ ...cnpjLogin, email: e.target.value })}
                       className="h-11"
                       disabled={isLoading}
                       required

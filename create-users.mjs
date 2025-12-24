@@ -4,8 +4,8 @@ const { spawn } = require('child_process');
 const path = require('path');
 
 const tenants = [
-  { cnpj: '12345678000195', email: 'admin@medmanager.com', password: 'admin123', name: 'Master Admin' },
-  { cnpj: '98765432000195', email: 'admin@farmaciademo.com', password: 'demo123', name: 'Demo Admin' },
+  { cnpj: '00000000000001', email: 'admin@farmaciademo.com.br', password: 'admin123', name: 'Master Admin' },
+  { cnpj: '12345678000195', email: 'admin@farmaciademo.com.br', password: 'admin123', name: 'Demo Admin' },
   { cnpj: '11223344000155', email: 'admin@drogaria.com', password: 'starter123', name: 'Starter Admin' }
 ];
 

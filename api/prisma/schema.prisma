@@ -182,6 +182,44 @@ model User {
   @@index([role])
 }
 
+// Armazéns (estoques físicos)
+model Warehouse {
+  id               String   @id @default(uuid())
+  name             String
+  code             String   @unique
+  description      String?
+  address          String?
+  temperatureMin   Float?   @map("temperature_min")
+  temperatureMax   Float?   @map("temperature_max")
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  // Relacionamentos
+  temperatureReadings TemperatureReading[]
+
+  @@map("warehouses")
+  @@index([code])
+}
+
+// Leituras de temperatura por armazém
+model TemperatureReading {
+  id            String   @id @default(uuid())
+  warehouseId   String   @map("warehouse_id")
+  temperature   Float
+  humidity      Float?
+  recordedBy    String?  @map("recorded_by")
+  recordedAt    DateTime @default(now()) @map("recorded_at")
+  isAlert       Boolean  @default(false) @map("is_alert")
+  alertMessage  String?  @map("alert_message")
+
+  // Relacionamentos
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+
+  @@map("temperature_readings")
+  @@index([warehouseId, recordedAt])
+}
+
 model FinancialTransaction {
   id            String    @id @default(uuid())
   type          String    // RECEIVABLE, PAYABLE
@@ -246,6 +284,7 @@ model Product {
   stock         Stock[]
   invoiceItems  InvoiceItem[]
   orderItems    OrderItem[]
+  quoteItems    QuoteItem[]
   controlledSubstances ControlledSubstance[]
   medicationTrackings MedicationTracking[]
   
@@ -298,6 +337,7 @@ model Stock {
   
   @@unique([productId, batchId])
   @@index([location])
+  @@map("stock")
 }
 
 model StockMovement {
@@ -338,6 +378,7 @@ model Customer {
   // Relacionamentos
   invoices      Invoice[]
   orders        Order[]
+  quotes        Quote[]
   controlledPrescriptions ControlledPrescription[]
   controlledSubstanceMovements ControlledSubstanceMovement[]
   
@@ -871,6 +912,7 @@ model Order {
   // Relations
   customer      Customer    @relation(fields: [customerId], references: [id])
   items         OrderItem[]
+  routeStops    RouteStop[]
   
   @@map("orders")
   @@index([customerId])
@@ -900,6 +942,83 @@ enum OrderStatus {
   SHIPPED
   DELIVERED
   CANCELLED
+}
+
+// Quotes (Orçamentos)
+model Quote {
+  id          String      @id @default(uuid())
+  quoteNumber String      @unique @map("quote_number")
+  customerId  String      @map("customer_id")
+  validUntil  DateTime    @map("valid_until")
+  totalAmount Float       @map("total_amount")
+  status      String      @default("pending") // pending, sent, approved, rejected
+  notes       String?
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  customer    Customer    @relation(fields: [customerId], references: [id])
+  items       QuoteItem[]
+
+  @@map("quotes")
+  @@index([customerId])
+  @@index([status])
+}
+
+model QuoteItem {
+  id        String  @id @default(uuid())
+  quoteId   String  @map("quote_id")
+  productId String  @map("product_id")
+  quantity  Int
+  unitPrice Float   @map("unit_price")
+  totalPrice Float  @map("total_price")
+
+  // Relations
+  quote     Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@map("quote_items")
+  @@index([quoteId])
+}
+
+// Delivery Routes (Rotas de Entrega)
+model DeliveryRoute {
+  id             String      @id @default(uuid())
+  routeNumber    String      @unique @map("route_number")
+  driverName     String      @map("driver_name")
+  vehiclePlate   String      @map("vehicle_plate")
+  plannedDate    DateTime    @map("planned_date")
+  status         String      @default("planning") // planning, in_progress, completed, cancelled
+  totalStops     Int         @default(0) @map("total_stops")
+  completedStops Int         @default(0) @map("completed_stops")
+  notes          String?
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  stops          RouteStop[]
+
+  @@map("delivery_routes")
+  @@index([status])
+  @@index([plannedDate])
+}
+
+model RouteStop {
+  id              String        @id @default(uuid())
+  routeId         String        @map("route_id")
+  orderId         String        @map("order_id")
+  stopSequence    Int           @map("stop_sequence")
+  customerAddress String        @map("customer_address")
+  isCompleted     Boolean       @default(false) @map("is_completed")
+  completedAt     DateTime?     @map("completed_at")
+
+  // Relations
+  route           DeliveryRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  order           Order         @relation(fields: [orderId], references: [id])
+
+  @@map("route_stops")
+  @@index([routeId])
+  @@index([orderId])
 }
 
 // Configuração Global de Gateways de Pagamento (chaves da plataforma)

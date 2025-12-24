@@ -90,7 +90,7 @@ class CompletePaymentFlowTest {
   private async authenticate() {
     try {
       const response = await axios.post(`${API_URL}/auth/login`, {
-        email: 'admin@farmaciademo.com',
+        email: 'admin@farmaciademo.com.br',
         password: 'admin123'
       });
 

@@ -21,6 +21,14 @@ export interface RefreshTokenPayload {
  * Gera token JWT de acesso
  */
 export function generateAccessToken(payload: JWTPayload): string {
+  console.log('[JWT-GENERATE] Access token payload:', {
+    userId: payload.userId,
+    email: payload.email,
+    role: payload.role,
+    tenantId: payload.tenantId,
+    hasPermissions: Array.isArray(payload.permissions)
+  });
+  
   return jwt.sign(payload, config.JWT_SECRET, {
     expiresIn: config.JWT_EXPIRES_IN as any,
     issuer: 'medmanager-api',

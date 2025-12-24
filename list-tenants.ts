@@ -11,7 +11,7 @@ async function main() {
   try {
     console.log('🔐 Fazendo login como superadmin...');
     const loginRes = await axios.post(`${API_URL}/auth/login`, {
-      email: 'admin@farmaciademo.com',
+      email: 'admin@farmaciademo.com.br',
       password: 'admin123'
     });
     const token = loginRes.data.data?.tokens?.accessToken;

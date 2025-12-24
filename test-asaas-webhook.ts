@@ -7,7 +7,7 @@ import axios, { AxiosError } from 'axios';
 
 const API_URL = 'http://localhost:3333/api/v1';
 const TENANT_ID = 'bde5734e-fdff-427c-b013-1c81116ea604';
-const TEST_USER_EMAIL = 'admin@farmaciademo.com';
+const TEST_USER_EMAIL = 'admin@farmaciademo.com.br';
 const TEST_USER_PASSWORD = 'admin123';
 
 interface ApiResponse<T = any> {

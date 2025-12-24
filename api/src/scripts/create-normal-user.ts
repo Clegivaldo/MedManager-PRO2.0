@@ -6,7 +6,7 @@ async function createNormalUser() {
     console.log('👤 Criando usuário de teste (login master /auth/login)...');
 
     // Email e senha esperados pelo script de teste completo
-    const email = 'admin@farmaciademo.com';
+    const email = 'admin@farmaciademo.com.br';
     const passwordPlain = 'admin123';
 
     // Verificar existência

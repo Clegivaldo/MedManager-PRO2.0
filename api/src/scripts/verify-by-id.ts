@@ -9,8 +9,13 @@ async function verify() {
     if (tenant) {
         console.log('--- TENANT DATA BY ID ---');
         console.log('ID:', tenant.id);
-        console.log('CNPJ:', tenant.cnpj);
-        console.log('Modules:', tenant.modulesEnabled);
+                console.log('CNPJ:', tenant.cnpj);
+                console.log('DB:', {
+                    databaseName: tenant.databaseName,
+                    databaseUser: tenant.databaseUser,
+                    databasePassword: tenant.databasePassword
+                });
+                console.log('Modules:', tenant.modulesEnabled);
     } else {
         console.log('Tenant not found by ID:', id);
     }

@@ -18,7 +18,14 @@ export const validateSubscription = async (
 ) => {
   console.log(`\n🔍 [validateSubscription] MIDDLEWARE EXECUTADO - PATH: ${req.path}`);
   try {
-    const tenantId = req.headers['x-tenant-id'] as string;
+    // Tentar obter tenantId de várias fontes
+    const tenantFromRequest = (req as any).tenant;
+    const tenantIdFromHeader = req.headers['x-tenant-id'] as string;
+    const tenantIdFromJwt = (req as any).user?.tenantId;
+    const tenantIdFromContext = tenantFromRequest?.id;
+    
+    // Prioridade: context > JWT > header
+    const tenantId = tenantIdFromContext || tenantIdFromJwt || tenantIdFromHeader;
     const userRole = (req as any).user?.role;
 
     logger.info(`[validateSubscription] Validando tenant: ${tenantId}, role: ${userRole}`);

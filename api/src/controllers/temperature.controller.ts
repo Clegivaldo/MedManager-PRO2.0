@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { getTenantPrisma } from '../lib/tenant-prisma.js';
 import { z } from 'zod';
 import { AppError } from '../middleware/errorHandler.js';
@@ -12,7 +12,7 @@ const temperatureSchema = z.object({
 
 export class TemperatureController {
     // POST /api/v1/temperature - Record temperature
-    async record(req: Request, res: Response) {
+    async record(req: Request, res: Response, next: NextFunction) {
         try {
             const data = temperatureSchema.parse(req.body);
             const prisma = getTenantPrisma((req as any).tenant);
@@ -57,12 +57,12 @@ export class TemperatureController {
                 data: reading,
             });
         } catch (error) {
-            throw error;
+            return next(error as any);
         }
     }
 
     // GET /api/v1/temperature/latest - Get latest readings per warehouse
-    async getLatest(req: Request, res: Response) {
+    async getLatest(req: Request, res: Response, next: NextFunction) {
         try {
             const prisma = getTenantPrisma((req as any).tenant);
 
@@ -90,12 +90,12 @@ export class TemperatureController {
                 data: latestReadings,
             });
         } catch (error) {
-            throw error;
+            return next(error as any);
         }
     }
 
     // GET /api/v1/temperature/warehouse/:warehouseId - Get temperature history
-    async getHistory(req: Request, res: Response) {
+    async getHistory(req: Request, res: Response, next: NextFunction) {
         try {
             const { warehouseId } = req.params;
             const { limit = 50, page = 1 } = req.query;
@@ -128,15 +128,25 @@ export class TemperatureController {
                 },
             });
         } catch (error) {
-            throw error;
+            return next(error as any);
         }
     }
 
     // GET /api/v1/temperature/alerts - Get temperature alerts
-    async getAlerts(req: Request, res: Response) {
+    async getAlerts(req: Request, res: Response, next: NextFunction) {
         try {
             const { limit = 20 } = req.query;
-            const prisma = getTenantPrisma((req as any).tenant);
+            const tenant = (req as any).tenant;
+            console.log('[TEMPERATURE-ALERTS] Tenant context:', { id: tenant?.id, databaseName: tenant?.databaseName });
+            
+            if (!tenant) {
+                throw new Error('Tenant context is required for temperature alerts');
+            }
+            
+            const prisma = getTenantPrisma(tenant);
+            if (!prisma) {
+                throw new Error('Failed to initialize Prisma client for tenant: ' + tenant.id);
+            }
 
             const alerts = await prisma.temperatureReading.findMany({
                 where: { isAlert: true },
@@ -147,12 +157,13 @@ export class TemperatureController {
                 },
             });
 
-            res.json({
+            return res.json({
                 success: true,
                 data: alerts,
             });
         } catch (error) {
-            throw error;
+            console.error('[TEMPERATURE-ALERTS] Error:', error instanceof Error ? error.message : error);
+            return next(error as any);
         }
     }
 }

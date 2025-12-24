@@ -104,7 +104,7 @@ npx tsx test-create-charge-and-webhook.ts BOLETO
 
 ### Via Interface Web
 1. http://localhost:5173
-2. Login: `admin@farmaciademo.com` / `admin123`
+2. Login: `admin@farmaciademo.com.br` / `admin123`
 3. Menu → Tenants
 4. Clicar botão roxo (💳) em qualquer tenant
 5. **Inserir 5.00** ← **Agora persiste!** ✅

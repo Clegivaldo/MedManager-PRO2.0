@@ -26,7 +26,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const tenant = authService.getTenant();
 
           if (user) {
-            // Se temos usuário em cache, tentamos buscar dados atualizados ANTES de liberar o loading
+            // ✅ CORREÇÃO: Liberar loading IMEDIATAMENTE com dados do cache
+            setState({
+              user,
+              tenant,
+              isAuthenticated: true,
+              isLoading: false,
+            });
+
+            // ✅ DEPOIS tentar atualizar dados em background (não bloqueia a UI)
             try {
               const { user: updatedUser, tenant: updatedTenant } = await authService.getCurrentUser();
               setState({
@@ -37,13 +45,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               });
             } catch (error) {
               console.error('Erro ao buscar perfil atualizado na inicialização:', error);
-              // Em caso de erro na atualização, usa o cache se disponível
-              setState({
-                user,
-                tenant,
-                isAuthenticated: true,
-                isLoading: false,
-              });
+              // Em caso de erro, mantemos os dados do cache que já foram setados
             }
           } else {
             setState(prev => ({ ...prev, isLoading: false }));

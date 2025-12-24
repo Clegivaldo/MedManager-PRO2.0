@@ -1,7 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger.js';
 import { prismaMaster } from '../lib/prisma.js';
 import { AppError } from '../utils/errors.js';
+import { config } from '../config/environment.js';
 
 // Interface estendida para Request com tenant
 export interface TenantRequest extends Request {
@@ -28,9 +30,25 @@ export async function tenantMiddleware(
 ): Promise<void> {
   const tenantReq = req as TenantRequest;
   try {
-    // Obter tenant ID do header ou subdomínio
-    const tenantId = tenantReq.headers['x-tenant-id'] as string;
+    // Obter tenant ID do header ou do JWT
+    let tenantId = tenantReq.headers['x-tenant-id'] as string | undefined;
     const tenantCnpj = tenantReq.headers['x-tenant-cnpj'] as string;
+
+    // Se não estiver no header, tentar extrair do JWT
+    if (!tenantId) {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+          const token = authHeader.substring(7);
+          const decoded: any = jwt.verify(token, config.JWT_SECRET);
+          tenantId = decoded.tenantId;
+          console.log('[TENANT-MIDDLEWARE] tenantId extracted from JWT:', tenantId);
+        } catch (jwtErr) {
+          // JWT inválido ou expirado, continuar para erro abaixo
+          console.log('[TENANT-MIDDLEWARE] Failed to extract tenantId from JWT:', (jwtErr as Error).message);
+        }
+      }
+    }
 
     if (!tenantId && !tenantCnpj) {
       throw new AppError('Tenant identification required', 400);
@@ -102,11 +120,28 @@ export async function optionalTenantMiddleware(
 ): Promise<void> {
   const tenantReq = req as TenantRequest;
   try {
-    const tenantId = (req.headers['x-tenant-id'] as string) || (req as any).user?.tenantId;
+    let tenantIdFromJwt: string | undefined;
+    
+    // Tentar extrair tenantId do JWT se houver Authorization header
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.substring(7);
+        const decoded: any = jwt.verify(token, config.JWT_SECRET);
+        tenantIdFromJwt = decoded.tenantId;
+        console.log('[DEBUG-MIDDLEWARE] tenantId extracted from JWT:', tenantIdFromJwt);
+      } catch (jwtErr) {
+        // JWT inválido ou expirado, continuar
+        console.log('[DEBUG-MIDDLEWARE] Failed to extract tenantId from JWT:', (jwtErr as Error).message);
+      }
+    }
+    
+    const tenantId = (req.headers['x-tenant-id'] as string) || tenantIdFromJwt || (req as any).user?.tenantId;
     const tenantCnpj = req.headers['x-tenant-cnpj'] as string;
 
     console.log('[DEBUG-MIDDLEWARE] optionalTenantMiddleware started', {
       tenantIdInHeader: req.headers['x-tenant-id'],
+      tenantIdInJwt: tenantIdFromJwt,
       tenantIdInUser: (req as any).user?.tenantId,
       finalTenantId: tenantId
     });

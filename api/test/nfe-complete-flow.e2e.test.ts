@@ -82,7 +82,7 @@ describe('NF-e Complete E2E Flow', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: 'admin@farmaciademo.com',
+          email: 'admin@farmaciademo.com.br',
           password: 'admin123',
           tenantCnpj
         })

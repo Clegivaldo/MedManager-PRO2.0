@@ -22,6 +22,7 @@ import EmptyState from '@/components/EmptyState';
 import TableSkeleton from '@/components/TableSkeleton';
 import customerService, { Customer } from '@/services/customer.service';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function Clients() {
   const [loading, setLoading] = useState(true);
@@ -34,6 +35,7 @@ export default function Clients() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const { toast } = useToast();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   const loadClients = async () => {
     try {
@@ -59,8 +61,11 @@ export default function Clients() {
   };
 
   useEffect(() => {
-    loadClients();
-  }, [page, searchTerm]);
+    // ✅ CORREÇÃO: Só carregar dados após autenticação estar completa
+    if (!authLoading && isAuthenticated) {
+      loadClients();
+    }
+  }, [page, searchTerm, authLoading, isAuthenticated]);
 
   const handleViewDetails = (client: Customer) => {
     setSelectedClient(client);
@@ -189,7 +194,7 @@ export default function Clients() {
             </Table>
           ) : (
             <EmptyState
-              icon={Users}
+              icon={<Users className="h-12 w-12" />}
               title="Nenhum cliente encontrado"
               description="Não há clientes cadastrados no sistema."
               action={<Button onClick={handleCreate}>Adicionar Primeiro Cliente</Button>}

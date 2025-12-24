@@ -30,9 +30,10 @@ interface TenantConnectionConfig {
 }
 
 /**
- * Cria ou obtém cliente Prisma para um tenant específico
+ * Cria ou obtém cliente Prisma para um tenant específico (versão legacy com TenantConnectionConfig)
+ * @deprecated Use getTenantPrisma from tenant-prisma.ts instead
  */
-export function getTenantPrisma(conn: TenantConnectionConfig): PrismaClientType {
+export function getTenantPrismaLegacy(conn: TenantConnectionConfig): PrismaClientType {
   const { databaseName, databaseUser, databasePassword } = conn;
   const poolKey = `${databaseName}:${databaseUser}`;
 

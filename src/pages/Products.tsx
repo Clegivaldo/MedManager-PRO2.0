@@ -21,6 +21,7 @@ import EmptyState from '@/components/EmptyState';
 import TableSkeleton from '@/components/TableSkeleton';
 import productService, { Product } from '@/services/product.service';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function Products() {
   const [loading, setLoading] = useState(true);
@@ -33,6 +34,7 @@ export default function Products() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const { toast } = useToast();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   const loadProducts = async () => {
     try {
@@ -58,8 +60,11 @@ export default function Products() {
   };
 
   useEffect(() => {
-    loadProducts();
-  }, [page, searchTerm]);
+    // ✅ CORREÇÃO: Só carregar dados após autenticação estar completa
+    if (!authLoading && isAuthenticated) {
+      loadProducts();
+    }
+  }, [page, searchTerm, authLoading, isAuthenticated]);
 
   const handleViewDetails = (product: Product) => {
     setSelectedProduct(product);
@@ -170,7 +175,7 @@ export default function Products() {
             </Table>
           ) : (
             <EmptyState
-              icon={Package}
+              icon={<Package className="h-12 w-12" />}
               title="Nenhum produto encontrado"
               description="Não há produtos cadastrados no sistema."
               action={<Button onClick={handleCreate}>Adicionar Primeiro Produto</Button>}
