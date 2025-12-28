@@ -51,3 +51,46 @@ export function maskSecret(secret: string | null | undefined): string | null {
   const tail = secret.slice(-4);
   return `${head}***${tail}`;
 }
+
+/**
+ * Encripta arquivo de backup (usualmente um arquivo SQL.GZ)
+ * Lê arquivo, encripta conteúdo, salva como arquivo.enc
+ */
+export function encryptBackupFile(inputPath: string, outputPath: string): void {
+  const fs = require('fs');
+  const data = fs.readFileSync(inputPath);
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', KEY, iv);
+  const encrypted = Buffer.concat([cipher.update(data), cipher.final()]);
+  const tag = cipher.getAuthTag();
+
+  // Formato: v1:iv:tag:data (tudo em base64)
+  const header = Buffer.from(`v1:${iv.toString('base64')}:${tag.toString('base64')}:`);
+  fs.writeFileSync(outputPath, Buffer.concat([header, encrypted]));
+}
+
+/**
+ * Decripta arquivo de backup
+ */
+export function decryptBackupFile(inputPath: string, outputPath: string): void {
+  const fs = require('fs');
+  const encrypted = fs.readFileSync(inputPath);
+
+  // Parse: v1:iv:tag:data
+  const headerEnd = encrypted.indexOf(Buffer.from(':data:'));
+  if (headerEnd === -1) throw new Error('Invalid encrypted backup format');
+
+  const header = encrypted.slice(0, headerEnd).toString('utf8');
+  const parts = header.split(':');
+  if (parts.length < 3 || parts[0] !== 'v1') throw new Error('Invalid backup header');
+
+  const [, ivB64, tagB64] = parts;
+  const iv = Buffer.from(ivB64, 'base64');
+  const tag = Buffer.from(tagB64, 'base64');
+  const data = encrypted.slice(headerEnd + 6); // Skip ':data:'
+
+  const decipher = crypto.createDecipheriv('aes-256-gcm', KEY, iv);
+  decipher.setAuthTag(tag);
+  const decrypted = Buffer.concat([decipher.update(data), decipher.final()]);
+  fs.writeFileSync(outputPath, decrypted);
+}

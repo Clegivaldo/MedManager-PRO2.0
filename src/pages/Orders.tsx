@@ -56,11 +56,6 @@ export default function Orders() {
       setTotal(response.meta?.total || 0);
     } catch (error) {
       console.error('Error loading orders:', error);
-      toast({
-        title: 'Erro',
-        description: 'Não foi possível carregar os pedidos.',
-        variant: 'destructive',
-      });
     } finally {
       setLoading(false);
     }
@@ -81,6 +76,12 @@ export default function Orders() {
   const handleEdit = (order: Order) => {
     setSelectedOrder(order);
     setIsEditOpen(true);
+  };
+
+  const handleOrderSuccess = () => {
+    loadOrders();
+    setIsCreateOpen(false);
+    setIsEditOpen(false);
   };
 
   const getStatusBadge = (status: string) => {
@@ -128,7 +129,7 @@ export default function Orders() {
               Novo Pedido
             </Button>
           </DialogTrigger>
-          <NewOrderModal />
+          <NewOrderModal onSuccess={handleOrderSuccess} />
         </Dialog>
       </div>
 
@@ -246,7 +247,7 @@ export default function Orders() {
       </Dialog>
 
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <EditOrderModal order={selectedOrder} />
+        {selectedOrder && <EditOrderModal order={selectedOrder} onSuccess={handleOrderSuccess} />}
       </Dialog>
     </>
   );

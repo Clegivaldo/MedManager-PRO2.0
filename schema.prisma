@@ -1,4 +1,4 @@
-﻿// Prisma schema for PostgreSQL - Unified version
+// Prisma schema for PostgreSQL - Unified version
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
@@ -67,7 +67,7 @@ model TenantFiscalProfile {
   certificatePath       String?   @map("certificate_path")
   certificatePassword   String?   @map("certificate_password")
   certificateExpiresAt  DateTime? @map("certificate_expires_at")
-  sefazEnvironment      String    @default("homologacao") @map("sefaz_environment")
+  sefazEnvironment      SefazEnvironment @default(HOMOLOGACAO) @map("sefaz_environment")
   isActive              Boolean   @default(true) @map("is_active")
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
@@ -553,7 +553,7 @@ model TenantSettings {
   // ConfiguraÃ§Ãµes SEFAZ
   cscId                   String?   @map("csc_id")
   cscToken                String?   @map("csc_token")
-  sefazEnvironment        SefazEnvironment @default("HOMOLOGACAO") @map("sefaz_environment")
+  sefazEnvironment        SefazEnvironment @default(HOMOLOGACAO) @map("sefaz_environment")
   
   // NumeraÃ§Ã£o de NFe
   nfeNextNumber           Int       @default(1) @map("nfe_next_number")

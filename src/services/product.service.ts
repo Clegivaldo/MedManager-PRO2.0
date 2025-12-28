@@ -15,11 +15,16 @@ export interface Product {
   controlledSubstance?: string | null;
   stripe: 'NONE' | 'BLACK' | 'RED';
   shelfLifeDays?: number | null;
+  price?: number;
+  stock?: number;
+  // Campos fiscais
+  ncm?: string | null;
+  cest?: string | null;
+  cfop?: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
   batches?: any[];
-  stock?: any[];
   compliance?: {
     hasValidRegistration: boolean;
     hasValidBatch: boolean;
@@ -52,6 +57,10 @@ export interface ProductFormData {
   controlledSubstance?: string;
   stripe?: 'NONE' | 'BLACK' | 'RED';
   shelfLifeDays?: number;
+  // Campos fiscais
+  ncm?: string;
+  cest?: string;
+  cfop?: string;
   isActive?: boolean;
 }
 
@@ -66,7 +75,7 @@ class ProductService {
         pages: number;
       };
     }>>('/products', { params: filters });
-    
+
     return response.data.data;
   }
 

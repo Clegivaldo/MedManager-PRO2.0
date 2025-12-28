@@ -120,6 +120,7 @@ export const PERMISSIONS = {
   BACKUP_CREATE: 'backup_create',
   BACKUP_RESTORE: 'backup_restore',
   BACKUP_VIEW: 'backup_view',
+  BACKUP_DOWNLOAD: 'backup_download',
   BACKUP_MANAGE: 'backup_manage',
   
   // System Configuration
@@ -421,8 +422,8 @@ export const requirePermission = (permission: string) => {
         throw new AppError('User not authenticated', 401);
       }
 
-      // Superadmin bypass
-      if (req.user.role === UserRole.SUPERADMIN) {
+      // Superadmin and Master bypass (Master has full tenant-level access)
+      if (req.user.role === UserRole.SUPERADMIN || req.user.role === UserRole.MASTER) {
         return next();
       }
 

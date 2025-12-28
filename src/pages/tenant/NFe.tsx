@@ -7,9 +7,10 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   FileText, Download, X, Search, Filter, Calendar,
-  ChevronLeft, ChevronRight, RefreshCw, Loader2, Edit2
+  ChevronLeft, ChevronRight, RefreshCw, Loader2, Edit2, Plus
 } from 'lucide-react';
 import { CorrectionModal } from './CorrectionModal';
 import { InutilizacaoModal } from './InutilizacaoModal';
@@ -196,6 +197,10 @@ export default function NFe() {
               <CardDescription>{total} notas fiscais encontradas</CardDescription>
             </div>
             <div className="flex gap-2">
+              <Button className="bg-blue-600 hover:bg-blue-700" size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                Emitir NF-e
+              </Button>
               <Button onClick={() => setIsInutilizacaoModalOpen(true)} variant="secondary" size="sm">
                 Inutilizar Nº
               </Button>
@@ -338,65 +343,86 @@ export default function NFe() {
                     <TableCell className="font-medium">{formatCurrency(Number(invoice.totalValue))}</TableCell>
                     <TableCell>{getStatusBadge(invoice.status)}</TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDownloadDANFE(invoice.id)}
-                          disabled={downloadingId === invoice.id}
-                        >
-                          {downloadingId === invoice.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <>
-                              <Download className="h-4 w-4 mr-1" />
-                              DANFE
-                            </>
+                      <TooltipProvider>
+                        <div className="flex justify-end gap-2">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDownloadDANFE(invoice.id)}
+                                disabled={downloadingId === invoice.id}
+                              >
+                                {downloadingId === invoice.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <>
+                                    <Download className="h-4 w-4 mr-1" />
+                                    DANFE
+                                  </>
+                                )}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Baixar DANFE (PDF)</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDownloadXML(invoice.id)}
+                                disabled={downloadingId === invoice.id}
+                              >
+                                {downloadingId === invoice.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <>
+                                    <Download className="h-4 w-4 mr-1" />
+                                    XML
+                                  </>
+                                )}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Baixar XML da NF-e</TooltipContent>
+                          </Tooltip>
+                          {invoice.status === 'AUTHORIZED' && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleCancelInvoice(invoice.id)}
+                                  disabled={cancellingId === invoice.id}
+                                >
+                                  {cancellingId === invoice.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <X className="h-4 w-4 text-red-600" />
+                                  )}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Cancelar NF-e</TooltipContent>
+                            </Tooltip>
                           )}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDownloadXML(invoice.id)}
-                          disabled={downloadingId === invoice.id}
-                        >
-                          {downloadingId === invoice.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <>
-                              <Download className="h-4 w-4 mr-1" />
-                              XML
-                            </>
+                          {invoice.status === 'AUTHORIZED' && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedInvoiceId(invoice.id);
+                                    setIsCorrectionModalOpen(true);
+                                  }}
+                                >
+                                  <Edit2 className="h-4 w-4 text-blue-600" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Carta de Correção</TooltipContent>
+                            </Tooltip>
                           )}
-                        </Button>
-                        {invoice.status === 'AUTHORIZED' && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleCancelInvoice(invoice.id)}
-                            disabled={cancellingId === invoice.id}
-                          >
-                            {cancellingId === invoice.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <X className="h-4 w-4 text-red-600" />
-                            )}
-                          </Button>
-                        )}
-                        {invoice.status === 'AUTHORIZED' && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            title="Carta de Correção"
-                            onClick={() => {
-                              setSelectedInvoiceId(invoice.id);
-                              setIsCorrectionModalOpen(true);
-                            }}
-                          >
-                            <Edit2 className="h-4 w-4 text-blue-600" />
-                          </Button>
-                        )}
-                      </div>
+                        </div>
+                      </TooltipProvider>
                     </TableCell>
                   </TableRow>
                 ))

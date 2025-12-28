@@ -31,13 +31,28 @@ export function extractCertificateInfo(
   password: string
 ): CertificateInfo {
   try {
-    // Converter buffer para formato base64
+    // Converter para string base64
     const pfxBase64 = pfxBuffer.toString('base64');
-    const pfxAsn1 = forge.util.decode64(pfxBase64);
     
-    // Parse do arquivo PKCS#12
-    const p12Asn1 = forge.asn1.fromDer(pfxAsn1);
-    const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, password);
+    // Decodificar base64
+    const decodedPfx = forge.util.decode64(pfxBase64) as any;
+    
+    // Converter para DER
+    const pfxAsn1 = forge.asn1.fromDer(decodedPfx);
+    
+    let p12;
+    try {
+      // Tentar com a senha fornecida
+      p12 = forge.pkcs12.pkcs12FromAsn1(pfxAsn1, password);
+    } catch (error: any) {
+      // Se falhar, tentar sem senha
+      try {
+        p12 = forge.pkcs12.pkcs12FromAsn1(pfxAsn1, '');
+      } catch (e: any) {
+        // Se ainda falhar, tentar com null
+        p12 = forge.pkcs12.pkcs12FromAsn1(pfxAsn1, null as any);
+      }
+    }
 
     // Extrair certificado
     const certBags = p12.getBags({ bagType: forge.pki.oids.certBag });

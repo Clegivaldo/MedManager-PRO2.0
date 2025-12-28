@@ -65,6 +65,14 @@ class UserManagementService {
     }
 
     /**
+     * Obter um usuário por ID (inclui permissões)
+     */
+    async getUser(id: string): Promise<User & { permissions?: string[] } > {
+        const response = await api.get(`/users/${id}`);
+        return response.data.data;
+    }
+
+    /**
      * Desativar usuário
      */
     async deactivateUser(id: string): Promise<void> {

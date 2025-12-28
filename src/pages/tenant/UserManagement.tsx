@@ -85,11 +85,9 @@ export default function UserManagement() {
       setTotal(response.total);
       setTotalPages(Math.ceil(response.total / 10));
     } catch (error) {
-      toast({
-        title: 'Erro ao carregar usuários',
-        description: getErrorMessage(error),
-        variant: 'destructive',
-      });
+      // Erro já tratado globalmente no api.ts para 400/403/500.
+      // Manter toast apenas se for erro específico de negócio não pego lá, ou logar.
+      console.error(error);
     } finally {
       setLoading(false);
     }
@@ -109,11 +107,7 @@ export default function UserManagement() {
       reset();
       loadUsers();
     } catch (error) {
-      toast({
-        title: 'Erro ao enviar convite',
-        description: getErrorMessage(error),
-        variant: 'destructive',
-      });
+      console.error(error);
     } finally {
       setInviting(false);
     }
@@ -136,11 +130,7 @@ export default function UserManagement() {
       }
       loadUsers();
     } catch (error) {
-      toast({
-        title: 'Erro ao alterar status',
-        description: getErrorMessage(error),
-        variant: 'destructive',
-      });
+      console.error(error);
     }
   };
 
@@ -159,11 +149,7 @@ export default function UserManagement() {
       setUserToDelete(null);
       loadUsers();
     } catch (error) {
-      toast({
-        title: 'Erro ao remover usuário',
-        description: getErrorMessage(error),
-        variant: 'destructive',
-      });
+      console.error(error);
     } finally {
       setDeleting(false);
     }

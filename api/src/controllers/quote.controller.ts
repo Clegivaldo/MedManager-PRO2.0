@@ -196,4 +196,92 @@ export class QuoteController {
             next(error);
         }
     }
+
+    async approve(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { id } = req.params;
+            const prisma = getTenantPrisma((req as any).tenant);
+            if (!prisma) {
+                return next(new AppError('Tenant context not available', 400, 'TENANT_REQUIRED'));
+            }
+
+            // 1. Buscar o orçamento
+            const quote = await prisma.quote.findUnique({
+                where: { id },
+                include: {
+                    items: {
+                        include: {
+                            product: true,
+                        },
+                    },
+                    customer: true,
+                },
+            });
+
+            if (!quote) {
+                throw new AppError('Quote not found', 404, 'QUOTE_NOT_FOUND');
+            }
+
+            // 2. Validar se o orçamento já foi aprovado
+            if (quote.status === 'approved') {
+                // Verificar se já existe um pedido para este orçamento
+                const existingOrder = await prisma.order.findFirst({
+                    where: { quoteId: id },
+                });
+
+                if (existingOrder) {
+                    throw new AppError('This quote has already been converted to an order', 400, 'QUOTE_ALREADY_APPROVED');
+                }
+            }
+
+            // 3. Atualizar status do orçamento para aprovado
+            await prisma.quote.update({
+                where: { id },
+                data: { status: 'approved' },
+            });
+
+            // 4. Gerar número do pedido
+            const orderCount = await prisma.order.count();
+            const orderNumber = `#PED-${new Date().getFullYear()}-${String(orderCount + 1).padStart(4, '0')}`;
+
+            // 5. Criar o pedido com os itens do orçamento
+            const order = await prisma.order.create({
+                data: {
+                    orderNumber,
+                    customerId: quote.customerId,
+                    quoteId: quote.id,
+                    totalValue: quote.totalAmount,
+                    saleDate: new Date(),
+                    status: 'PENDING',
+                    nfeStatus: 'pending',
+                    notes: `Criado a partir do orçamento ${quote.quoteNumber}`,
+                    items: {
+                        create: quote.items.map((item) => ({
+                            productId: item.productId,
+                            quantity: item.quantity,
+                            unitPrice: item.unitPrice,
+                            total: item.totalPrice,
+                        })),
+                    },
+                },
+                include: {
+                    customer: true,
+                    items: {
+                        include: {
+                            product: true,
+                        },
+                    },
+                    quote: true,
+                },
+            });
+
+            res.status(201).json({
+                success: true,
+                data: order,
+                message: 'Quote approved and order created successfully',
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
 }

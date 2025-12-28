@@ -1,4 +1,5 @@
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 'axios';
+import { toast } from 'sonner';
 
 const API_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
@@ -90,6 +91,19 @@ api.interceptors.response.use(
       const message = data?.message || error.message;
       const code = data?.code;
 
+      // Ignorar toast para 401 (geralmente redireciona) e erros de licença/plano que já têm tratamento visual
+      const shouldShowToast = status !== 401 &&
+        code !== 'LICENSE_EXPIRED' &&
+        code !== 'PLAN_LIMIT_REACHED' &&
+        code !== 'MODULE_NOT_ENABLED';
+
+      if (shouldShowToast) {
+        toast.error(`Erro ${status}: ${message}`, {
+          description: data?.error || 'Ocorreu um erro na requisição.',
+          duration: 5000,
+        });
+      }
+
       // Verificar se é erro de licença vencida
       if (status === 403 && (code === 'LICENSE_EXPIRED' || code === 'LICENSE_SUSPENDED' || code === 'LICENSE_CANCELLED')) {
         // Redirecionar para página de licença vencida
@@ -143,8 +157,14 @@ api.interceptors.response.use(
       }
     } else if (error.request) {
       console.error('Sem resposta do servidor:', error.request);
+      toast.error('Erro de Conexão', {
+        description: 'Não foi possível contactar o servidor.',
+      });
     } else {
       console.error('Erro ao configurar requisição:', error.message);
+      toast.error('Erro de Requisição', {
+        description: error.message,
+      });
     }
 
     return Promise.reject(error);

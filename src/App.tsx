@@ -27,7 +27,6 @@ const Usage = lazy(() => import('./pages/Usage'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 const Quotes = lazy(() => import('./pages/tenant/Quotes'));
-const Sales = lazy(() => import('./pages/tenant/Sales'));
 const NFe = lazy(() => import('./pages/tenant/NFe'));
 const Financials = lazy(() => import('./pages/tenant/Financials'));
 const RoutesPage = lazy(() => import('./pages/tenant/Routes'));
@@ -135,9 +134,6 @@ function AppContent() {
                   </Route>
                   <Route path="quotes" element={<ProtectedRoute requiredModule="QUOTES" />}>
                     <Route index element={<Quotes />} />
-                  </Route>
-                  <Route path="sales" element={<ProtectedRoute requiredModule="SALES" />}>
-                    <Route index element={<Sales />} />
                   </Route>
                   <Route path="financials" element={<ProtectedRoute requiredModule="FINANCIAL" />}>
                     <Route index element={<Financials />} />

@@ -2,14 +2,24 @@ import api, { ApiResponse } from './api';
 
 export interface Customer {
   id: string;
-    companyName: string;
-    tradeName?: string | null;
-    cnpjCpf: string;
-    customerType: string;
+  companyName: string;
+  tradeName?: string | null;
+  cnpjCpf: string;
+  customerType: string;
   email?: string | null;
   phone?: string | null;
-  address?: string | null;
-    creditLimit?: number | null;
+  city?: string;
+  state?: string;
+  address?: {
+    street: string;
+    number: string;
+    complement?: string;
+    neighborhood: string;
+    city: string;
+    state: string;
+    zipCode: string;
+  } | string | null;
+  creditLimit?: number | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -45,7 +55,7 @@ class CustomerService {
         pages: number;
       };
     }>>('/customers', { params: filters });
-    
+
     return response.data.data;
   }
 

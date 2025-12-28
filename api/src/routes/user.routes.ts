@@ -377,4 +377,76 @@ router.post('/',
     }
   });
 
+// Obter detalhes de um usuário específico
+router.get('/:id', authenticateToken, requirePermission(PERMISSIONS.USER_READ), async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const prisma = getTenantPrisma((req as any).tenant);
+
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        permissions: true,
+        avatarUrl: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
+
+    if (!user) {
+      throw new AppError('Usuário não encontrado', 404);
+    }
+
+    // Parse permissions if stored as string
+    let permissions = user.permissions;
+    if (typeof permissions === 'string') {
+      try {
+        permissions = JSON.parse(permissions);
+      } catch (e) {
+        permissions = [];
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        user: {
+          ...user,
+          permissions
+        }
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Atualizar permissões do usuário
+router.put(
+  '/:id/permissions',
+  authenticateToken,
+  requirePermission(PERMISSIONS.USER_MANAGE_PERMISSIONS),
+  async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const { permissions } = req.body;
+      const prisma = getTenantPrisma((req as any).tenant);
+
+      await prisma.user.update({
+        where: { id },
+        data: { permissions }
+      });
+
+      res.json({ success: true, message: 'Permissões atualizadas com sucesso' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 export default router;

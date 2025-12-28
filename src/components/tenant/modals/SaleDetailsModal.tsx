@@ -24,54 +24,63 @@ const saleItems = [
 ];
 
 export default function SaleDetailsModal({ sale }: SaleDetailsModalProps) {
-  if (!sale) return null;
+  // Não retornar null - renderizar DialogContent vazio se sale for null
+  const total = sale?.total || 0;
 
   return (
     <DialogContent className="max-w-3xl">
-      <DialogHeader>
-        <DialogTitle>Detalhes da Venda {sale.id}</DialogTitle>
-        <DialogDescription>
-          Visualizando informações da venda para <span className="font-bold">{sale.client}</span>, originada do pedido {sale.orderId}.
-        </DialogDescription>
-      </DialogHeader>
-      <div className="py-4 space-y-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <InfoItem icon={User} label="Cliente" value={sale.client} />
-            <InfoItem icon={Calendar} label="Data da Venda" value={sale.date} />
-            <InfoItem icon={CreditCard} label="Pagamento" value={sale.payment} />
-            <InfoItem icon={FileText} label="Status NFe" value={<Badge className="bg-green-100 text-green-800"><CheckCircle className="h-3 w-3 mr-1"/> Emitida</Badge>} />
-        </div>
-        <Separator />
-        <div>
-            <h3 className="font-semibold mb-2 flex items-center gap-2"><Package className="h-5 w-5"/> Itens da Venda</h3>
-            <div className="border rounded-lg">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Produto</TableHead>
-                            <TableHead>Quantidade</TableHead>
-                            <TableHead className="text-right">Preço Unit.</TableHead>
-                            <TableHead className="text-right">Subtotal</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {saleItems.map(item => (
-                            <TableRow key={item.name}>
-                                <TableCell>{item.name}</TableCell>
-                                <TableCell>{item.quantity}</TableCell>
-                                <TableCell className="text-right">R$ {item.price.toFixed(2)}</TableCell>
-                                <TableCell className="text-right font-medium">R$ {(item.quantity * item.price).toFixed(2)}</TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
+      {sale ? (
+        <>
+          <DialogHeader>
+            <DialogTitle>Detalhes da Venda {sale.id}</DialogTitle>
+            <DialogDescription>
+              Visualizando informações da venda para <span className="font-bold">{sale.client}</span>, originada do pedido {sale.orderId}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <InfoItem icon={User} label="Cliente" value={sale.client} />
+                <InfoItem icon={Calendar} label="Data da Venda" value={sale.date} />
+                <InfoItem icon={CreditCard} label="Pagamento" value={sale.payment} />
+                <InfoItem icon={FileText} label="Status NFe" value={<Badge className="bg-green-100 text-green-800"><CheckCircle className="h-3 w-3 mr-1"/> Emitida</Badge>} />
             </div>
-        </div>
-        <div className="flex justify-end items-center gap-4 pt-4 border-t">
-            <span className="text-lg font-semibold">Total da Venda:</span>
-            <span className="text-2xl font-bold text-primary">R$ {sale.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+            <Separator />
+            <div>
+                <h3 className="font-semibold mb-2 flex items-center gap-2"><Package className="h-5 w-5"/> Itens da Venda</h3>
+                <div className="border rounded-lg">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Produto</TableHead>
+                                <TableHead>Quantidade</TableHead>
+                                <TableHead className="text-right">Preço Unit.</TableHead>
+                                <TableHead className="text-right">Subtotal</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {saleItems.map(item => (
+                                <TableRow key={item.name}>
+                                    <TableCell>{item.name}</TableCell>
+                                    <TableCell>{item.quantity}</TableCell>
+                                    <TableCell className="text-right">R$ {item.price.toFixed(2)}</TableCell>
+                                    <TableCell className="text-right font-medium">R$ {(item.quantity * item.price).toFixed(2)}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+            </div>
+            <div className="flex justify-end items-center gap-4 pt-4 border-t">
+                <span className="text-lg font-semibold">Total da Venda:</span>
+                <span className="text-2xl font-bold text-primary">R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+              </div>
           </div>
-      </div>
+        </>
+      ) : (
+        <div className="p-6 text-center text-muted-foreground">
+          Carregando detalhes da venda...
+        </div>
+      )}
     </DialogContent>
   );
 }

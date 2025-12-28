@@ -262,7 +262,6 @@ router.put('/series/:id', authenticateToken, requirePermissions([PERMISSIONS.SYS
 // Upload de certificado digital A1 - COM ENFORCEMENT DE STORAGE
 router.post(
   '/certificate',
-  authenticateToken,
   validatePlanLimit('storage'), // ✅ ENFORCE: Verifica limite de storage
   upload.single('certificate'),
   handleMulterError,

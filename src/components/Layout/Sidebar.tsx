@@ -34,7 +34,6 @@ const menuItems = [
   { title: 'Dashboard', icon: LayoutDashboard, href: '/dashboard', module: 'DASHBOARD' },
   { title: 'Pedidos', icon: ShoppingCart, href: '/orders', badge: { text: '5', variant: 'default' as const }, module: 'ORDERS' },
   { title: 'Orçamentos', icon: ClipboardList, href: '/quotes', module: 'QUOTES' },
-  { title: 'Vendas', icon: DollarSign, href: '/sales', module: 'SALES' },
   { title: 'Produtos', icon: Package, href: '/products', module: 'PRODUCTS' },
   { title: 'Estoque', icon: Warehouse, href: '/inventory', badge: { text: '12', variant: 'destructive' as const }, module: 'INVENTORY' },
   { title: 'Clientes', icon: Users, href: '/clients', module: 'SALES' },

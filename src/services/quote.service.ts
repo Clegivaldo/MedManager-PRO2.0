@@ -77,6 +77,11 @@ class QuoteService {
         const response = await api.delete<ApiResponse<void>>(`/quotes/${id}`);
         return response.data;
     }
+
+    async approve(id: string) {
+        const response = await api.post<ApiResponse<any>>(`/quotes/${id}/approve`);
+        return response.data;
+    }
 }
 
 export default new QuoteService();

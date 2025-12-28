@@ -6,6 +6,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Separator } from '@/components/ui/separator';
 import { Package, ShoppingCart, Warehouse, Users, Banknote, FileText, Route, Shield } from 'lucide-react';
 
+import userMgmtService from '@/services/user-management.service';
+import { useEffect, useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
+
 interface User {
   id: string;
   name: string;
@@ -16,17 +20,56 @@ interface PermissionsManagerProps {
   user: User;
 }
 
+// Mapeamento para PERMISSIONS do backend
 const modules = [
-  { id: 'dashboard', name: 'Dashboard', icon: Package, actions: ['view'] },
-  { id: 'products', name: 'Produtos', icon: Package, actions: ['view', 'create', 'edit', 'delete'] },
-  { id: 'orders', name: 'Pedidos', icon: ShoppingCart, actions: ['view', 'create', 'edit', 'delete'] },
-  { id: 'inventory', name: 'Estoque', icon: Warehouse, actions: ['view', 'create', 'edit'] },
-  { id: 'clients', name: 'Clientes', icon: Users, actions: ['view', 'create', 'edit', 'delete'] },
-  { id: 'financials', name: 'Financeiro', icon: Banknote, actions: ['view', 'create', 'edit'] },
-  { id: 'nfe', name: 'NFe', icon: FileText, actions: ['view', 'create', 'delete'] },
-  { id: 'routes', name: 'Entregas', icon: Route, actions: ['view', 'create', 'edit'] },
-  { id: 'compliance', name: 'Conformidade', icon: Shield, actions: ['view'] },
-  { id: 'users', name: 'Usuários', icon: Users, actions: ['view', 'create', 'edit', 'delete'] },
+  { id: 'dashboard', name: 'Dashboard', icon: Package, actions: [{key:'DASHBOARD_VIEW', label:'view'}] },
+  { id: 'products', name: 'Produtos', icon: Package, actions: [
+    {key:'PRODUCT_READ', label:'view'},
+    {key:'PRODUCT_CREATE', label:'create'},
+    {key:'PRODUCT_UPDATE', label:'edit'},
+    {key:'PRODUCT_DELETE', label:'delete'},
+  ] },
+  { id: 'orders', name: 'Pedidos', icon: ShoppingCart, actions: [
+    {key:'INVOICE_READ', label:'view'},
+    {key:'INVOICE_CREATE', label:'create'},
+    {key:'INVOICE_UPDATE', label:'edit'},
+    {key:'INVOICE_DELETE', label:'delete'},
+  ] },
+  { id: 'inventory', name: 'Estoque', icon: Warehouse, actions: [
+    {key:'INVENTORY_VIEW', label:'view'},
+    {key:'INVENTORY_ADJUST', label:'create'},
+    {key:'INVENTORY_TRANSFER', label:'edit'},
+  ] },
+  { id: 'clients', name: 'Clientes', icon: Users, actions: [
+    {key:'CUSTOMER_READ', label:'view'},
+    {key:'CUSTOMER_CREATE', label:'create'},
+    {key:'CUSTOMER_UPDATE', label:'edit'},
+    {key:'CUSTOMER_DELETE', label:'delete'},
+  ] },
+  { id: 'financials', name: 'Financeiro', icon: Banknote, actions: [
+    {key:'FINANCIAL_VIEW', label:'view'},
+    {key:'FINANCIAL_MANAGE_PAYMENTS', label:'create'},
+    {key:'FINANCIAL_MANAGE_RECEIPTS', label:'edit'},
+  ] },
+  { id: 'nfe', name: 'Fiscal (NF-e)', icon: FileText, actions: [
+    {key:'NFE_VIEW_DANFE', label:'view'},
+    {key:'NFE_ISSUE', label:'create'},
+    {key:'NFE_CANCEL', label:'delete'},
+  ] },
+  { id: 'routes', name: 'Entregas', icon: Route, actions: [
+    {key:'REPORTS_VIEW', label:'view'},
+    {key:'REPORTS_CREATE', label:'create'},
+    {key:'REPORTS_EXPORT', label:'edit'},
+  ] },
+  { id: 'compliance', name: 'Conformidade', icon: Shield, actions: [
+    {key:'REGULATORY_VIEW', label:'view'}
+  ] },
+  { id: 'users', name: 'Usuários', icon: Users, actions: [
+    {key:'USER_READ', label:'view'},
+    {key:'USER_CREATE', label:'create'},
+    {key:'USER_UPDATE', label:'edit'},
+    {key:'USER_DELETE', label:'delete'},
+  ] },
 ];
 
 const actionLabels: { [key: string]: string } = {
@@ -37,6 +80,35 @@ const actionLabels: { [key: string]: string } = {
 };
 
 export default function PermissionsManager({ user }: PermissionsManagerProps) {
+  const [selected, setSelected] = useState<string[]>([]);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    // Carregar permissões atuais do usuário
+    (async () => {
+      try {
+        const u = await userMgmtService.getUser(user.id);
+        const perms: string[] = (u as any)?.permissions || [];
+        setSelected(perms);
+      } catch {
+        setSelected([]);
+      }
+    })();
+  }, [user.id]);
+
+  const toggle = (perm: string) => {
+    setSelected(prev => prev.includes(perm) ? prev.filter(p => p !== perm) : [...prev, perm]);
+  };
+
+  const handleSave = async () => {
+    try {
+      await userMgmtService.updatePermissions(user.id, selected);
+      toast({ title: 'Sucesso', description: 'Permissões atualizadas.', variant: 'default' });
+    } catch (err) {
+      toast({ title: 'Erro', description: 'Falha ao salvar permissões.', variant: 'destructive' });
+    }
+  };
+
   return (
     <DialogContent className="max-w-4xl">
       <DialogHeader>
@@ -65,18 +137,22 @@ export default function PermissionsManager({ user }: PermissionsManagerProps) {
                     <span className="font-medium">{module.name}</span>
                   </div>
                 </TableCell>
-                {['view', 'create', 'edit', 'delete'].map((action) => (
-                  <TableCell key={action} className="text-center">
-                    {module.actions.includes(action) ? (
-                      <Checkbox
-                        id={`${user.id}-${module.id}-${action}`}
-                        aria-label={`${actionLabels[action]} em ${module.name}`}
-                      />
-                    ) : (
-                      <span className="text-muted-foreground">-</span>
-                    )}
-                  </TableCell>
-                ))}
+                {['view', 'create', 'edit', 'delete'].map((action) => {
+                  const actionObj = (module.actions as any[]).find(a => a.label === action);
+                  return (
+                    <TableCell key={action} className="text-center">
+                      {actionObj ? (
+                        <Checkbox
+                          checked={selected.includes(actionObj.key)}
+                          onCheckedChange={() => toggle(actionObj.key)}
+                          aria-label={`${actionLabels[action]} em ${module.name}`}
+                        />
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                  );
+                })}
               </TableRow>
             ))}
           </TableBody>
@@ -84,7 +160,7 @@ export default function PermissionsManager({ user }: PermissionsManagerProps) {
       </div>
       <DialogFooter>
         <Button variant="outline">Cancelar</Button>
-        <Button>Salvar Permissões</Button>
+        <Button onClick={handleSave}>Salvar Permissões</Button>
       </DialogFooter>
     </DialogContent>
   );

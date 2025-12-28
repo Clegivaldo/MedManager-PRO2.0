@@ -6,11 +6,13 @@ WORKDIR /app
 RUN corepack enable
 # Installing build dependencies required for native modules (libxmljs2, etc.)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-	build-essential python3 python3-dev libxml2-dev libxslt1-dev pkg-config zlib1g-dev curl \
+	build-essential python3 python3-dev libxml2-dev libxslt1-dev pkg-config zlib1g-dev curl openssl \
 	&& rm -rf /var/lib/apt/lists/*
 
 # Install deps
 COPY package.json pnpm-lock.yaml* ./
+# Dummy DB URL for postinstall scripts
+ENV DATABASE_URL="postgresql://build:build@localhost:5432/build"
 # Install dependencies (lockfile pode não existir no contexto da API)
 RUN pnpm install --no-frozen-lockfile
 RUN [ -x "$(command -v python3)" ] && ln -sf "$(command -v python3)" /usr/bin/python || true
@@ -26,7 +28,8 @@ COPY src ./src
 RUN rm -rf node_modules/.prisma node_modules/@prisma 2>/dev/null || true
 RUN rm -rf .pnpm-store 2>/dev/null || true
 RUN pnpm exec prisma generate
-RUN pnpm build
+RUN rm -rf dist && pnpm build
+RUN echo "DEBUG: Build completed at $(date)" && ls -la dist/routes/user.routes.js
 
 # Sanity check: ensure decrypt() is present in compiled tenant middleware
 # This prevents accidental builds with stale code that doesn't decrypt passwords
@@ -69,9 +72,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Temporarily install Prisma CLI to run migrations in the final image,
 # then remove it.
-RUN pnpm add --save-dev prisma@5.22.0 --no-frozen-lockfile \
-	&& pnpm exec prisma migrate deploy \
-	&& pnpm remove prisma || true
+# Removed redundant migration step during build
 
 ENV NODE_ENV=production
 ENV PORT=3333

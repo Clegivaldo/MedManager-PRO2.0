@@ -326,19 +326,35 @@ const FiscalProfile = () => {
         }
       });
 
-      toast({
-        title: 'Certificado enviado',
-        description: response.data.message
-      });
+      if (response.data.success) {
+        toast({
+          title: '✅ Certificado enviado com sucesso!',
+          description: `Certificado ${response.data.certificate.subject.CN} válido até ${new Date(response.data.certificate.notAfter).toLocaleDateString('pt-BR')}`,
+          variant: 'default'
+        });
+      } else {
+        toast({
+          title: '⚠️ Aviso',
+          description: response.data.message || 'Certificado processado com aviso',
+          variant: 'default'
+        });
+      }
 
       setSelectedFile(null);
       setCertificatePassword('');
       await loadProfile();
       await loadCertificateStatus();
-    } catch (error) {
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error?.message || 
+                          error.response?.data?.message || 
+                          error.message || 
+                          'Erro desconhecido ao enviar certificado';
+      
+      console.error('Certificate upload error:', error);
+      
       toast({
-        title: 'Erro ao enviar certificado',
-        description: getErrorMessage(error),
+        title: '❌ Erro ao enviar certificado',
+        description: errorMessage,
         variant: 'destructive'
       });
     } finally {

@@ -39,6 +39,8 @@ import batchRouter from './routes/batch.routes.js';
 import tenantBillingRouter from './routes/tenant-billing.routes.js';
 import docsRouter from './routes/docs.routes.js';
 import backupRouter from './routes/backup.routes.js';
+import guia33Router from './routes/guia33.routes.js';
+import controlledDispensationRouter from './routes/controlled-dispensation.routes.js';
 import tenantSettingsRoutes from './routes/tenant-settings.routes.js';
 import financialRoutes from './routes/financial.routes.js';
 import auditRoutes from './routes/audit.routes.js';
@@ -233,6 +235,8 @@ app.use(`/api/${config.API_VERSION}/audit`, authenticateToken, tenantMiddleware,
 app.use(`/api/${config.API_VERSION}/webhooks`, webhookRouter);
 app.use(`/api/${config.API_VERSION}/docs`, authenticateToken, tenantMiddleware, docsRouter);
 app.use(`/api/${config.API_VERSION}/backup`, authenticateToken, backupRouter);
+app.use(`/api/${config.API_VERSION}/guia33`, authenticateToken, tenantMiddleware, validateSubscription, guia33Router);
+app.use(`/api/${config.API_VERSION}/controlled-dispensation`, authenticateToken, tenantMiddleware, validateSubscription, controlledDispensationRouter);
 app.use(`/api/${config.API_VERSION}/nfce`, nfceRouter);
 app.use(`/api/${config.API_VERSION}/system`, systemRouter);
 
@@ -244,7 +248,7 @@ app.use(`/api/${config.API_VERSION}/superadmin/billing`, authenticateToken, supe
 app.use(`/api/${config.API_VERSION}/superadmin/modules`, authenticateToken, superadminModuleRouter); // ✅ NOVO
 // app.use(`/api/${config.API_VERSION}/limits`, limitsRouter);
 app.use(`/api/${config.API_VERSION}/regulatory`, authenticateToken, tenantMiddleware, validateSubscription, regulatoryRouter);
-app.use(`/api/${config.API_VERSION}/users`, authenticateToken, validateSubscription, userRouter);
+app.use(`/api/${config.API_VERSION}/users`, authenticateToken, tenantMiddleware, validateSubscription, userRouter);
 app.use(`/api/${config.API_VERSION}/products`, authenticateToken, tenantMiddleware, validateSubscription, productRouter);
 app.use(`/api/${config.API_VERSION}/inventory`, authenticateToken, tenantMiddleware, validateSubscription, inventoryRouter);
 app.use(`/api/${config.API_VERSION}/customers`, authenticateToken, tenantMiddleware, validateSubscription, customerRouter);
