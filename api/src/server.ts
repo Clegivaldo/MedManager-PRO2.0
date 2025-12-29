@@ -50,6 +50,8 @@ import warehouseRouter from './routes/warehouse.routes.js';
 import temperatureRouter from './routes/temperature.routes.js';
 import quoteRouter from './routes/quote.routes.js';
 import nfceRouter from './routes/nfce.routes.js';
+import nfeRouter from './routes/nfe.routes.js';
+import complianceRouter from './routes/compliance.routes.js';
 import deliveryRouteRouter from './routes/delivery-route.routes.js';
 import systemRouter from './routes/system.routes.js';
 import { authenticateToken } from './middleware/auth.js';
@@ -240,6 +242,8 @@ app.use(`/api/${config.API_VERSION}/guia33`, authenticateToken, tenantMiddleware
 app.use(`/api/${config.API_VERSION}/controlled-dispensation`, authenticateToken, tenantMiddleware, validateSubscription, controlledDispensationRouter);
 app.use(`/api/${config.API_VERSION}/sngpc`, authenticateToken, tenantMiddleware, validateSubscription, sngpcConfigRouter);
 app.use(`/api/${config.API_VERSION}/nfce`, nfceRouter);
+app.use(`/api/${config.API_VERSION}/nfe`, authenticateToken, tenantMiddleware, validateSubscription, validateModule('NFE'), nfeRouter);
+app.use(`/api/${config.API_VERSION}/compliance`, authenticateToken, tenantMiddleware, validateSubscription, complianceRouter);
 app.use(`/api/${config.API_VERSION}/system`, systemRouter);
 
 // Rotas protegidas que exigem assinatura ativa
