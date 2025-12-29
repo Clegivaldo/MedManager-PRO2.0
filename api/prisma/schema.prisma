@@ -907,7 +907,6 @@ model DeadLetterQueue {
 model Order {
   id            String      @id @default(uuid())
   customerId    String      @map("customer_id")
-  quoteId       String?     @map("quote_id") // Referência ao orçamento (se criado por aprovação)
   status        OrderStatus @default(PENDING)
   totalValue    Decimal     @map("total_value")
   paymentMethod String?     @map("payment_method")
@@ -924,13 +923,11 @@ model Order {
 
   // Relations
   customer      Customer    @relation(fields: [customerId], references: [id])
-  quote         Quote?      @relation(fields: [quoteId], references: [id])
   items         OrderItem[]
   routeStops    RouteStop[]
   
   @@map("orders")
   @@index([customerId])
-  @@index([quoteId])
   @@index([status])
   @@index([nfeStatus])
 }
@@ -975,7 +972,6 @@ model Quote {
   // Relations
   customer    Customer    @relation(fields: [customerId], references: [id])
   items       QuoteItem[]
-  orders      Order[]     // Pedidos gerados a partir deste orçamento
 
   @@map("quotes")
   @@index([customerId])
