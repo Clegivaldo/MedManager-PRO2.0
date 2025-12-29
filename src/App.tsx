@@ -38,6 +38,7 @@ const LicenseExpired = lazy(() => import('./pages/tenant/LicenseExpired'));
 const PaymentGatewayConfig = lazy(() => import('./pages/tenant/PaymentGatewayConfig'));
 const MyInvoices = lazy(() => import('./pages/tenant/Financial/MyInvoices'));
 const PDV = lazy(() => import('./pages/tenant/PDV'));
+const SngpcDashboard = lazy(() => import('./pages/tenant/SngpcDashboard')); // ✅ NOVO: Dashboard SNGPC/Guia 33
 
 // Superadmin Pages
 const TenantManagement = lazy(() => import('./pages/superadmin/TenantManagement'));
@@ -158,6 +159,11 @@ function AppContent() {
                   </Route>
                   <Route path="pdv" element={<ProtectedRoute requiredModule="NFE" />}>
                     <Route index element={<PDV />} />
+                  </Route>
+
+                  {/* ✅ NOVO: SNGPC/Guia 33 Dashboard */}
+                  <Route path="sngpc" element={<ProtectedRoute requiredModule="COMPLIANCE" />}>
+                    <Route index element={<SngpcDashboard />} />
                   </Route>
 
                   <Route path="user-profile" element={<UserProfile />} />

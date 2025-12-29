@@ -41,6 +41,7 @@ import docsRouter from './routes/docs.routes.js';
 import backupRouter from './routes/backup.routes.js';
 import guia33Router from './routes/guia33.routes.js';
 import controlledDispensationRouter from './routes/controlled-dispensation.routes.js';
+import sngpcConfigRouter from './routes/sngpc-config.routes.js';
 import tenantSettingsRoutes from './routes/tenant-settings.routes.js';
 import financialRoutes from './routes/financial.routes.js';
 import auditRoutes from './routes/audit.routes.js';
@@ -237,6 +238,7 @@ app.use(`/api/${config.API_VERSION}/docs`, authenticateToken, tenantMiddleware, 
 app.use(`/api/${config.API_VERSION}/backup`, authenticateToken, backupRouter);
 app.use(`/api/${config.API_VERSION}/guia33`, authenticateToken, tenantMiddleware, validateSubscription, guia33Router);
 app.use(`/api/${config.API_VERSION}/controlled-dispensation`, authenticateToken, tenantMiddleware, validateSubscription, controlledDispensationRouter);
+app.use(`/api/${config.API_VERSION}/sngpc`, authenticateToken, tenantMiddleware, validateSubscription, sngpcConfigRouter);
 app.use(`/api/${config.API_VERSION}/nfce`, nfceRouter);
 app.use(`/api/${config.API_VERSION}/system`, systemRouter);
 

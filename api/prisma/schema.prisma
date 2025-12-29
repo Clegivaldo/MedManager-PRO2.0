@@ -26,7 +26,7 @@ model Tenant {
   subscriptionStart DateTime?  @map("subscription_start")
   subscriptionEnd   DateTime?  @map("subscription_end")
   subscriptionStatus String    @default("trial") @map("subscription_status") // trial, active, expired, suspended, cancelled
-  modulesEnabled    Json       @default("[]") @map("modules_enabled") // Array de mÃƒÂ³dulos: ["DASHBOARD", "PRODUCTS", "NFE", etc]
+  modulesEnabled    Json       @default("[]") @map("modules_enabled") // Array de módulos: ["DASHBOARD", "PRODUCTS", "NFE", etc]
   paymentGateway    String     @default("asaas") @map("payment_gateway") // asaas, infinitypay
   
   createdAt         DateTime  @default(now()) @map("created_at")
@@ -67,7 +67,7 @@ model TenantFiscalProfile {
   certificatePath       String?   @map("certificate_path")
   certificatePassword   String?   @map("certificate_password")
   certificateExpiresAt  DateTime? @map("certificate_expires_at")
-  sefazEnvironment      SefazEnvironment @default(HOMOLOGACAO) @map("sefaz_environment")
+  sefazEnvironment      String    @default("homologacao") @map("sefaz_environment")
   isActive              Boolean   @default(true) @map("is_active")
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
@@ -150,7 +150,7 @@ model TenantBackup {
   @@index([tenantId, createdAt])
 }
 
-// Schema do tenant (serÃƒÂ¡ replicado em cada banco de tenant)
+// Schema do tenant (será replicado em cada banco de tenant)
 model User {
   id            String    @id @default(uuid())
   email         String    @unique
@@ -167,6 +167,7 @@ model User {
   
   // Relacionamentos
   auditLogs     AuditLog[]
+  tenantAuditLogs TenantAuditLog[]
   stockMovements StockMovement[]
   invoices      Invoice[]
   sngpcSubmissions SngpcSubmission[]
@@ -179,6 +180,84 @@ model User {
   @@map("users")
   @@index([email])
   @@index([role])
+}
+
+// Armazéns (estoques físicos)
+model Warehouse {
+  id               String   @id @default(uuid())
+  name             String
+  code             String   @unique
+  description      String?
+  address          String?
+  temperatureMin   Float?   @map("temperature_min")
+  temperatureMax   Float?   @map("temperature_max")
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  // Relacionamentos
+  temperatureReadings TemperatureReading[]
+
+  @@map("warehouses")
+  @@index([code])
+}
+
+// Leituras de temperatura por armazém
+model TemperatureReading {
+  id            String   @id @default(uuid())
+  warehouseId   String   @map("warehouse_id")
+  temperature   Float
+  humidity      Float?
+  recordedBy    String?  @map("recorded_by")
+  recordedAt    DateTime @default(now()) @map("recorded_at")
+  isAlert       Boolean  @default(false) @map("is_alert")
+  alertMessage  String?  @map("alert_message")
+
+  // Relacionamentos
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+
+  @@map("temperature_readings")
+  @@index([warehouseId, recordedAt])
+}
+
+model FinancialTransaction {
+  id            String    @id @default(uuid())
+  type          String    // RECEIVABLE, PAYABLE
+  description   String
+  value         Decimal
+  dueDate       DateTime  @map("due_date")
+  paymentDate   DateTime? @map("payment_date")
+  status        String    @default("PENDING") // PENDING, PAID, CANCELLED, OVERDUE
+  category      String?
+  client        String?
+  supplier      String?
+  notes         String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@map("financial_transactions")
+  @@index([type])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model TenantAuditLog {
+  id          String    @id @default(uuid())
+  userId      String?   @map("user_id")
+  tableName   String    @map("table_name")
+  recordId    String?   @map("record_id")
+  operation   String    // CREATE, UPDATE, DELETE, etc
+  oldData     Json?     @map("old_data")
+  newData     Json?     @map("new_data")
+  ipAddress   String?   @map("ip_address")
+  userAgent   String?   @map("user_agent")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  user        User?     @relation(fields: [userId], references: [id])
+
+  @@map("tenant_audit_logs")
+  @@index([createdAt])
+  @@index([tableName, recordId])
 }
 
 model Product {
@@ -196,6 +275,12 @@ model Product {
   controlledSubstance String?         @map("controlled_substance")
   stripe              StripeType      @default(NONE) @map("stripe")
   shelfLifeDays       Int?            @map("shelf_life_days")
+  
+  // Campos Fiscais para NFe
+  ncm                 String?         // Nomenclatura Comum do Mercosul (ex: 30049099)
+  cest                String?         // Código Especificador da Substituição Tributária
+  cfop                String?         @default("5102") // Código Fiscal de Operação (ex: 5102 - Venda)
+  
   isActive            Boolean         @default(true) @map("is_active")
   createdAt           DateTime        @default(now()) @map("created_at")
   updatedAt           DateTime        @updatedAt @map("updated_at")
@@ -244,12 +329,9 @@ model Stock {
   id                  String    @id @default(uuid())
   productId           String    @map("product_id")
   batchId             String    @map("batch_id")
-  warehouseId         String?   @map("warehouse_id")
   availableQuantity   Int       @map("available_quantity")
   reservedQuantity    Int       @default(0) @map("reserved_quantity")
   location            String?
-  minStock            Int?      @map("min_stock")
-  maxStock            Int?      @map("max_stock")
   lastMovement        DateTime? @map("last_movement")
   createdAt           DateTime  @default(now()) @map("created_at")
   updatedAt           DateTime  @updatedAt @map("updated_at")
@@ -257,119 +339,11 @@ model Stock {
   // Relacionamentos
   product         Product         @relation(fields: [productId], references: [id])
   batch           Batch           @relation(fields: [batchId], references: [id])
-  warehouse       Warehouse?      @relation(fields: [warehouseId], references: [id])
   stockMovements  StockMovement[]
   
-  @@unique([productId, batchId, warehouseId])
+  @@unique([productId, batchId])
   @@index([location])
-  @@index([warehouseId])
   @@map("stock")
-}
-
-model Warehouse {
-  id                String   @id @default(uuid())
-  name              String
-  code              String   @unique
-  description       String?
-  address           String?
-  temperatureMin    Float?   @map("temperature_min")
-  temperatureMax    Float?   @map("temperature_max")
-  isActive          Boolean  @default(true) @map("is_active")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
-  
-  stock                Stock[]
-  temperatureReadings  TemperatureReading[]
-  
-  @@map("warehouses")
-  @@index([code])
-}
-
-model TemperatureReading {
-  id           String   @id @default(uuid())
-  warehouseId  String   @map("warehouse_id")
-  temperature  Float
-  humidity     Float?
-  recordedBy   String?  @map("recorded_by")
-  recordedAt   DateTime @default(now()) @map("recorded_at")
-  isAlert      Boolean  @default(false) @map("is_alert")
-  alertMessage String?  @map("alert_message")
-  
-  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
-  
-  @@map("temperature_readings")
-  @@index([warehouseId, recordedAt])
-}
-
-model Quote {
-  id            String   @id @default(uuid())
-  quoteNumber   String   @unique @map("quote_number")
-  customerId    String   @map("customer_id")
-  validUntil    DateTime @map("valid_until")
-  totalAmount   Float    @map("total_amount")
-  status        String   @default("pending") // pending, sent, approved, rejected
-  notes         String?
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-  
-  customer Customer @relation(fields: [customerId], references: [id])
-  items    QuoteItem[]
-  
-  @@map("quotes")
-  @@index([customerId])
-  @@index([status])
-}
-
-model QuoteItem {
-  id          String @id @default(uuid())
-  quoteId     String @map("quote_id")
-  productId   String @map("product_id")
-  quantity    Int
-  unitPrice   Float  @map("unit_price")
-  totalPrice  Float  @map("total_price")
-  
-  quote   Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id])
-  
-  @@map("quote_items")
-  @@index([quoteId])
-}
-
-model DeliveryRoute {
-  id           String   @id @default(uuid())
-  routeNumber  String   @unique @map("route_number")
-  driverName   String   @map("driver_name")
-  vehiclePlate String   @map("vehicle_plate")
-  plannedDate  DateTime @map("planned_date")
-  status       String   @default("planning") // planning, in_transit, completed
-  totalStops   Int      @default(0) @map("total_stops")
-  completedStops Int    @default(0) @map("completed_stops")
-  notes        String?
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-  
-  stops RouteStop[]
-  
-  @@map("delivery_routes")
-  @@index([status])
-  @@index([plannedDate])
-}
-
-model RouteStop {
-  id              String    @id @default(uuid())
-  routeId         String    @map("route_id")
-  orderId         String    @map("order_id")
-  stopSequence    Int       @map("stop_sequence")
-  customerAddress String    @map("customer_address")
-  isCompleted     Boolean   @default(false) @map("is_completed")
-  completedAt     DateTime? @map("completed_at")
-  
-  route DeliveryRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
-  order Order        @relation(fields: [orderId], references: [id])
-  
-  @@map("route_stops")
-  @@index([routeId])
-  @@index([orderId])
 }
 
 model StockMovement {
@@ -514,56 +488,6 @@ model InvoiceItem {
   @@index([invoiceId])
   @@index([productId])
   @@index([batchId])
-}
-
-model TenantSettings {
-  id                      String    @id @default(uuid())
-  
-  // Dados cadastrais
-  cnpj                    String    @unique
-  companyName             String    @map("company_name")
-  tradingName             String?   @map("trading_name")
-  stateRegistration       String?   @map("state_registration")
-  municipalRegistration   String?   @map("municipal_registration")
-  taxRegime               TaxRegime @default(SIMPLE_NATIONAL) @map("tax_regime")
-  
-  // EndereÃƒÂ§o
-  zipCode                 String    @map("zip_code")
-  street                  String
-  number                  String
-  complement              String?
-  neighborhood            String
-  city                    String
-  state                   String
-  
-  // Contatos
-  phone                   String
-  mobile                  String?
-  email                   String
-  nfeEmail                String?   @map("nfe_email")
-  
-  // Logo
-  logoUrl                 String?   @map("logo_url")
-  
-  // Certificado digital
-  certificatePath         String?   @map("certificate_path")
-  certificatePassword     String?   @map("certificate_password")
-  certificateExpiryDate   DateTime? @map("certificate_expiry_date")
-  
-  // ConfiguraÃƒÂ§ÃƒÂµes SEFAZ
-  cscId                   String?   @map("csc_id")
-  cscToken                String?   @map("csc_token")
-  sefazEnvironment        SefazEnvironment @default(HOMOLOGACAO) @map("sefaz_environment")
-  
-  // NumeraÃƒÂ§ÃƒÂ£o de NFe
-  nfeNextNumber           Int       @default(1) @map("nfe_next_number")
-  nfeSeries               Int       @default(1) @map("nfe_series")
-  
-  createdAt               DateTime  @default(now()) @map("created_at")
-  updatedAt               DateTime  @updatedAt @map("updated_at")
-  
-  @@map("tenant_settings")
-  @@index([cnpj])
 }
 
 model ControlledPrescription {
@@ -749,18 +673,6 @@ enum InvoiceStatus {
   IN_CONTINGENCY
 }
 
-enum TaxRegime {
-  SIMPLE_NATIONAL
-  REAL_PROFIT
-  PRESUMED_PROFIT
-  MEI
-}
-
-enum SefazEnvironment {
-  HOMOLOGACAO
-  PRODUCAO
-}
-
 // Tokens de reset de senha (armazenados no banco master)
 model PasswordResetToken {
   id         String   @id @default(uuid())
@@ -794,7 +706,7 @@ model Plan {
   maxStorageGb            Int      @map("max_storage_gb")
   maxApiCallsPerMinute    Int      @default(60) @map("max_api_calls_per_minute")
   
-  // MÃƒÂ³dulos inclusos (JSON array)
+  // Módulos inclusos (JSON array)
   features                Json     @default("[]") // ["DASHBOARD", "PRODUCTS", "STOCK", "NFE", "FINANCE", etc]
   
   isActive                Boolean  @default(true) @map("is_active")
@@ -890,7 +802,7 @@ model BillingAccount {
   paidAt            DateTime? @map("paid_at")
   paidAmount        Decimal?  @map("paid_amount")
   
-  referenceMonth    DateTime? @map("reference_month") // MÃƒÂªs de referÃƒÂªncia da cobranÃƒÂ§a
+  referenceMonth    DateTime? @map("reference_month") // Mês de referência da cobrança
   invoiceNumber     String?   @unique @map("invoice_number")
   
   notes             String?
@@ -908,12 +820,12 @@ model BillingAccount {
   @@index([status, dueDate])
 }
 
-// MÃƒÂ©tricas de Uso (no banco master)
+// Métricas de Uso (no banco master)
 model UsageMetrics {
   id                String   @id @default(uuid())
   tenantId          String   @map("tenant_id")
   
-  period            DateTime // Primeiro dia do mÃƒÂªs (ex: 2025-11-01)
+  period            DateTime // Primeiro dia do mês (ex: 2025-11-01)
   
   // Contadores
   userCount         Int      @default(0) @map("user_count")
@@ -995,22 +907,32 @@ model DeadLetterQueue {
 model Order {
   id            String      @id @default(uuid())
   customerId    String      @map("customer_id")
+  quoteId       String?     @map("quote_id") // Referência ao orçamento (se criado por aprovação)
   status        OrderStatus @default(PENDING)
   totalValue    Decimal     @map("total_value")
   paymentMethod String?     @map("payment_method")
   deliveryDate  DateTime?   @map("delivery_date")
+  saleDate      DateTime?   @map("sale_date") // Data da venda/fechamento
+  
+  // Campos fiscais (NFe)
+  nfeStatus     String?     @default("pending") @map("nfe_status") // pending, issued, cancelled
+  nfeNumber     String?     @map("nfe_number")
+  
   notes         String?
   createdAt     DateTime    @default(now()) @map("created_at")
   updatedAt     DateTime    @updatedAt @map("updated_at")
 
   // Relations
   customer      Customer    @relation(fields: [customerId], references: [id])
+  quote         Quote?      @relation(fields: [quoteId], references: [id])
   items         OrderItem[]
   routeStops    RouteStop[]
   
   @@map("orders")
   @@index([customerId])
+  @@index([quoteId])
   @@index([status])
+  @@index([nfeStatus])
 }
 
 model OrderItem {
@@ -1038,7 +960,85 @@ enum OrderStatus {
   CANCELLED
 }
 
-// ConfiguraÃƒÂ§ÃƒÂ£o Global de Gateways de Pagamento (chaves da plataforma)
+// Quotes (Orçamentos)
+model Quote {
+  id          String      @id @default(uuid())
+  quoteNumber String      @unique @map("quote_number")
+  customerId  String      @map("customer_id")
+  validUntil  DateTime    @map("valid_until")
+  totalAmount Float       @map("total_amount")
+  status      String      @default("pending") // pending, sent, approved, rejected
+  notes       String?
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  customer    Customer    @relation(fields: [customerId], references: [id])
+  items       QuoteItem[]
+  orders      Order[]     // Pedidos gerados a partir deste orçamento
+
+  @@map("quotes")
+  @@index([customerId])
+  @@index([status])
+}
+
+model QuoteItem {
+  id        String  @id @default(uuid())
+  quoteId   String  @map("quote_id")
+  productId String  @map("product_id")
+  quantity  Int
+  unitPrice Float   @map("unit_price")
+  totalPrice Float  @map("total_price")
+
+  // Relations
+  quote     Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@map("quote_items")
+  @@index([quoteId])
+}
+
+// Delivery Routes (Rotas de Entrega)
+model DeliveryRoute {
+  id             String      @id @default(uuid())
+  routeNumber    String      @unique @map("route_number")
+  driverName     String      @map("driver_name")
+  vehiclePlate   String      @map("vehicle_plate")
+  plannedDate    DateTime    @map("planned_date")
+  status         String      @default("planning") // planning, in_progress, completed, cancelled
+  totalStops     Int         @default(0) @map("total_stops")
+  completedStops Int         @default(0) @map("completed_stops")
+  notes          String?
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  stops          RouteStop[]
+
+  @@map("delivery_routes")
+  @@index([status])
+  @@index([plannedDate])
+}
+
+model RouteStop {
+  id              String        @id @default(uuid())
+  routeId         String        @map("route_id")
+  orderId         String        @map("order_id")
+  stopSequence    Int           @map("stop_sequence")
+  customerAddress String        @map("customer_address")
+  isCompleted     Boolean       @default(false) @map("is_completed")
+  completedAt     DateTime?     @map("completed_at")
+
+  // Relations
+  route           DeliveryRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  order           Order         @relation(fields: [orderId], references: [id])
+
+  @@map("route_stops")
+  @@index([routeId])
+  @@index([orderId])
+}
+
+// Configuração Global de Gateways de Pagamento (chaves da plataforma)
 model GlobalPaymentConfig {
   id                           String   @id @default("global")
   activeGateway                String   @default("asaas") @map("active_gateway") // asaas, infinitypay
