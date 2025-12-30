@@ -13,7 +13,7 @@ test.describe('SuperAdmin - Gestão de Tenants', () => {
     // Fazer login uma vez para todos os testes
     const page = await browser.newPage();
     await page.goto('/login');
-    await page.fill('input[name="email"]', 'admin@medmanager.com');
+    await page.fill('input[name="email"]', 'admin@medmanager.com.br');
     await page.fill('input[name="password"]', 'admin123');
     await page.click('button[type="submit"]');
     await page.waitForURL(/.*dashboard/);

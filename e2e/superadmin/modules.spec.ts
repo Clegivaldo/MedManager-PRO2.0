@@ -4,7 +4,7 @@ test.describe('SuperAdmin - Gestão de Módulos', () => {
   test.beforeEach(async ({ page }) => {
     // Login como superadmin
     await page.goto('/login');
-    await page.fill('input[name="email"]', 'admin@medmanager.com');
+    await page.fill('input[name="email"]', 'admin@medmanager.com.br');
     await page.fill('input[name="password"]', 'admin123');
     await page.click('button[type="submit"]');
     await page.waitForURL('/superadmin/dashboard');
