@@ -50,6 +50,11 @@ export default function Clients() {
       setTotal(response.pagination?.total || 0);
     } catch (error) {
       console.error('Error loading clients:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível carregar os clientes.',
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
     }
@@ -203,9 +208,9 @@ export default function Clients() {
       </Dialog>
 
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <EditClientModal
-          client={selectedClient}
-          mode={editMode}
+        <EditClientModal 
+          client={selectedClient} 
+          mode={editMode} 
           onSuccess={() => {
             loadClients();
             setIsEditOpen(false);

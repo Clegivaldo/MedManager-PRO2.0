@@ -1,7 +1,7 @@
 import { prismaMaster } from '../lib/prisma.js';
 import bcrypt from 'bcryptjs';
 import { logger } from '../utils/logger.js';
-import { createTenantDatabase, getTenantPrisma } from '../lib/prisma.js';
+import { createTenantDatabase, getTenantPrismaLegacy } from '../lib/prisma.js';
 import { config } from '../config/environment.js';
 import { exec } from 'child_process';
 import { PERMISSIONS } from '../middleware/permissions.js';
@@ -15,23 +15,22 @@ export async function seedTestEnvironment(): Promise<void> {
     { cnpj: '12345678000155', name: 'Tenant Demo', adminEmail: 'admin@medmanager.com.br' }
   ];
 
-  let plan = await prismaMaster.plan.findUnique({ where: { name: 'starter' } });
-  if (!plan) {
-    plan = await prismaMaster.plan.create({
-      data: {
-        name: 'starter',
-        displayName: 'Starter',
-        description: 'Plano inicial para testes',
-        priceMonthly: 99.0,
-        maxUsers: 10,
-        maxProducts: 1000,
-        maxMonthlyTransactions: 1000,
-        maxStorageGb: 5,
-        maxApiCallsPerMinute: 120,
-        features: ['DASHBOARD', 'PRODUCTS', 'STOCK', 'NFE']
-      }
-    });
-  }
+  const plan = await prismaMaster.plan.upsert({
+    where: { name: 'starter' },
+    update: {},
+    create: {
+      name: 'starter',
+      displayName: 'Starter',
+      description: 'Plano inicial para testes',
+      priceMonthly: 99.0,
+      maxUsers: 10,
+      maxProducts: 1000,
+      maxMonthlyTransactions: 1000,
+      maxStorageGb: 5,
+      maxApiCallsPerMinute: 120,
+      features: ['DASHBOARD', 'PRODUCTS', 'STOCK', 'NFE']
+    }
+  });
 
   for (const t of tenants) {
     const dbName = `tenant_${t.cnpj}`;
@@ -46,7 +45,7 @@ export async function seedTestEnvironment(): Promise<void> {
         databaseUser: dbUser,
         databasePassword: dbPass,
         plan: 'starter',
-        modulesEnabled: ['DASHBOARD', 'PRODUCTS', 'NFE']
+        modulesEnabled: ['DASHBOARD', 'PRODUCTS', 'NFE', 'INVENTORY', 'WAREHOUSE', 'TEMPERATURE', 'SALES', 'FINANCIAL', 'AUDIT']
       },
       create: {
         name: t.name,
@@ -59,7 +58,7 @@ export async function seedTestEnvironment(): Promise<void> {
         subscriptionStart: new Date(),
         subscriptionEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         subscriptionStatus: 'active',
-        modulesEnabled: ['DASHBOARD', 'PRODUCTS', 'NFE'],
+        modulesEnabled: ['DASHBOARD', 'PRODUCTS', 'NFE', 'INVENTORY', 'WAREHOUSE', 'TEMPERATURE', 'SALES', 'FINANCIAL', 'AUDIT'],
         paymentGateway: 'asaas'
       }
     });
@@ -85,7 +84,7 @@ export async function seedTestEnvironment(): Promise<void> {
       }
     }
 
-    const tenantPrisma = getTenantPrisma({ databaseName: dbName, databaseUser: dbUser, databasePassword: dbPass });
+    const tenantPrisma = getTenantPrismaLegacy({ databaseName: dbName, databaseUser: dbUser, databasePassword: dbPass });
     const passwordHash = await bcrypt.hash('admin123', 10);
     await tenantPrisma.user.upsert({
       where: { email: t.adminEmail },
@@ -105,6 +104,8 @@ export async function seedTestEnvironment(): Promise<void> {
         isActive: true
       }
     });
+    // Limpeza defensiva para evitar P2002 ao repetir seeds em modo watch
+    await tenantPrisma.customer.deleteMany({ where: { cnpjCpf: '12345678901234' } });
     await tenantPrisma.customer.upsert({
       where: { cnpjCpf: '12345678901234' },
       update: {},

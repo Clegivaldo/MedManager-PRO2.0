@@ -51,6 +51,11 @@ export default function Quotes() {
       setTotal(response.data?.pagination?.total || 0);
     } catch (error) {
       console.error('Error loading quotes:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível carregar os orçamentos.',
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
     }
@@ -88,10 +93,10 @@ export default function Quotes() {
       });
       return;
     }
-
+    
     try {
       const response = await quoteService.approve(quote.id);
-
+      
       toast({
         title: 'Sucesso',
         description: `Pedido ${response.data?.orderNumber || ''} criado com sucesso!`,
@@ -99,7 +104,7 @@ export default function Quotes() {
 
       // Recarregar a lista de orçamentos
       loadQuotes();
-
+      
       // Redirecionar para a página de pedidos após 1.5 segundos
       setTimeout(() => {
         window.location.href = '/tenant/orders';
@@ -203,9 +208,9 @@ export default function Quotes() {
                           </Tooltip>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
                                 onClick={() => handleConvertToSale(quote)}
                                 disabled={quote.status !== 'approved'}
                               >

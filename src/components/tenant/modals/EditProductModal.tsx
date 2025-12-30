@@ -4,9 +4,19 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import productService, { Product, ProductFormData } from '@/services/product.service';
-import { useState, useEffect } from 'react';
+import productService, { ProductFormData } from '@/services/product.service';
+import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
+
+interface Product {
+  id: string;
+  name: string;
+  category: string;
+  anvisa: string;
+  price: number;
+  minStock: number;
+  temperature: string;
+}
 
 interface EditProductModalProps {
   product: Product | null;
@@ -19,54 +29,20 @@ export default function EditProductModal({ product, mode, onSuccess }: EditProdu
   const description = mode === 'edit' ? `Editando informações para ${product?.name}.` : 'Adicione um novo medicamento ao catálogo.';
 
   const { toast } = useToast();
-
-  // Estado inicial do formulário
   const [form, setForm] = useState<ProductFormData>({
-    name: '',
-    internalCode: '',
-    anvisaCode: '',
+    name: product?.name || '',
+    internalCode: product?.id || '',
+    anvisaCode: product?.anvisa || '',
     productType: 'COMMON',
     storage: '',
     isControlled: false,
     stripe: 'NONE',
+    // Fiscais
     ncm: '',
     cest: '',
     cfop: '5102',
     isActive: true
   });
-
-  // Atualizar formulário quando o produto mudar ou o modo mudar
-  useEffect(() => {
-    if (mode === 'edit' && product) {
-      setForm({
-        name: product.name || '',
-        internalCode: product.internalCode || '',
-        anvisaCode: product.anvisaCode || '',
-        productType: product.productType || 'COMMON',
-        storage: product.storage || '',
-        isControlled: product.isControlled || false,
-        stripe: product.stripe || 'NONE',
-        ncm: product.ncm || '',
-        cest: product.cest || '',
-        cfop: product.cfop || '5102',
-        isActive: product.isActive ?? true,
-      });
-    } else if (mode === 'create') {
-      setForm({
-        name: '',
-        internalCode: '',
-        anvisaCode: '',
-        productType: 'COMMON',
-        storage: '',
-        isControlled: false,
-        stripe: 'NONE',
-        ncm: '',
-        cest: '',
-        cfop: '5102',
-        isActive: true
-      });
-    }
-  }, [product, mode]);
 
   const onChange = (key: keyof ProductFormData) => (e: any) => {
     setForm(prev => ({ ...prev, [key]: e?.target ? e.target.value : e }));
@@ -80,7 +56,7 @@ export default function EditProductModal({ product, mode, onSuccess }: EditProdu
         await productService.update(product.id, form);
       }
       toast({ title: 'Sucesso', description: 'Produto salvo com sucesso.' });
-
+      
       if (onSuccess) {
         onSuccess();
       }

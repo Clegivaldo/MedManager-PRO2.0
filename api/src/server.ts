@@ -58,6 +58,7 @@ import { authenticateToken } from './middleware/auth.js';
 import { validateSubscription, validateModule } from './middleware/subscription.middleware.js';
 import { initPaymentSyncJob } from './jobs/paymentSync.job.js';
 import { initBackupCleanupJob } from './jobs/backupCleanup.job.js';
+import { initTenantBackupJob } from './jobs/tenantBackup.job.js';
 import { requireSuperAdmin } from './middleware/rbac.js';
 
 const app: Application = express();
@@ -328,6 +329,8 @@ httpServer.listen(PORT, () => {
   initPaymentSyncJob();
   // Inicializa job automático de limpeza de backups (se habilitado via env)
   initBackupCleanupJob();
+  // ✅ Inicializa job automático de backup diário de tenants
+  initTenantBackupJob();
 });
 
 // (moved up) cron routes are defined above

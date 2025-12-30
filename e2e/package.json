@@ -1,0 +1,20 @@
+{
+  "name": "playwright-tests",
+  "version": "1.0.0",
+  "description": "Testes E2E para MedManager PRO 2.0",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "test:tenant": "playwright test e2e/tenant",
+    "test:superadmin": "playwright test e2e/superadmin",
+    "test:auth": "playwright test e2e/auth.spec.ts",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.1",
+    "@types/node": "^20.10.4",
+    "typescript": "^5.3.3"
+  }
+}

@@ -49,6 +49,11 @@ export default function Products() {
       setTotal(response.pagination?.total || 0);
     } catch (error) {
       console.error('Error loading products:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível carregar os produtos.',
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
     }
@@ -141,9 +146,7 @@ export default function Products() {
                           <div className="flex items-center space-x-2">
                             <p className="font-medium">{product.name}</p>
                             {product.isControlled && (
-                              <span title="Substância Controlada">
-                                <Shield className="h-4 w-4 text-red-600" />
-                              </span>
+                              <Shield className="h-4 w-4 text-red-600" title="Substância Controlada" />
                             )}
                           </div>
                           <p className="text-sm text-gray-500">{product.internalCode}</p>
@@ -186,9 +189,9 @@ export default function Products() {
       </Dialog>
 
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <EditProductModal
-          product={selectedProduct}
-          mode={editMode}
+        <EditProductModal 
+          product={selectedProduct} 
+          mode={editMode} 
           onSuccess={() => {
             loadProducts();
             setIsEditOpen(false);
