@@ -6,6 +6,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import { encryptBackupFile } from '../utils/encryption.js';
+import { cloudStorageService } from '../services/cloudStorage.service.js';
 
 /**
  * Job de Backup Automático para Todos os Tenants
@@ -202,6 +203,23 @@ class TenantBackupJob {
       sizeBytes: stat.size,
       sizeMB: Math.round(stat.size / 1024 / 1024 * 100) / 100
     });
+
+    // Upload para cloud storage (se configurado)
+    if (cloudStorageService.isConfigured()) {
+      try {
+        const cloudKey = `backups/${tenant.id}/auto-backup-${timestamp}.sql.gz.enc`;
+        await cloudStorageService.uploadBackup(encryptedFile, cloudKey);
+        logger.info('[TenantBackupJob] Backup enviado para cloud storage', {
+          tenantId: tenant.id,
+          cloudKey
+        });
+      } catch (cloudError) {
+        logger.warn('[TenantBackupJob] Falha ao enviar para cloud storage, backup local mantido', {
+          tenantId: tenant.id,
+          error: (cloudError as Error).message
+        });
+      }
+    }
   }
 
   private async notifyBackupSuccess(tenantId: string, sizeBytes: number) {

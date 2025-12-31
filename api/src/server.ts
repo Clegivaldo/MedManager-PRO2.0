@@ -48,6 +48,7 @@ import auditRoutes from './routes/audit.routes.js';
 import orderRouter from './routes/order.routes.js';
 import warehouseRouter from './routes/warehouse.routes.js';
 import temperatureRouter from './routes/temperature.routes.js';
+import twoFactorRouter from './routes/twoFactor.routes.js';
 import quoteRouter from './routes/quote.routes.js';
 import nfceRouter from './routes/nfce.routes.js';
 import nfeRouter from './routes/nfe.routes.js';
@@ -223,6 +224,7 @@ app.get('/api/csrf-token', getCsrfToken);
 
 // Rotas da API
 app.use(`/api/${config.API_VERSION}/auth`, authLimiterMiddleware, authRouter);
+app.use(`/api/${config.API_VERSION}/2fa`, twoFactorRouter);
 app.use(`/api/${config.API_VERSION}/tenants`, tenantRouter);
 
 // Protected routes (require authentication)
